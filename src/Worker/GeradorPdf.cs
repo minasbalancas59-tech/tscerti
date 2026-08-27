@@ -1085,8 +1085,15 @@ public static class GeradorPdf
                             c.Item().Text(marcaModelo.Length > 0 ? marcaModelo : "—").Bold();
                             c.Item().Text($"Identificação: {d.Balanca}").FontSize(8);
                             if (d.NumSerie is not null) c.Item().Text($"Nº de série: {d.NumSerie}" + (string.IsNullOrWhiteSpace(d.NumSerieIndicador) ? "" : $" · Indicador: {d.NumSerieIndicador}")).FontSize(8);
-                            c.Item().Text($"Capacidade: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade} · " +
-                                          $"e = {Val(d.DivisaoE, d.CasasDecimais)} {d.Unidade} · Classe {d.Classe}").FontSize(8);
+                            if (d.Faixas is { Count: > 0 })
+                            {
+                                var capF = string.Join(" / ", d.Faixas.Select(f => Val(f.LimiteSup, d.CasasDecimais)));
+                                var divF = string.Join(" / ", d.Faixas.Select(f => Val(f.DivisaoE, d.CasasDecimais)));
+                                c.Item().Text($"Capacidade: {capF} {d.Unidade} · e = {divF} {d.Unidade} · Classe {d.Classe}").FontSize(8);
+                            }
+                            else
+                                c.Item().Text($"Capacidade: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade} · " +
+                                              $"e = {Val(d.DivisaoE, d.CasasDecimais)} {d.Unidade} · Classe {d.Classe}").FontSize(8);
                             if (d.NumeroInmetro is not null) c.Item().Text($"Inmetro: {d.NumeroInmetro}").FontSize(8);
                         });
                     });

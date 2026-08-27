@@ -3293,11 +3293,18 @@ async function abrirRevisao(id) {
   window._revCertId = id;
   const d = await api('/certificados/' + id + '/revisao');
   const c = d.certificado;
-  // Casas decimais pela divisão da balança deste certificado
+  // Casas decimais pela MENOR divisão relevante: em multi-intervalo,
+  // considera também as faixas (o "e" único pode estar vazio/0 nesse caso).
+  const casasDe = v => {
+    const s = String(v ?? '');
+    const pt = s.indexOf('.');
+    return pt < 0 ? 0 : s.slice(pt + 1).replace(/0+$/, '').length;
+  };
   const casasRev = (() => {
-    const e = String(c.divisao_e ?? '');
-    const pt = e.indexOf('.');
-    return pt < 0 ? 0 : e.slice(pt + 1).replace(/0+$/, '').length;
+    const valores = [c.divisao_e]
+      .concat((d.faixas || []).map(f => f.divisao_e))
+      .filter(v => v != null && Number(v) > 0);
+    return valores.length ? Math.max(...valores.map(casasDe)) : 0;
   })();
   const un = normUnid(c.unidade);
   const fR = n => n == null ? '—' : Number(n).toLocaleString('pt-BR',
@@ -12454,7 +12461,9 @@ async function montarTelaEnsaio(rascunho) {
     ${b.patrimonio ? `<span class="chip">Patrimônio: ${esc(b.patrimonio)}</span>` : ''}
     <span class="chip">Classe ${b.classe_exatidao}</span>
     <span class="chip">Capacidade ${fmtU(b.capacidade)} ${unid()}</span>
-    <span class="chip">Divisão e = ${fmtU(b.divisao_e)} ${unid()}${b.divisao_d && b.divisao_d != b.divisao_e ? ` · d = ${fmtU(b.divisao_d)} ${unid()}` : ''}</span>`;
+    ${plano.faixas?.length
+      ? ''
+      : `<span class="chip">Divisão e = ${fmtU(b.divisao_e)} ${unid()}${b.divisao_d && b.divisao_d != b.divisao_e ? ` · d = ${fmtU(b.divisao_d)} ${unid()}` : ''}</span>`}`;
 
   // Caixa amarela de múltipla escala (multi-intervalo) no topo da emissão
   const boxMulti = $('#ens-multi-box');

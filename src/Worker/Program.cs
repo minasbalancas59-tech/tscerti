@@ -506,7 +506,12 @@ public sealed class FilaWorker(
             c.Capacidade, c.DivisaoE, c.ClasseExatidao, c.LocalInstalacao,
             ((string?)c.Unidade ?? "kg").Trim().ToLowerInvariant(), FilaWorker.ContarCasas(
                 faixas.Count > 0
-                    ? Math.Min(c.DivisaoE, faixas.Min(f => f.DivisaoE))
+                    // Multi-intervalo: usa só a menor divisão entre as FAIXAS.
+                    // Nunca misturar com c.DivisaoE aqui — esse campo único
+                    // fica em branco/0 numa balança multi-intervalo nova
+                    // (o formulário não pede mais esse valor nesse caso), e
+                    // Math.Min com 0 zeraria as casas decimais do PDF inteiro.
+                    ? faixas.Min(f => f.DivisaoE)
                     : ((decimal?)c.DivisaoD is { } dd && dd > 0 ? Math.Min(dd, (decimal)c.DivisaoE) : (decimal)c.DivisaoE)),
             c.NumeroInmetro, c.Patrimonio, c.PortariaAprovacao,
             c.MostraValidade, c.PeriodicidadeMeses,
