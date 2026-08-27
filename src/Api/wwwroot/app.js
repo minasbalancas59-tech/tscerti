@@ -12432,14 +12432,12 @@ function copiarExcReferencia(btn) {
   recalcular();
 }
 
-// Copia a carga do ensaio de repetibilidade para a indicação da linha
-function copiarRepCarga(btn) {
-  const tr = btn.closest('tr');
-  const carga = Number(tr?.dataset.carga);
-  if (!isFinite(carga) || carga <= 0) { toast('Carga do ensaio de repetibilidade não definida.', 'aviso'); return; }
-  const inp = tr.querySelector('input');
-  const eFaixa = plano?.faixas?.length ? eDaFaixa(carga) : null;
-  inp.value = fmtCampo(carga, eFaixa);
+// Copia a leitura da MEDIÇÃO 1 da repetibilidade para a medição da linha
+function copiarRepPrimeira(btn) {
+  const primeira = document.querySelector('#tab-rep tbody tr:first-child input');
+  if (!primeira || primeira.value === '') { toast('Preencha primeiro a medição 1.', 'aviso'); return; }
+  const inp = btn.closest('tr').querySelector('input');
+  inp.value = primeira.value;
   sujo = true;
   recalcular();
 }
@@ -12616,8 +12614,8 @@ async function montarTelaEnsaio(rascunho) {
       <td><div class="ind-wrap"><input type="number" step="any" inputmode="decimal"
            value="${fmtCampo(rascunho?.repetibilidade?.[i]?.indicacao ?? '', plano?.faixas?.length ? eDaFaixa(Number(rep.carga)) : null)}"
            oninput="recalcular()" onblur="arredondarCampo(this)" step="any" inputmode="decimal">
-        <button type="button" class="btn-copiar-carga" tabindex="-1" onclick="copiarRepCarga(this)"
-                title="Copiar a carga do ensaio para a indicação (leitura igual à carga)">=</button>
+        ${i === 0 ? '' : `<button type="button" class="btn-copiar-carga" tabindex="-1" onclick="copiarRepPrimeira(this)"
+                title="Copiar a leitura da medição 1 para esta medição">=</button>`}
       </div></td>
     </tr>`).join('');
 
