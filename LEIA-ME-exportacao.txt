@@ -1,0 +1,46 @@
+FEATURE: Exportacao de dados da empresa (backup completo / offboarding)
+Joao, 20/08/2026
+
+O QUE FAZ
+  Botao "Gerar exportacao" em Configuracoes (admin/RT). Gera em background um
+  .zip com:
+    dados/          CSVs: clientes, contatos, balancas (+faixas), pesos padrao
+                    (+pontos RBC), certificados (metadados), 4 ensaios, usuarios
+                    (nome/email/papel — sem senhas)
+    certificados/   PDFs de todos os emitidos e substituidos (limite 400 MB)
+    LEIA-ME.txt     contagens e avisos
+  O zip fica no MinIO (exports/) e EXPIRA em 7 dias (expurgo automatico).
+  Uma exportacao por vez por empresa. Auditoria registrada.
+
+SUPER-ADMIN (offboarding de empresa)
+  Usa o mesmo botao entrando na empresa via "Visualizar como Admin" no
+  super-admin. Sem endpoint separado.
+
+CONTEUDO DO PACOTE
+  db/seed/137_exportacao_empresa.sql   tabela exportacao_empresa (RLS + indice
+                                       de exclusividade de exportacao ativa)
+  1-patch-api-exportacao.py            endpoints POST /exportar, GET /exportacoes,
+                                       GET /exportacao/{id}/download
+  2-patch-worker-exportacao.py         handler exportar_empresa no worker
+  3-patch-front-exportacao.py          card em Configuracoes + funcoes JS
+
+COMO APLICAR (na pasta /root/cert-saas)
+  unzip -o exportacao-empresa.zip
+  source .env
+  docker exec -i $(docker compose ps -q db) psql -U "$DB_USER" -d "$DB_NAME" < db/seed/137_exportacao_empresa.sql
+  python3 1-patch-api-exportacao.py
+  python3 2-patch-worker-exportacao.py
+  python3 3-patch-front-exportacao.py
+  docker compose up -d --build api worker && ./backup-projeto.sh
+
+TESTE
+  1) Configuracoes -> "Gerar exportacao" -> confirmar
+  2) "Atualizar lista" apos ~1-2 min (Minas Balancas: rapido; empresa com
+     muitos PDFs pode levar mais)
+  3) "Baixar" -> abrir o zip, conferir CSVs no Excel e PDFs
+  4) Tentar gerar de novo com uma em andamento -> deve recusar
+  5) docker logs cert-saas-worker-1 --tail 30  (linhas "Export ...: pronto")
+
+NAO INCLUIDO NESTA VERSAO (por decisao)
+  - Fotos e anexos de certificados (multiplicariam o tamanho; adicionavel depois)
+  - Dados brutos RBC alem dos pontos de peso (o resultado esta nos PDFs)

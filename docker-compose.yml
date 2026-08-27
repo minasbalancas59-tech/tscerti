@@ -1,0 +1,122 @@
+services:
+
+  # ── Banco de dados ─────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Scripts em db/init rodam UMA vez, na primeira subida (volume vazio)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"   # exposto só no localhost da VPS
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Fila (Redis) ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Storage S3-compatível (PDFs) ───────────────────────────────
+  # Em produção você pode manter o MinIO ou apontar para um S3 real
+  # (AWS, Backblaze B2, Cloudflare R2) trocando apenas o .env
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:9000:9000"   # API S3
+      - "127.0.0.1:9001:9001"   # console web
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API REST ───────────────────────────────────────────────────
+  api:
+    build: ./src/Api
+    restart: unless-stopped
+    environment:
+      # A API conecta como api_app (usuário SEM privilégios especiais):
+      # é isso que faz o Row-Level Security multiempresa valer.
+      # O worker continua como superusuário de propósito (tarefas
+      # cruzando tenants, como alertas de vencimento).
+      ConnectionStrings__Default: "Host=db;Database=${DB_NAME};Username=${APP_DB_USER};Password=${APP_DB_PASSWORD}"
+      Redis__Connection: "redis:6379"
+      S3__Endpoint: "http://minio:9000"
+      S3__AccessKey: ${S3_ACCESS_KEY}
+      S3__SecretKey: ${S3_SECRET_KEY}
+      S3__Bucket: ${S3_BUCKET}
+      Jwt__Secret: ${JWT_SECRET}
+      Jwt__Issuer: ${JWT_ISSUER}
+      App__UrlBase: "https://certificados.totalscale.com.br"
+      App__PortalUrl: "https://portalclientes.totalscale.com.br"
+    ports:
+      - "127.0.0.1:8080:8080"   # nginx da VPS faz proxy reverso pra cá
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Worker (fila: gera PDF, envia email, QR) ───────────────────
+  worker:
+    build: ./src/Worker
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__Default: "Host=db;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}"
+      Redis__Connection: "redis:6379"
+      S3__Endpoint: "http://minio:9000"
+      S3__AccessKey: ${S3_ACCESS_KEY}
+      S3__SecretKey: ${S3_SECRET_KEY}
+      S3__Bucket: ${S3_BUCKET}
+      Smtp__Host: ${SMTP_HOST}
+      Smtp__Port: ${SMTP_PORT}
+      Smtp__User: ${SMTP_USER}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__From: ${SMTP_FROM}
+      App__UrlBase: "https://certificados.totalscale.com.br"
+      App__PortalUrl: "https://portalclientes.totalscale.com.br"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Servidor de email de DESENVOLVIMENTO ───────────────────────
+  # Captura todo email enviado e mostra numa interface web (porta 8025).
+  # Em produção, remova este serviço e aponte SMTP_HOST pro provedor
+  # real (Amazon SES, Brevo, Resend...)
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"   # interface web
+      - "127.0.0.1:1025:1025"   # SMTP
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

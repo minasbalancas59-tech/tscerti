@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TSCert — Sistema de certificados de calibração de balanças</title>
+<meta name="description" content="Emita certificados de calibração de balanças em campo: Portaria 157/2022 nativa, classe e EMA automáticos, aprovação digital, QR de validação, RBC ISO/IEC 17025.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#12263f; --navy-deep:#0b1a2c; --ciano:#35b6e8; --ciano-claro:#bfe7f7;
+  --papel:#f7f9fb; --branco:#ffffff; --tinta:#22303c; --cinza:#5b6b7d;
+  --linha:#dde5ec; --conforme:#157347; --ambar:#c88a00;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;color:var(--tinta);background:var(--papel);line-height:1.6;font-size:16px}
+.mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;letter-spacing:.2px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+a{color:inherit}
+/* ── topo ── */
+.topo{background:var(--navy-deep);color:#fff;position:sticky;top:0;z-index:50;border-bottom:1px solid rgba(255,255,255,.08)}
+.topo .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+.logo{font-family:'Barlow Condensed';font-weight:700;font-size:26px}
+.logo span{color:var(--ciano)}
+.topo nav a{color:#cfe2f0;text-decoration:none;font-size:14px;margin-left:22px}
+.topo nav a:hover{color:#fff}
+.topo .cta-mini{background:var(--ciano);color:var(--navy-deep);font-weight:600;padding:8px 16px;border-radius:8px}
+@media(max-width:760px){.topo nav a:not(.cta-mini){display:none}}
+/* ── hero ── */
+.hero{background:linear-gradient(165deg,var(--navy-deep) 0%,var(--navy) 55%,#1d3c63 100%);color:#fff;padding:64px 0 72px}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+@media(max-width:860px){.hero .wrap{grid-template-columns:1fr}}
+.hero .selo-nicho{display:inline-block;font-size:12.5px;letter-spacing:2px;text-transform:uppercase;color:var(--ciano);border:1px solid rgba(53,182,232,.45);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.hero h1{font-size:clamp(34px,4.6vw,52px);line-height:1.08;font-weight:700}
+.hero h1 em{font-style:normal;color:var(--ciano)}
+.hero p.sub{margin-top:16px;color:#c6d6e4;max-width:32em}
+.hero .acoes{margin-top:28px;display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-block;text-decoration:none;font-weight:600;padding:13px 24px;border-radius:10px;font-size:15.5px}
+.btn-cheio{background:var(--ciano);color:var(--navy-deep)}
+.btn-cheio:hover{background:#4fc3ee}
+.btn-borda{border:1.5px solid rgba(255,255,255,.35);color:#fff}
+.btn-borda:hover{border-color:var(--ciano);color:var(--ciano)}
+.hero .prova{margin-top:22px;font-size:13px;color:#8fa9c0}
+/* mini certificado (assinatura visual) */
+.cert{background:#fff;color:var(--tinta);border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,.45);
+  padding:22px 24px;transform:rotate(-1.2deg);max-width:430px;margin-left:auto;font-size:12.5px}
+@media(max-width:860px){.cert{margin:8px auto 0;transform:none}}
+.cert .c-cab{display:flex;justify-content:space-between;border-bottom:2.5px solid var(--navy);padding-bottom:8px}
+.cert .c-cab .emp{font-weight:700;color:var(--navy);font-size:14px}
+.cert .c-cab .num{text-align:right;color:var(--navy);font-weight:700;font-size:11.5px}
+.cert table{width:100%;border-collapse:collapse;margin-top:12px}
+.cert th{background:#eef3f1;text-align:left;padding:4px 7px;font-size:10.5px}
+.cert td{padding:4px 7px;border-bottom:1px solid #eef1f5;font-size:11px}
+.cert .ok{color:var(--conforme);font-weight:600}
+.cert .c-pe{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px}
+.cert .assin{font-size:10px;color:var(--cinza)}
+.cert .assin .linha-a{width:110px;border-top:1px solid #333;margin-bottom:3px}
+.qr{width:52px;height:52px;background:
+ conic-gradient(var(--navy) 25%,transparent 0 50%,var(--navy) 0 75%,transparent 0) 0 0/14px 14px,
+ repeating-linear-gradient(90deg,var(--navy) 0 3px,transparent 3px 7px),
+ repeating-linear-gradient(0deg,var(--navy) 0 3px,#fff 3px 6px);
+ border:3px solid #fff;outline:1.5px solid var(--navy)}
+.cert .selo{position:absolute;margin-top:-116px;margin-left:220px;transform:rotate(9deg);
+ border:2.5px solid var(--conforme);color:var(--conforme);font-family:'Barlow Condensed';font-weight:700;
+ font-size:19px;letter-spacing:2px;padding:3px 12px;border-radius:6px;opacity:.9;background:rgba(255,255,255,.85)}
+/* ── faixas ── */
+section{padding:64px 0}
+.eyebrow{font-size:12.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--ciano);font-weight:600}
+h2.tit{font-size:clamp(27px,3.4vw,38px);color:var(--navy);margin-top:6px}
+.lead{color:var(--cinza);max-width:44em;margin-top:10px}
+/* dores → solução */
+.dores{background:var(--branco);border-top:1px solid var(--linha);border-bottom:1px solid var(--linha)}
+.grade3{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:34px}
+@media(max-width:820px){.grade3{grid-template-columns:1fr}}
+.card-dor{border-left:3px solid var(--linha);padding:2px 0 2px 18px}
+.card-dor .antes{color:var(--ambar);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.card-dor h3{font-size:20px;color:var(--navy);margin:6px 0 6px}
+.card-dor p{font-size:14.5px;color:var(--cinza)}
+/* recursos */
+.grade-rec{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}
+@media(max-width:820px){.grade-rec{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.grade-rec{grid-template-columns:1fr}}
+.rec{background:var(--branco);border:1px solid var(--linha);border-radius:12px;padding:20px}
+.rec .ic{font-size:22px}
+.rec h3{font-size:18px;color:var(--navy);margin:8px 0 5px}
+.rec p{font-size:14px;color:var(--cinza)}
+.rec .dado{display:block;margin-top:10px;font-size:12.5px;color:var(--navy);background:var(--papel);
+ border:1px dashed var(--linha);border-radius:7px;padding:5px 9px}
+/* RBC banda escura */
+.rbc{background:var(--navy-deep);color:#fff}
+.rbc .wrap{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center}
+@media(max-width:820px){.rbc .wrap{grid-template-columns:1fr}}
+.rbc h2{color:#fff}
+.rbc p{color:#c6d6e4}
+.rbc ul{margin:16px 0 0 20px;color:#c6d6e4}
+.rbc li{margin-bottom:8px}
+.rbc .formula{background:rgba(53,182,232,.09);border:1px solid rgba(53,182,232,.35);border-radius:12px;
+ padding:22px;font-size:14px;color:var(--ciano-claro)}
+.rbc .formula .t{color:var(--ciano);font-weight:600;font-size:12px;letter-spacing:2px;text-transform:uppercase}
+.rbc .formula .eq{font-size:17px;margin-top:10px}
+/* planos */
+.planos{background:var(--branco);border-top:1px solid var(--linha)}
+.grade-pl{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:38px;align-items:stretch}
+@media(max-width:860px){.grade-pl{grid-template-columns:1fr}}
+.plano{border:1px solid var(--linha);border-radius:14px;padding:26px;display:flex;flex-direction:column;background:var(--branco)}
+.plano.destaque{border:2px solid var(--ciano);box-shadow:0 14px 40px rgba(18,38,63,.12);position:relative}
+.plano.destaque .tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+ background:var(--ciano);color:var(--navy-deep);font-size:12px;font-weight:700;padding:4px 14px;border-radius:999px;letter-spacing:1px}
+.plano h3{font-size:21px;color:var(--navy)}
+.plano .preco{margin:12px 0 4px;font-size:36px;font-weight:600;color:var(--navy)}
+.plano .preco small{font-size:14px;color:var(--cinza);font-weight:400}
+.plano .para{font-size:13.5px;color:var(--cinza);min-height:40px}
+.plano ul{list-style:none;margin:16px 0 22px}
+.plano li{padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:14px}
+.plano li::before{content:'✓  ';color:var(--conforme);font-weight:700}
+.plano li.nao{color:#a9b6c2}
+.plano li.nao::before{content:'—  ';color:#c8d2db}
+.plano .btn{text-align:center;margin-top:auto}
+.obs-planos{margin-top:22px;font-size:13.5px;color:var(--cinza)}
+/* FAQ */
+details{background:var(--branco);border:1px solid var(--linha);border-radius:10px;padding:16px 20px;margin-top:12px}
+summary{cursor:pointer;font-weight:600;color:var(--navy)}
+details p{margin-top:10px;font-size:14.5px;color:var(--cinza)}
+/* CTA final */
+.cta-final{background:linear-gradient(150deg,var(--navy) 0%,#1d3c63 100%);color:#fff;text-align:center}
+.cta-final h2{color:#fff;font-size:clamp(26px,3.4vw,36px)}
+.cta-final p{color:#c6d6e4;margin-top:10px}
+.cta-final .acoes{margin-top:26px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+/* rodapé */
+footer{background:var(--navy-deep);color:#8fa9c0;padding:34px 0;font-size:13.5px}
+footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+footer a{color:#c6d6e4;text-decoration:none}
+:focus-visible{outline:2.5px solid var(--ciano);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<!-- Faixa de boas-vindas para quem chegou pelo QR de um certificado ou pelo
+     portal do cliente. Sem o parâmetro na URL, nada aparece — o visitante
+     que veio pelo Google ou por indicação não vê diferença nenhuma. -->
+<div id="faixa-origem" class="faixa-origem" hidden>
+  <div class="wrap">
+    <span class="fo-icone" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="17" height="17">
+        <path d="M4 17a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="1.9"
+              stroke-linecap="round"/>
+        <line x1="12" y1="17" x2="16" y2="11" stroke="currentColor" stroke-width="1.9"
+              stroke-linecap="round"/>
+        <circle cx="12" cy="17" r="1.8" fill="currentColor"/>
+      </svg>
+    </span>
+    <span id="fo-texto"></span>
+  </div>
+</div>
+
+<header class="topo">
+  <div class="wrap">
+    <div class="logo">TS<span>Cert</span></div>
+    <nav>
+      <a href="#recursos">Recursos</a>
+      <a href="#rbc">RBC</a>
+      <a href="#planos">Planos</a>
+      <a class="cta-mini" href="https://wa.me/553133574000?text=Quero%20uma%20demonstra%C3%A7%C3%A3o%20do%20TSCert">Pedir demonstração</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="selo-nicho">Feito para empresas de balanças</span>
+      <h1>O certificado de calibração sai <em>pronto</em> do ensaio.</h1>
+      <p class="sub">O técnico registra as leituras no celular, em campo. O sistema calcula erro,
+      incerteza e EMA pela Portaria 157/2022, o responsável técnico aprova e assina — e o PDF vai
+      para o cliente com QR de validação. Sem planilha, sem retrabalho, sem erro de digitação.</p>
+      <div class="acoes">
+        <a class="btn btn-cheio" href="https://wa.me/553133574000?text=Quero%20uma%20demonstra%C3%A7%C3%A3o%20do%20TSCert">Agendar demonstração</a>
+        <a class="btn btn-borda" href="#planos">Ver planos e preços</a>
+      </div>
+      <p class="prova mono">Portaria Inmetro 157/2022 · ISO/IEC 17025 (RBC) · Multiusuário · Nuvem</p>
+    </div>
+    <div>
+      <div class="cert" aria-hidden="true">
+        <div class="c-cab">
+          <div><div class="emp">Sua Empresa de Balanças</div>
+          <div style="font-size:10px;color:#5b6b7d">Autorizada Inmetro nº 20000000</div></div>
+          <div class="num">CERTIFICADO DE<br>CONFORMIDADE<br><span class="mono">Nº SE-2026/0147</span></div>
+        </div>
+        <table>
+          <tr><th class="mono">Carga (kg)</th><th class="mono">Indicação</th><th class="mono">Erro</th><th class="mono">EMA</th><th>Situação</th></tr>
+          <tr class="mono"><td>50,00</td><td>50,00</td><td>0,00</td><td>± 0,05</td><td class="ok">Conforme</td></tr>
+          <tr class="mono"><td>100,00</td><td>100,05</td><td>+0,05</td><td>± 0,10</td><td class="ok">Conforme</td></tr>
+          <tr class="mono"><td>150,00</td><td>150,05</td><td>+0,05</td><td>± 0,10</td><td class="ok">Conforme</td></tr>
+        </table>
+        <div class="c-pe">
+          <div class="assin"><div class="linha-a"></div>Responsável Técnico</div>
+          <div class="qr"></div>
+        </div>
+      </div>
+      <div class="cert selo">CONFORME</div>
+    </div>
+  </div>
+</section>
+
+<section class="dores">
+  <div class="wrap">
+    <span class="eyebrow">O problema que resolvemos</span>
+    <h2 class="tit">Da prancheta ao certificado, sem digitar duas vezes</h2>
+    <div class="grade3">
+      <div class="card-dor">
+        <span class="antes">Antes</span>
+        <h3>Planilha e retrabalho</h3>
+        <p>Leituras anotadas no papel, digitadas de novo no escritório, EMA conferido na mão —
+        e todo erro de transcrição vira um certificado errado no cliente.</p>
+      </div>
+      <div class="card-dor">
+        <span class="antes">Antes</span>
+        <h3>Certificado que demora dias</h3>
+        <p>O ensaio acaba na terça e o documento sai na sexta. Cliente cobrando, técnico voltando
+        ao assunto, responsável assinando pilha de papel.</p>
+      </div>
+      <div class="card-dor">
+        <span class="antes">Antes</span>
+        <h3>Sem controle de vencimento</h3>
+        <p>A recalibração do cliente vence e ninguém liga para ele — o concorrente liga.
+        Receita recorrente escapando por falta de aviso.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="recursos">
+  <div class="wrap">
+    <span class="eyebrow">Recursos</span>
+    <h2 class="tit">Metrologia de balanças nativa — não um sistema genérico adaptado</h2>
+    <p class="lead">Sistemas de calibração genéricos pedem que você modele métodos e fórmulas.
+    O TSCert já nasce sabendo o que é uma balança.</p>
+    <div class="grade-rec">
+      <div class="rec"><span class="ic">⚖️</span><h3>Portaria 157/2022 nativa</h3>
+        <p>EMA por carga e classe calculados automaticamente, no contexto de verificação
+        subsequente ou em uso.</p>
+        <span class="dado mono">150 kg · e = 50 g → Classe III</span></div>
+      <div class="rec"><span class="ic">📱</span><h3>Ensaio guiado no celular</h3>
+        <p>Indicação, excentricidade, repetibilidade e sensibilidade com arredondamento pela
+        divisão da balança — inclusive multi-intervalo, faixa a faixa.</p></div>
+      <div class="rec"><span class="ic">🔧</span><h3>Antes e depois do ajuste</h3>
+        <p>Precisou ajustar? Registre as leituras como encontradas e as finais — o certificado
+        documenta as duas, como auditorias pedem.</p></div>
+      <div class="rec"><span class="ic">✍️</span><h3>Aprovação e assinatura digital</h3>
+        <p>O RT confere na tela, vê a prévia do PDF e aprova. A assinatura entra no documento e o
+        certificado é emitido na hora, com hash de integridade.</p></div>
+      <div class="rec"><span class="ic">🔍</span><h3>QR de validação pública</h3>
+        <p>Qualquer pessoa escaneia e confere: autêntico, cancelado ou em processamento — com
+        download do certificado e dos padrões utilizados.</p></div>
+      <div class="rec"><span class="ic">📨</span><h3>Avisos de vencimento</h3>
+        <p>O sistema avisa seus clientes por e-mail, com a sua marca, nos prazos que você definir —
+        e sua equipe comercial recebe cópia para fazer o contato ativo.</p></div>
+      <div class="rec"><span class="ic">🗂️</span><h3>Portal do cliente</h3>
+        <p>Seu cliente acessa os certificados dele online, com a sua marca — chega de reenviar
+        PDF por e-mail toda semana.</p></div>
+      <div class="rec"><span class="ic">⭐</span><h3>Pesquisa de satisfação (NPS)</h3>
+        <p>Perguntas configuráveis, envio automático e dashboard — evidência pronta para a
+        ISO 9001.</p></div>
+      <div class="rec"><span class="ic">🎨</span><h3>Com a sua marca</h3>
+        <p>Logo, cor e textos da sua empresa em certificados, e-mails e portal. Três modelos de
+        PDF, todos em página única.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="rbc" id="rbc">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Diferencial</span>
+      <h2 class="tit">RBC ISO/IEC 17025 pronto para laboratórios acreditados</h2>
+      <p style="margin-top:12px">Coleta guiada em três ensaios, N leituras por ponto, composição de
+      pesos padrão rastreável ponto a ponto e certificado acreditado com selo — o módulo que os
+      sistemas genéricos não entregam pronto.</p>
+      <ul>
+        <li>Motor de incerteza com 5 componentes e graus de liberdade efetivos (Welch-Satterthwaite)</li>
+        <li>Memória de cálculo completa para auditoria, por ponto e geral</li>
+        <li>Bloqueio automático quando a composição de pesos diverge da carga</li>
+        <li>Numeração e PDF próprios, separados dos certificados de conformidade</li>
+      </ul>
+    </div>
+    <div class="formula mono">
+      <div class="t">Incerteza expandida — por ponto</div>
+      <div class="eq">u<sub>c</sub> = √(u²<sub>rep</sub> + u²<sub>res</sub> + u²<sub>pad</sub> + u²<sub>exc</sub> + u²<sub>emp</sub>)</div>
+      <div class="eq">U = k · u<sub>c</sub>&nbsp;&nbsp;·&nbsp;&nbsp;k = t(ν<sub>eff</sub>, 95%)</div>
+      <div style="margin-top:14px;font-size:12px;color:#8fa9c0">Calculado ao vivo durante a coleta,
+      com memória auditável de cada componente.</div>
+    </div>
+  </div>
+</section>
+
+<section class="planos" id="planos">
+  <div class="wrap">
+    <span class="eyebrow">Planos</span>
+    <h2 class="tit">Escolha pelo tamanho da sua operação</h2>
+    <div class="grade-pl">
+      <div class="plano">
+        <h3>Essencial</h3>
+        <div class="preco">R$ 397<small>/mês</small></div>
+        <p class="para">Para quem está trocando a planilha pelo sistema.</p>
+        <ul>
+          <li>3 usuários (1 responsável técnico)</li>
+          <li>Até 60 certificados/mês</li>
+          <li>Modelos de certificado 1 e 3</li>
+          <li>Avisos de vencimento automáticos</li>
+          <li>QR de validação pública</li>
+          <li class="nao">Portal do cliente e NPS</li>
+          <li class="nao">RBC ISO/IEC 17025</li>
+        </ul>
+        <a class="btn btn-borda" style="border-color:var(--linha);color:var(--navy)" href="https://wa.me/553133574000?text=Tenho%20interesse%20no%20plano%20Essencial%20do%20TSCert">Falar com a equipe</a>
+      </div>
+      <div class="plano destaque">
+        <span class="tag">MAIS ESCOLHIDO</span>
+        <h3>Profissional</h3>
+        <div class="preco">R$ 747<small>/mês</small></div>
+        <p class="para">Para a operação que atende carteira de clientes recorrente.</p>
+        <ul>
+          <li>8 usuários</li>
+          <li>Até 200 certificados/mês</li>
+          <li>Modelos 1, 2 e 3 + logo ajustável</li>
+          <li>Avisos com cópia para gestores</li>
+          <li>Portal do cliente com a sua marca</li>
+          <li>Pesquisa de satisfação (NPS)</li>
+          <li class="nao">RBC ISO/IEC 17025</li>
+        </ul>
+        <a class="btn btn-cheio" href="https://wa.me/553133574000?text=Tenho%20interesse%20no%20plano%20Profissional%20do%20TSCert">Falar com a equipe</a>
+      </div>
+      <div class="plano">
+        <h3>Enterprise</h3>
+        <div class="preco">R$ 1.290<small>/mês</small></div>
+        <p class="para">Para laboratórios acreditados e operações multiequipe.</p>
+        <ul>
+          <li>Usuários e certificados ilimitados</li>
+          <li>Tudo do Profissional</li>
+          <li>RBC ISO/IEC 17025 completo</li>
+          <li>Selo de acreditação no certificado</li>
+          <li>Suporte prioritário</li>
+          <li>Onboarding assistido</li>
+        </ul>
+        <a class="btn btn-borda" style="border-color:var(--linha);color:var(--navy)" href="https://wa.me/553133574000?text=Tenho%20interesse%20no%20plano%20Enterprise%20do%20TSCert">Falar com a equipe</a>
+      </div>
+    </div>
+    <p class="obs-planos">Implantação com migração de cadastros e treinamento: R$ 1.200 (única vez).
+    Plano anual: 2 meses grátis. Técnico adicional nos planos Essencial e Profissional: R$ 79/mês.
+    Teste grátis de 14 dias, sem cartão.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <span class="eyebrow">Perguntas frequentes</span>
+    <h2 class="tit">O que mais perguntam antes de assinar</h2>
+    <details><summary>Preciso instalar alguma coisa?</summary>
+      <p>Não. O TSCert roda no navegador — computador, tablet ou celular. O técnico faz o ensaio
+      em campo pelo próprio telefone.</p></details>
+    <details><summary>Meus dados ficam onde?</summary>
+      <p>Em nuvem, com isolamento total entre empresas, backups diários verificados e cópia
+      externa. Cada certificado emitido tem hash de integridade.</p></details>
+    <details><summary>O certificado sai com a minha marca?</summary>
+      <p>Sim — logo, cor, textos e título do documento são seus, nos três modelos de PDF, nos
+      e-mails e no portal do cliente.</p></details>
+    <details><summary>Sirvo para RBC?</summary>
+      <p>Se o seu laboratório é acreditado ISO/IEC 17025, o plano Enterprise traz a coleta guiada,
+      o motor de incerteza e o certificado acreditado com selo e numeração próprios.</p></details>
+    <details><summary>E se eu passar do limite de certificados?</summary>
+      <p>O sistema avisa quando você se aproxima do limite e nossa equipe ajuda a ajustar o plano.
+      Nenhum certificado seu deixa de ser emitido sem conversa antes.</p></details>
+  </div>
+</section>
+
+<section class="cta-final">
+  <div class="wrap">
+    <h2>Veja o TSCert emitindo um certificado da sua operação</h2>
+    <p>Demonstração de 30 minutos, com uma balança sua como exemplo. Sem compromisso.</p>
+    <div class="acoes">
+      <a class="btn btn-cheio" href="https://wa.me/553133574000?text=Quero%20uma%20demonstra%C3%A7%C3%A3o%20do%20TSCert">Agendar pelo WhatsApp</a>
+      <a class="btn btn-borda" href="mailto:comercial@totalscale.com.br?subject=Demonstração%20TSCert">comercial@totalscale.com.br</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="logo" style="font-size:20px">TS<span style="color:var(--ciano)">Cert</span></div>
+      <div style="margin-top:6px">Um produto <strong style="color:#c6d6e4">Total Scale</strong> · Contagem/MG</div>
+    </div>
+    <div style="text-align:right">
+      <div><a href="https://www.totalscale.com.br">www.totalscale.com.br</a></div>
+      <div style="margin-top:6px" class="mono">(31) 3357-4000</div>
+    </div>
+  </div>
+</footer>
+
+
+<style>
+.faixa-origem { background: #0f2138; color: #cfe4f2; font-size: .88rem;
+  padding: 9px 0; border-bottom: 2px solid #35b6e8; }
+.faixa-origem .wrap { display: flex; align-items: center; justify-content: center;
+  gap: 9px; text-align: center; flex-wrap: wrap; }
+.faixa-origem b { color: #fff; }
+.faixa-origem .fo-icone { display: inline-flex; color: #35b6e8; flex: 0 0 auto; }
+@media (max-width: 560px) { .faixa-origem { font-size: .8rem; padding: 8px 12px; } }
+</style>
+
+<script>
+// De onde veio a visita? Muda só a mensagem de boas-vindas.
+(function () {
+  var origem = new URLSearchParams(location.search).get('origem');
+  if (!origem) return;
+  var textos = {
+    qr: 'Você chegou aqui pelo <b>QR code de um certificado de calibração</b> ' +
+        'emitido no TSCert. Veja abaixo como o sistema funciona.',
+    portal: 'Você veio do <b>portal de certificados</b> de uma empresa que usa o TSCert. ' +
+            'Conheça o sistema por trás dele.',
+    etiqueta: 'Você escaneou o QR de uma <b>etiqueta de calibração</b> gerada no TSCert.'
+  };
+  var txt = textos[origem];
+  if (!txt) return;
+  document.getElementById('fo-texto').innerHTML = txt;
+  document.getElementById('faixa-origem').hidden = false;
+
+  // Registra a visita (silencioso: nunca atrapalha a navegação)
+  try {
+    fetch('/api/marketing/visita?origem=' + encodeURIComponent(origem),
+      { method: 'POST', keepalive: true }).catch(function () {});
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

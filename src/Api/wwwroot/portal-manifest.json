@@ -1,0 +1,12 @@
+{
+  "name": "Portal de Certificados",
+  "short_name": "Certificados",
+  "description": "Certificados de calibração das suas balanças",
+  "start_url": "/portal.html",
+  "display": "standalone",
+  "background_color": "#eef2f7",
+  "theme_color": "#0f2138",
+  "icons": [
+    { "src": "/portal-icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

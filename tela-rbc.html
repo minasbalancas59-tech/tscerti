@@ -1,0 +1,68 @@
+<!-- ══ COLETA RBC (acreditada ISO/IEC 17025) ═══════════════════ -->
+<div id="tela-ensaio-rbc" class="tela oculta">
+  <header>
+    <span><a href="#" onclick="irPainel()">← Painel</a></span>
+    <span id="rbc-titulo">Coleta RBC</span>
+    <span></span>
+  </header>
+  <main>
+    <div class="card">
+      <div class="linha-3">
+        <label>Data da calibração <input type="date" id="rbc-data"></label>
+        <label>Temperatura (°C) <input type="number" step="0.1" id="rbc-temp"></label>
+        <label>Umidade (%) <input type="number" step="1" id="rbc-umid"></label>
+      </div>
+      <div class="linha-3">
+        <label>Pressão atm. (hPa) <input type="number" step="0.1" id="rbc-pressao"></label>
+        <label>Local
+          <select id="rbc-local">
+            <option value="in_loco">In loco (cliente)</option>
+            <option value="laboratorio">Laboratório</option>
+          </select></label>
+        <label></label>
+      </div>
+      <p class="dica">As condições ambientais alimentam o cálculo do empuxo do ar (CIPM-2007). Nº de leituras (N) definido na configuração da empresa.</p>
+    </div>
+
+    <div class="card">
+      <h3>1 · Carga (indicação) <button type="button" class="btn-ajuda" onclick="ajuda('indicacao')" title="Sobre este ensaio">?</button></h3>
+      <p class="dica">Cada ponto medido N vezes. A variabilidade das leituras = repetibilidade do ponto. U combina repetibilidade + resolução + padrão + excentricidade + empuxo.</p>
+      <div class="tabela-scroll">
+        <table id="rbc-carga"><thead id="rbc-carga-thead"></thead><tbody id="rbc-carga-tbody"></tbody></table>
+      </div>
+      <button type="button" class="btn-mini" onclick="addCargaRbc()">+ Adicionar carga</button>
+      <button type="button" class="btn-mini" onclick="verMemoriaRbc(null)" style="margin-left:6px">📋 Memória de cálculo completa</button>
+    </div>
+
+    <div class="card">
+      <h3>2 · Excentricidade <button type="button" class="btn-ajuda" onclick="ajuda('excentricidade')" title="Sobre este ensaio">?</button></h3>
+      <p class="dica">Centro + posições do prato, cada uma medida N vezes. O maior erro (posição − centro) vira o u_exc, que alimenta a incerteza de todas as cargas.</p>
+      <div class="tabela-scroll">
+        <table id="rbc-exc"><thead id="rbc-exc-thead"></thead><tbody id="rbc-exc-tbody"></tbody></table>
+      </div>
+      <button type="button" class="btn-mini" onclick="addPosicaoExc()">+ Adicionar posição</button>
+      <p class="dica" id="rbc-exc-info" style="color:#0a7d55;margin-top:8px"></p>
+    </div>
+
+    <div class="card">
+      <h3>3 · Mobilidade <span class="tag-reg">registro — não entra no cálculo</span>
+        <button type="button" class="btn-ajuda" onclick="ajuda('sensibilidade')" title="Sobre este ensaio">?</button></h3>
+      <p class="dica">Carga de referência + 1 divisão (e), medida N vezes. Verifica se o display acompanha. Caracteriza a resposta — a resolução já cobre essa fonte no cálculo (evita dupla contagem).</p>
+      <div class="linha-3">
+        <label>Carga de referência (<span class="u-unid-rbc">kg</span>)
+          <input type="number" step="any" id="rbc-mob-ref" oninput="window._rbc.mob.cargaRef=this.value"></label>
+        <label>Adição (1 divisão e) <input type="number" step="any" id="rbc-mob-div" readonly></label>
+        <label>Esperado no display <input type="number" step="any" id="rbc-mob-esp" oninput="window._rbc.mob.esperado=this.value"></label>
+      </div>
+      <div class="tabela-scroll">
+        <table id="rbc-mob"><thead id="rbc-mob-thead"></thead><tbody id="rbc-mob-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <div class="rodape-acoes">
+      <button onclick="salvarColetaRbc(false)">💾 Salvar e calcular</button>
+      <button class="btn-primario" onclick="salvarColetaRbc(true)">Enviar para aprovação ➜</button>
+    </div>
+    <p id="rbc-erro" class="erro"></p>
+  </main>
+</div>

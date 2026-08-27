@@ -1,0 +1,4 @@
+
+/* Certificado cancelado */
+.st-cancelado { background:#f8d7da; color:#842029; }
+.item-cert.item-cancelado { opacity:.7; background:#fff5f5; border-left:4px solid #b02a37; }

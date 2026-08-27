@@ -1,0 +1,34 @@
+Instalação da página de manutenção (com script)
+=================================================
+Arquivos:
+  manutencao.html            → a página "em atualização" (marca TSCert)
+  instalar-manutencao.sh     → script que instala a página automaticamente
+  nginx-com-manutencao.conf  → modelo de referência do nginx
+
+PASSO 1 — Subir a pasta deploy/ para o servidor
+  Coloque estes arquivos em /root/cert-saas/deploy/ (via FileZilla).
+
+PASSO 2 — Rodar o script (instala a página)
+  cd /root/cert-saas/deploy
+  chmod +x instalar-manutencao.sh
+  sudo ./instalar-manutencao.sh
+
+  O script cria /var/www/manutencao, copia a página e ajusta permissões.
+  Ao final, ele mostra na tela os passos do nginx.
+
+PASSO 3 — Editar o nginx (manual, por segurança)
+  O script NÃO mexe no nginx sozinho (para não quebrar sua config).
+  Ele imprime exatamente o que adicionar. Use nginx-com-manutencao.conf
+  como referência. FAÇA BACKUP da config antes de editar.
+
+  >> Se preferir, me mande sua config atual do nginx que eu adapto
+     exatamente para ela (mais seguro que editar à mão).
+
+PASSO 4 — Testar
+  cd /root/cert-saas && docker compose stop api
+  (acesse o site → deve aparecer a página de manutenção)
+  docker compose start api  (o site volta sozinho em ~15s)
+
+OBS: o manutencao.html vai para /var/www/manutencao/ (fora do projeto),
+então não entra no backup-projeto.sh. A cópia em /root/cert-saas/deploy/
+fica versionada normalmente.

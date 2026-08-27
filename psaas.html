@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pesquisa TSCert</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #eef2f6;
+         color: #16202c; padding: 18px 12px 40px; line-height: 1.5; }
+  .box { max-width: 620px; margin: 0 auto; background: #fff; border-radius: 14px;
+         overflow: hidden; box-shadow: 0 4px 22px rgba(15,45,71,.12); }
+  .topo { background: #164066; color: #fff; padding: 22px 26px; }
+  .topo b { font-size: 20px; letter-spacing: .3px; }
+  .topo span { display: block; font-size: 12.5px; color: #b9cbdc; margin-top: 2px; }
+  .conteudo { padding: 22px 26px 26px; }
+  .ola { font-size: 15px; margin-bottom: 6px; }
+  .intro { font-size: 13.5px; color: #5a7183; margin-bottom: 18px; }
+  .q { border-top: 1px solid #eef2f6; padding: 16px 0 4px; }
+  .q:first-of-type { border-top: 0; }
+  .q p { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
+  .notas { display: flex; gap: 5px; flex-wrap: wrap; }
+  .notas button { flex: 1; min-width: 34px; padding: 9px 0; font: inherit; font-size: 13px;
+    border: 1px solid #dde5ec; background: #fff; border-radius: 8px; cursor: pointer;
+    color: #16202c; transition: .12s; }
+  .notas button:hover { border-color: #164066; }
+  .notas button.sel { background: #164066; color: #fff; border-color: #164066; font-weight: 600; }
+  .esc { display: flex; justify-content: space-between; font-size: 11px; color: #8ba0b5; margin-top: 5px; }
+  textarea { width: 100%; min-height: 84px; padding: 10px 12px; font: inherit; font-size: 13.5px;
+    border: 1px solid #dde5ec; border-radius: 9px; resize: vertical; }
+  .enviar { width: 100%; margin-top: 20px; padding: 13px; font: inherit; font-size: 15px;
+    font-weight: 600; background: #164066; color: #fff; border: 0; border-radius: 10px; cursor: pointer; }
+  .enviar:disabled { opacity: .5; cursor: default; }
+  .rodape { background: #f4f7fa; padding: 12px 26px; font-size: 11.5px; color: #8ba0b5;
+    border-top: 1px solid #eef2f6; }
+  .fim { text-align: center; padding: 44px 26px; }
+  .fim .ic { font-size: 44px; }
+  .fim h2 { font-size: 19px; color: #164066; margin: 10px 0 6px; }
+  .fim p { font-size: 13.5px; color: #5a7183; }
+  .erro { color: #b02a37; font-size: 13.5px; padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="box" id="app"><div class="conteudo"><p class="intro">Carregando…</p></div></div>
+<script>
+const token = location.pathname.split('/').pop();
+let dados = null, perguntas = [], respostas = {};
+
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function iniciar() {
+  try {
+    const r = await fetch('/api/psaas-publica/' + encodeURIComponent(token));
+    if (!r.ok) throw new Error('link inválido');
+    dados = await r.json();
+    if (dados.respondido) return fim('Você já respondeu esta pesquisa.',
+      'Obrigado! Sua opinião já está com a nossa equipe.');
+    perguntas = dados.perguntas || [];
+    render();
+  } catch (e) {
+    document.getElementById('app').innerHTML =
+      '<div class="topo"><b>TSCert</b><span>Pesquisa de satisfação</span></div>' +
+      '<div class="conteudo"><p class="erro">Este link não é válido ou expirou. ' +
+      'Se precisar, peça um novo à equipe do TSCert.</p></div>';
+  }
+}
+
+function render() {
+  const qs = perguntas.map((q, i) => {
+    if (q.tipo === 'texto')
+      return `<div class="q"><p>${i + 1}. ${esc(q.texto)}</p>
+        <textarea id="t${q.id}" placeholder="Escreva à vontade — é aqui que saem as melhores ideias"
+          oninput="respostas['${q.id}']={pergunta:'${q.id}',texto:this.value}"></textarea></div>`;
+    const max = q.tipo === 'nps' ? 10 : 10;
+    const ini = q.tipo === 'nps' ? 0 : 1;
+    let bts = '';
+    for (let n = ini; n <= max; n++)
+      bts += `<button type="button" onclick="marcar('${q.id}',${n},this)">${n}</button>`;
+    return `<div class="q"><p>${i + 1}. ${esc(q.texto)}</p>
+      <div class="notas" id="n${q.id}">${bts}</div>
+      <div class="esc"><span>${q.tipo === 'nps' ? 'Não recomendaria' : 'Muito ruim'}</span>
+        <span>${q.tipo === 'nps' ? 'Recomendaria com certeza' : 'Excelente'}</span></div></div>`;
+  }).join('');
+  document.getElementById('app').innerHTML = `
+    <div class="topo"><b>TSCert</b><span>Sua opinião sobre o sistema</span></div>
+    <div class="conteudo">
+      <p class="ola">Olá, <b>${esc(dados.nome)}</b></p>
+      <p class="intro">${esc(dados.intro || 'São poucas perguntas e leva menos de 2 minutos. Suas respostas vão direto para quem desenvolve o TSCert.')}</p>
+      ${qs}
+      <button class="enviar" id="bt" onclick="enviar()">Enviar respostas</button>
+      <p class="erro" id="err"></p>
+    </div>
+    <div class="rodape">Sua resposta é identificada e vai para a equipe do TSCert —
+      ${esc(dados.empresa || '')}. Obrigado por ajudar a melhorar o sistema.</div>`;
+}
+
+function marcar(id, n, el) {
+  respostas[id] = { pergunta: id, nota: n };
+  el.parentNode.querySelectorAll('button').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+async function enviar() {
+  const faltando = perguntas.filter(q => q.tipo !== 'texto' && !respostas[q.id]);
+  if (faltando.length) {
+    document.getElementById('err').textContent =
+      'Responda as perguntas de nota antes de enviar (' + faltando.length + ' pendente(s)).';
+    return;
+  }
+  const bt = document.getElementById('bt');
+  bt.disabled = true; bt.textContent = 'Enviando…';
+  try {
+    const r = await fetch('/api/psaas-publica/' + encodeURIComponent(token), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ respostas: Object.values(respostas) })
+    });
+    if (!r.ok) throw new Error();
+    fim('Obrigado!', 'Sua opinião foi registrada e chega agora à equipe do TSCert. ' +
+      'Se você apontou algo que precisa de atenção, entraremos em contato.');
+  } catch (e) {
+    bt.disabled = false; bt.textContent = 'Enviar respostas';
+    document.getElementById('err').textContent = 'Não foi possível enviar. Tente novamente.';
+  }
+}
+
+function fim(titulo, texto) {
+  document.getElementById('app').innerHTML = `
+    <div class="topo"><b>TSCert</b><span>Pesquisa de satisfação</span></div>
+    <div class="fim"><div class="ic">✅</div><h2>${esc(titulo)}</h2><p>${esc(texto)}</p></div>`;
+}
+iniciar();
+</script>
+</body>
+</html>

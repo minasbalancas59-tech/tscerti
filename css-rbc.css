@@ -1,0 +1,24 @@
+
+/* ── Coleta RBC ──────────────────────────────────────────── */
+.tag-reg { background:#fff3e0; color:#8a6d00; font-size:10px; padding:2px 7px; border-radius:9px; font-weight:600; }
+.rbc-u { background:#eef6ff; border-radius:6px; padding:1px 7px; font-weight:600; color:#1e3a5f; font-size:11px; white-space:nowrap; }
+.rbc-pill { display:inline-block; background:#1e3a5f; color:#fff; font-size:9.5px; padding:1px 6px; border-radius:8px; margin:1px; }
+.rbc-link { color:#1e3a5f; text-decoration:underline; cursor:pointer; font-size:10.5px; }
+.rbc-sug { background:#e7f6ee; border-left:3px solid #0a7d55; padding:8px 12px; font-size:12px; border-radius:5px; margin-bottom:10px; color:#0a5c40; }
+.rbc-modal-tab { width:100%; border-collapse:collapse; font-size:12px; }
+.rbc-modal-tab th, .rbc-modal-tab td { border:1px solid #d5dde5; padding:5px 7px; text-align:center; }
+.rbc-modal-tab th { background:#1e3a5f; color:#fff; font-size:11px; }
+.rbc-chk { width:16px; height:16px; }
+.rbc-resumo { background:#eef6ff; border-radius:6px; padding:8px 12px; margin-top:10px; font-size:12px; }
+.rbc-resumo b { color:#1e3a5f; }
+/* memória de cálculo */
+.mem-wrap { font-size:13px; }
+.mem-bloco { background:#f9fafb; border:1px solid #e0e6ed; border-radius:8px; padding:12px 14px; margin:8px 0; font-family:'Consolas','Courier New',monospace; font-size:12px; line-height:1.7; }
+.mem-bloco b { color:#1e3a5f; }
+.mem-linha { margin:2px 0; }
+.mem-sec { margin:8px 0 3px; font-weight:bold; color:#1e3a5f; font-family:'Segoe UI',Arial; }
+.mem-comp { color:#0a7d55; margin:3px 0; }
+.mem-f { color:#8a6d00; }
+.mem-final { background:#1e3a5f; color:#fff; padding:6px 10px; border-radius:6px; margin-top:8px; font-weight:bold; }
+.mem-metodo { background:#f7f9fb; border-left:4px solid #1e3a5f; padding:10px 14px; border-radius:6px; margin-top:12px; font-size:12px; }
+.mem-metodo p { margin:6px 0; }

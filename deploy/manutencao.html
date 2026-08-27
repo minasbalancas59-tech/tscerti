@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema em atualização — TSCert</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+      color: #fff; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+    }
+    .caixa {
+      max-width: 440px; background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15); border-radius: 20px;
+      padding: 44px 34px; backdrop-filter: blur(8px);
+    }
+    .icone {
+      width: 76px; height: 76px; margin: 0 auto 22px;
+      border: 4px solid rgba(255,255,255,.25); border-top-color: #fff;
+      border-radius: 50%; animation: girar 1s linear infinite;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    h1 { font-size: 1.55rem; margin-bottom: 12px; font-weight: 700; }
+    p { font-size: 1rem; line-height: 1.6; opacity: .9; margin-bottom: 8px; }
+    .marca {
+      margin-top: 26px; padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,.15);
+      font-size: .85rem; opacity: .7;
+    }
+    .dica { font-size: .85rem; opacity: .65; margin-top: 16px; }
+  </style>
+  <!-- Recarrega a página a cada 15s; quando a API voltar, o nginx
+       serve o sistema normalmente e o usuário volta sozinho. -->
+  <meta http-equiv="refresh" content="15">
+</head>
+<body>
+  <div class="caixa">
+    <div class="icone"></div>
+    <h1>Estamos atualizando o sistema</h1>
+    <p>Voltamos em instantes com melhorias.</p>
+    <p>Esta página recarrega sozinha assim que tudo estiver pronto.</p>
+    <p class="dica">Você não precisa fazer nada — é só aguardar.</p>
+    <div class="marca">
+      <strong>TSCert</strong><br>
+      Sistema de Certificados de Calibração
+    </div>
+  </div>
+</body>
+</html>

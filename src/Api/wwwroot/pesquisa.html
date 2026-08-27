@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pesquisa de Satisfação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root { --cor: #1e3a5f; --texto: #1f2a37; --suave: #5b6b7d; --fundo: #eef1f5; --borda: #d6dee7; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--fundo); color: var(--texto); line-height: 1.55; padding: 20px; }
+.wrap { max-width: 640px; margin: 0 auto; }
+.topo { background: var(--cor); border-radius: 12px 12px 0 0; padding: 26px; text-align: center; }
+.topo .marca { background: #fff; display: inline-block; padding: 12px 20px; border-radius: 8px; text-align: center; }
+.topo img { max-height: 50px; max-width: 200px; display: block; margin: 0 auto 6px; }
+.topo .nome { font-size: 16px; font-weight: 700; color: var(--cor); }
+.card { background: #fff; border-radius: 0 0 12px 12px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+h1 { font-size: 20px; margin-bottom: 6px; color: var(--cor); }
+.sub { color: var(--suave); font-size: .95rem; margin-bottom: 22px; }
+.pergunta { margin: 24px 0; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0; }
+.pergunta:last-of-type { border-bottom: none; }
+.pergunta .txt { font-weight: 600; margin-bottom: 4px; }
+.pergunta.nps .txt { font-size: 1.05rem; }
+.escala-dica { display: flex; justify-content: space-between; font-size: .78rem; color: var(--suave); margin: 8px 2px 6px; }
+.notas { display: flex; gap: 5px; flex-wrap: wrap; }
+.nota { flex: 1; min-width: 32px; aspect-ratio: 1; border: 1.5px solid var(--borda); background: #fff; border-radius: 8px;
+  cursor: pointer; font-weight: 600; font-size: .95rem; color: var(--texto); transition: all .12s; display: flex; align-items: center; justify-content: center; }
+.nota:hover { border-color: var(--cor); }
+.nota.sel { background: var(--cor); color: #fff; border-color: var(--cor); transform: scale(1.05); }
+textarea { width: 100%; min-height: 90px; padding: 12px; border: 1.5px solid var(--borda); border-radius: 8px;
+  font-family: inherit; font-size: .95rem; resize: vertical; margin-top: 8px; }
+.btn { width: 100%; margin-top: 24px; padding: 15px; background: var(--cor); color: #fff; border: none;
+  border-radius: 8px; font-size: 1.05rem; font-weight: 600; cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.msg { text-align: center; padding: 40px 20px; }
+.msg .ic { font-size: 52px; margin-bottom: 14px; }
+.msg h2 { color: var(--cor); margin-bottom: 8px; }
+.msg p { color: var(--suave); }
+.rodape { text-align: center; color: #aaa; font-size: .72rem; margin-top: 14px; }
+.erro { color: #b3283a; text-align: center; margin-top: 10px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="conteudo">
+    <div class="msg"><div class="ic">⏳</div><p>Carregando…</p></div>
+  </div>
+  <div class="rodape">Enviado via <b>TSCert</b> · Sistema de Certificados de Calibração</div>
+</div>
+
+<script>
+const API = '/api/pesquisa-publica';
+const token = new URLSearchParams(location.search).get('t');
+let perguntas = [], respostas = {}, corEmpresa = '#1e3a5f';
+
+const esc = s => (s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+async function carregar() {
+  if (!token) { erro('Link inválido.'); return; }
+  try {
+    const r = await fetch(`${API}/${token}`);
+    if (!r.ok) { erro('Pesquisa não encontrada.'); return; }
+    const d = await r.json();
+    if (d.ja_respondida) { obrigado('Esta pesquisa já foi respondida. Obrigado!'); return; }
+    perguntas = JSON.parse(d.perguntas || '[]');
+    if (!perguntas.length) { erro('Nenhuma pergunta configurada.'); return; }
+    corEmpresa = d.empresa_cor && /^#?[0-9A-Fa-f]{6}$/.test(d.empresa_cor)
+      ? (d.empresa_cor.startsWith('#') ? d.empresa_cor : '#' + d.empresa_cor) : '#1e3a5f';
+    document.documentElement.style.setProperty('--cor', corEmpresa);
+    render(d);
+  } catch (e) { erro('Erro ao carregar a pesquisa.'); }
+}
+
+function render(d) {
+  const marca = d.empresa_logo
+    ? `<img src="/api/pesquisa-logo/${token}" alt="${esc(d.empresa_nome)}" onerror="this.style.display='none'">
+       <div class="nome">${esc(d.empresa_nome)}</div>`
+    : `<span class="nome">${esc(d.empresa_nome)}</span>`;
+  const perguntasHtml = perguntas.map((p, i) => {
+    const notas = Array.from({ length: 11 }, (_, n) =>
+      `<button class="nota" data-p="${p.id}" data-n="${n}" onclick="marcar('${p.id}', ${n}, this)">${n}</button>`).join('');
+    return `
+      <div class="pergunta ${p.tipo === 'nps' ? 'nps' : ''}">
+        <div class="txt">${esc(p.texto)}</div>
+        <div class="escala-dica"><span>0 — Nada provável</span><span>10 — Muito provável</span></div>
+        <div class="notas">${notas}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('conteudo').innerHTML = `
+    <div class="topo"><div class="marca">${marca}</div></div>
+    <div class="card">
+      <h1>Pesquisa de Satisfação</h1>
+      <p class="sub">Sua opinião nos ajuda a melhorar. Leva menos de 1 minuto.</p>
+      ${perguntasHtml}
+      <div class="pergunta">
+        <div class="txt">Comentários (opcional)</div>
+        <textarea id="coment" placeholder="Conte o que achou do nosso serviço…"></textarea>
+      </div>
+      <button class="btn" id="enviar" onclick="enviar()" disabled>Enviar respostas</button>
+      <div class="erro" id="erro-msg"></div>
+    </div>`;
+}
+
+function marcar(pid, nota, el) {
+  respostas[pid] = nota;
+  el.parentElement.querySelectorAll('.nota').forEach(b => b.classList.remove('sel'));
+  el.classList.add('sel');
+  // Habilita o envio quando todas as perguntas tiverem nota
+  document.getElementById('enviar').disabled = perguntas.some(p => respostas[p.id] === undefined);
+}
+
+async function enviar() {
+  const btn = document.getElementById('enviar');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const r = await fetch(`${API}/${token}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        respostas: perguntas.map(p => ({ perguntaId: p.id, nota: respostas[p.id] })),
+        comentario: document.getElementById('coment').value.trim() || null
+      })
+    });
+    if (r.ok) obrigado('Obrigado pela sua avaliação! 🎉');
+    else { const d = await r.json().catch(() => ({})); mostrarErro(d.erro || 'Erro ao enviar.'); btn.disabled = false; btn.textContent = 'Enviar respostas'; }
+  } catch (e) { mostrarErro('Erro de conexão.'); btn.disabled = false; btn.textContent = 'Enviar respostas'; }
+}
+
+function obrigado(msg) {
+  document.getElementById('conteudo').innerHTML =
+    `<div class="topo"><div class="marca"><span class="nome">✓</span></div></div>
+     <div class="card"><div class="msg"><div class="ic">🎉</div><h2>Recebido!</h2><p>${esc(msg)}</p></div></div>`;
+}
+function erro(msg) {
+  document.getElementById('conteudo').innerHTML =
+    `<div class="card"><div class="msg"><div class="ic">😕</div><h2>Ops</h2><p>${esc(msg)}</p></div></div>`;
+}
+function mostrarErro(msg) { document.getElementById('erro-msg').textContent = msg; }
+
+carregar();
+</script>
+</body>
+</html>

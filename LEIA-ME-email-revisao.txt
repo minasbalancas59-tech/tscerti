@@ -1,0 +1,36 @@
+PACOTE: e-mail automatico de revisao + aviso de falha no upload de foto
+Joao, 20/08/2026
+
+CONTEUDO
+  1-patch-api-enfileirar.py .... API enfileira email_revisao_emitida ao emitir revisao
+  2-patch-worker-email.py ...... Worker: handler EmailRevisaoEmitida (e-mail ao cliente
+                                 com PDF novo anexado; espera o PDF ficar pronto ate 90s;
+                                 se nao ficar, envia com link; respeita supressao e
+                                 registra em email_log como tipo "revisao_emitida")
+  3-patch-appjs-foto.py ........ Front: quando a conexao cai no meio do upload de foto,
+                                 mostra "Falha de conexao durante o envio — verifique a
+                                 internet e tente novamente" (nos 2 pontos de upload)
+
+DESTINATARIOS DO E-MAIL DE REVISAO
+  - contatos do cliente com "recebe_certificado" marcado
+  - + e-mail principal do cadastro do cliente (sem duplicar)
+  - se o cliente nao tem nenhum e-mail: loga aviso e nao envia
+
+COMO APLICAR (na pasta /root/cert-saas)
+  unzip -o email-revisao-foto.zip
+  python3 1-patch-api-enfileirar.py
+  python3 2-patch-worker-email.py
+  python3 3-patch-appjs-foto.py
+
+  # os 3 devem imprimir OK; qualquer ERRO aborta sem gravar — me mande a mensagem
+
+REBUILD (api E worker mudaram)
+  docker compose up -d --build api worker && ./backup-projeto.sh
+
+TESTE
+  1) Emitir uma revisao de um certificado de teste (cliente com e-mail seu)
+  2) Aguardar ~1 min (PDF + e-mail na fila)
+  3) Conferir a caixa de entrada: assunto "Certificado X substituido pela revisao Y",
+     tarja ambar, PDF novo anexado, botao de validacao
+  4) Painel de e-mails: deve aparecer tipo "revisao_emitida" status "enviado"
+  5) Foto: com o dev tools em "Offline", tentar subir foto -> mensagem clara de conexao

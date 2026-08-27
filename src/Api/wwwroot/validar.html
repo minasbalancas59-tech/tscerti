@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validação de Certificado</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="tela">
+  <div class="card login-card" style="max-width:460px;">
+    <h1>⚖️ Validação de Certificado</h1>
+    <div id="resultado"><p class="dica">Verificando...</p></div>
+  </div>
+
+  <!-- Assinatura do sistema: quem escaneia um QR de certificado costuma ser
+       cliente, auditor — ou outra empresa de balanças. É o público certo,
+       no momento certo. Discreto de propósito: o documento é da empresa
+       emissora, não nosso. -->
+  <div class="marca-tscert">
+    <a href="https://certificados.totalscale.com.br/tscert.html?origem=qr" target="_blank" rel="noopener">
+      <span class="mt-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="15" height="15">
+          <path d="M4 17a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round"/>
+          <line x1="12" y1="17" x2="16" y2="11" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round"/>
+          <circle cx="12" cy="17" r="1.7" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="mt-txt">Emitido com <b>TSCert</b></span>
+    </a>
+  </div>
+</div>
+
+<style>
+.marca-tscert { max-width: 460px; margin: 18px auto 26px; text-align: center;
+  font-family: system-ui, -apple-system, sans-serif; }
+.marca-tscert a { display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none; color: #6b7c8f; font-size: .82rem;
+  padding: 5px 12px; border-radius: 99px; border: 1px solid transparent;
+  transition: .18s; }
+.marca-tscert a:hover { color: #12263f; border-color: #dde5ec; background: #fff; }
+.marca-tscert a b { color: #1b93c4; font-weight: 700; letter-spacing: -.01em; }
+.marca-tscert .mt-icone { display: inline-flex; color: #35b6e8; }
+</style>
+<script>
+const uuid = location.pathname.split('/').pop();
+const fmt = n => n == null ? '—' :
+  Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+
+(async () => {
+  const alvo = document.getElementById('resultado');
+  try {
+    const r = await fetch('/api/validar-estado/' + uuid);
+    const c = await r.json();
+
+    // Estado: certificado em processamento (etiqueta colada antes da aprovação)
+    if (c.estado === 'processando') {
+      alvo.innerHTML = `
+        <div class="aviso-processando">
+          <h2>⏳ Calibração em processamento</h2>
+          <p class="dica">A calibração deste equipamento foi realizada e o certificado
+          está sendo finalizado. Consulte novamente em breve.</p>
+        </div>
+        <table class="tab-validar">
+          <tr><td>Instrumento</td><td>${c.marca || ''} ${c.modelo || ''} · ${c.balanca}</td></tr>
+          ${c.num_serie ? `<tr><td>Nº de série</td><td>${c.num_serie}</td></tr>` : ''}
+          <tr><td>Data da calibração</td><td>${c.data_calibracao ? new Date(String(c.data_calibracao).substring(0,10)+'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td></tr>
+          <tr><td>Empresa responsável</td><td>${c.empresa}</td></tr>
+        </table>`;
+      return;
+    }
+
+    // Estado: certificado CANCELADO — aviso destacado com data e motivo.
+    // O registro permanece para consulta, mas o documento não vale mais.
+    if (c.estado === 'substituido') {
+      // Etiqueta no cliente aponta para o documento antigo: avisa e
+      // encaminha para a versao vigente (Joao, 19/08/2026).
+      const dt = v => v ? new Date(v).toLocaleDateString('pt-BR') : '—';
+      const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const btn = c.vigente_uuid
+        ? '<p style="text-align:center;margin:0 0 16px">'
+          + '<a href="/validar/' + c.vigente_uuid + '" style="display:inline-block;'
+          + 'background:#164066;color:#fff;text-decoration:none;padding:12px 24px;'
+          + 'border-radius:8px;font-size:15px">Ver o certificado vigente'
+          + (c.vigente_numero ? ' (' + esc(c.vigente_numero) + ')' : '') + ' →</a></p>'
+        : '<p class="dica" style="color:#b02a37">A versão vigente ainda não foi emitida. '
+          + 'Entre em contato com o laboratório.</p>';
+      alvo.innerHTML = '<div class="cabecalho" style="background:#8a6d1a">'
+        + '<b>' + esc(c.empresa || 'Certificado') + '</b>'
+        + '<span>Validação de certificado</span></div>'
+        + '<div class="conteudo">'
+        + '<p style="color:#8a6d1a;font-weight:600;font-size:16px;margin:0 0 6px">'
+        + '⚠️ Este certificado foi substituído</p>'
+        + '<p class="dica" style="margin:0 0 14px">Existe uma versão mais recente deste '
+        + 'documento, que é a que está vigente.</p>'
+        + btn
+        + '<table>'
+        + '<tr><td>Certificado</td><td><b>' + esc(c.numero || '—') + '</b></td></tr>'
+        + '<tr><td>Situação</td><td style="color:#8a6d1a;font-weight:700">Substituído</td></tr>'
+        + '<tr><td>Emitido em</td><td>' + dt(c.data_emissao) + '</td></tr>'
+        + '<tr><td>Cliente</td><td>' + esc(c.cliente || '—') + '</td></tr>'
+        + '<tr><td>Equipamento</td><td>' + esc(c.balanca || '—')
+        + (c.num_serie ? ' · série ' + esc(c.num_serie) : '') + '</td></tr>'
+        + '<tr><td>Calibrado em</td><td>' + dt(c.data_calibracao) + '</td></tr>'
+        + '</table>'
+        + '<p class="dica" style="margin-top:12px">Substituição é uma correção formal do '
+        + 'documento — o registro anterior é mantido no histórico para fins de auditoria.</p>'
+        + '</div>';
+      return;
+    }
+    if (c.estado === 'cancelado') {
+      alvo.innerHTML = `
+        <div class="aviso-invalido">
+          <h2>🚫 Certificado CANCELADO</h2>
+          <p class="dica" style="color:#b02a37;font-weight:600">Este certificado foi cancelado pela
+          empresa emissora e NÃO é mais válido.</p>
+        </div>
+        <table class="tab-validar">
+          <tr><td>Número</td><td><b>${c.numero}</b></td></tr>
+          <tr><td>Emitido por</td><td>${c.empresa}</td></tr>
+          <tr><td>Cliente</td><td>${c.cliente}</td></tr>
+          <tr><td>Instrumento</td><td>${c.marca || ''} ${c.modelo || ''} · ${c.balanca}</td></tr>
+          <tr><td>Cancelado em</td><td style="color:#b02a37;font-weight:700">${c.cancelado_em ? new Date(c.cancelado_em).toLocaleDateString('pt-BR') : '—'}</td></tr>
+          ${c.motivo_cancelamento ? `<tr><td>Motivo</td><td>${c.motivo_cancelamento}</td></tr>` : ''}
+        </table>
+        <p class="dica" style="margin-top:12px">Em caso de dúvida, procure a empresa responsável pela calibração.</p>`;
+      return;
+    }
+
+    // Estado: indisponível (inexistente) ou qualquer estado não reconhecido
+    if (c.estado !== 'valido') {
+      alvo.innerHTML = `<div class="aviso-invalido">
+        <h2>❌ Certificado não disponível</h2>
+        <p class="dica">Este código não corresponde a um certificado válido.
+        Verifique se o QR Code foi lido corretamente ou procure a empresa responsável.</p></div>`;
+      return;
+    }
+
+    // Estado: válido (emitido)
+    alvo.innerHTML = `
+      <div class="aviso-valido">
+        <h2>✅ Certificado autêntico</h2>
+      </div>
+      <table class="tab-validar">
+        <tr><td>Número</td><td><b>${c.numero}</b></td></tr>
+        <tr><td>Emitido por</td><td>${c.empresa}</td></tr>
+        ${c.num_autorizacao ? `<tr><td>Autorização Inmetro</td><td>${c.num_autorizacao}</td></tr>` : ''}
+        <tr><td>Cliente</td><td>${c.cliente}</td></tr>
+        <tr><td>Instrumento</td><td>${c.marca || ''} ${c.modelo || ''} · ${c.balanca}</td></tr>
+        <tr><td>Nº de série</td><td>${c.num_serie || '—'}</td></tr>
+        <tr><td>Capacidade</td><td>${fmt(c.capacidade)} kg · Classe ${c.classe_exatidao}</td></tr>
+        <tr><td>Data da calibração</td><td>${c.data_calibracao ? new Date(String(c.data_calibracao).substring(0,10)+'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td></tr>
+        ${(() => {
+          if (!c.data_calibracao || !c.periodicidade_meses) return '';
+          const d = new Date(String(c.data_calibracao).substring(0,10) + 'T00:00:00');
+          d.setMonth(d.getMonth() + c.periodicidade_meses);
+          const hoje = new Date(); hoje.setHours(0,0,0,0);
+          const cor = d >= hoje ? '#146c43' : '#b02a37';
+          const txt = d >= hoje ? 'dentro da validade' : 'vencida';
+          return `<tr><td>Próxima calibração</td><td>${d.toLocaleDateString('pt-BR')}
+            <span style="color:${cor};font-weight:700">· ${txt}</span></td></tr>`;
+        })()}
+        <tr><td>Emissão</td><td>${c.data_emissao ? new Date(c.data_emissao).toLocaleDateString('pt-BR') : '—'}</td></tr>
+      </table>
+      <p class="dica" style="margin-top:14px;word-break:break-all;">
+        Impressão digital (SHA-256):<br>${c.hash_sha256 || '—'}</p>
+      <div id="downloads" style="margin-top:16px"></div>`;
+    carregarDownloads();
+  } catch (e) {
+    alvo.innerHTML = '<p class="erro">Erro ao verificar. Tente novamente.</p>';
+  }
+})();
+
+// Botões de download: o certificado da balança e os certificados dos
+// pesos padrão que rastreiam esta calibração
+async function carregarDownloads() {
+  const uuid = location.pathname.split('/').pop();
+  const box = document.getElementById('downloads');
+  if (!box) return;
+  let html = `<a class="btn-download" href="/api/validar/${uuid}/pdf" target="_blank">
+      ⬇️ Baixar certificado da balança (PDF)</a>`;
+  try {
+    const pesos = await fetch('/api/validar/' + uuid + '/pesos').then(r => r.json());
+    const comPdf = (pesos || []).filter(p => p.tem_pdf);
+    if (comPdf.length > 0) {
+      html += `<p class="dica" style="margin:14px 0 6px">Certificados dos pesos padrão utilizados:</p>`;
+      html += comPdf.map(p =>
+        `<a class="btn-download secundario" href="/api/validar/${uuid}/peso/${p.id}" target="_blank">
+          ⬇️ ${p.identificacao} · ${p.valor_nominal || ''} · ${p.classe}</a>`
+      ).join('');
+    }
+  } catch (e) { /* sem pesos: mostra só o certificado */ }
+  box.innerHTML = html;
+}
+</script>
+<style>
+  .aviso-valido { background:#d9f2e2; border-radius:8px; padding:14px; text-align:center; margin-bottom:14px; }
+  .aviso-valido h2 { color:#146c43; }
+  .aviso-processando { background:#fdf3e0; border-radius:8px; padding:14px; text-align:center; margin-bottom:14px; }
+  .aviso-processando h2 { color:#b8860b; }
+  .aviso-invalido { background:#fde2e2; border-radius:8px; padding:14px; text-align:center; }
+  .aviso-invalido h2 { color:#b02a37; }
+  .tab-validar td { padding:8px 6px; border-bottom:1px solid #eef1f4; }
+  .tab-validar td:first-child { color:#667; font-size:.85rem; width:42%; }
+  .btn-download { display:block; text-align:center; background:#0d3b2e; color:#fff;
+    text-decoration:none; padding:11px 14px; border-radius:8px; margin-bottom:8px;
+    font-size:.9rem; }
+  .btn-download.secundario { background:#fff; color:#0d3b2e; border:1px solid #0d3b2e; }
+  .btn-download:active { opacity:.85; }
+</style>
+</body>
+</html>

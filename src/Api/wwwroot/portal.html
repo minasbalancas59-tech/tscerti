@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal do Cliente · TSCert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --tinta: #0f2138;        /* navy profundo: estrutura */
+  --aco: #43607f;          /* azul-aço: texto secundário */
+  --ciano: #35b6e8;        /* acento da marca */
+  --ciano-esc: #1b93c4;
+  --papel: #eef2f7;        /* fundo */
+  --linha: #dbe4ee;
+  --conforme: #0f7a52;
+  --alerta: #b7791f;
+  --erro: #b3283a;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Consolas, monospace;
+  --raio: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--papel); color: var(--tinta); line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.oculta { display: none !important; }
+
+/* ── cabeçalho ─────────────────────────────────────── */
+header {
+  background: var(--tinta); color: #fff; padding: 14px 18px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 20;
+}
+.portal-hd-marca { display: inline-flex; align-items: center; gap: 9px; font-size: 1.05rem; }
+.portal-hd-sub { font-weight: 400; opacity: .7; font-size: .82rem; letter-spacing: .04em;
+  text-transform: uppercase; }
+header .quem { display: flex; align-items: center; gap: 10px; font-size: .88rem; }
+header button {
+  background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.18);
+  padding: 7px 13px; border-radius: 9px; cursor: pointer; font: inherit; font-size: .85rem;
+  transition: background .15s;
+}
+header button:hover { background: rgba(255,255,255,.22); }
+header button:focus-visible, .tab:focus-visible, .baixar:focus-visible,
+button.primario:focus-visible, input:focus-visible, .link:focus-visible {
+  outline: 2px solid var(--ciano); outline-offset: 2px;
+}
+main { max-width: 900px; margin: 0 auto; padding: 18px 16px 60px; }
+
+/* ── linha de identidade ───────────────────────────── */
+.identidade {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+  margin: 4px 2px 18px; color: var(--aco); font-size: .88rem;
+}
+.identidade b { color: var(--tinta); font-size: 1.15rem; letter-spacing: -.01em; }
+.identidade .doc { font-family: var(--mono); font-size: .82rem; }
+
+/* ── abas ──────────────────────────────────────────── */
+.tabs { display: flex; gap: 6px; background: #e2e9f1; padding: 4px;
+  border-radius: 12px; margin-bottom: 16px; }
+.tab { flex: 1; padding: 9px 14px; border: none; background: transparent; color: var(--aco);
+  border-radius: 9px; cursor: pointer; font: inherit; font-size: .9rem; font-weight: 500;
+  transition: .15s; }
+.tab:hover { color: var(--tinta); }
+.tab.ativa { background: #fff; color: var(--tinta); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15,33,56,.12); }
+
+/* ── busca ─────────────────────────────────────────── */
+.busca { width: 100%; padding: 11px 14px; border: 1px solid var(--linha); border-radius: 11px;
+  font: inherit; font-size: .92rem; background: #fff; margin-bottom: 14px; }
+.busca:focus { outline: none; border-color: var(--ciano);
+  box-shadow: 0 0 0 3px rgba(53,182,232,.18); }
+
+/* ── cartão da balança (elemento-assinatura) ───────── */
+.balanca {
+  background: #fff; border: 1px solid var(--linha); border-radius: var(--raio);
+  margin-bottom: 12px; overflow: hidden; position: relative;
+  animation: surge .35s ease both;
+}
+.balanca::before {                       /* escala/régua: o mundo da balança */
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background-color: var(--ciano);        /* garantia: barra sólida */
+  background-image: repeating-linear-gradient(to bottom,
+    rgba(255,255,255,0) 0 3px, rgba(255,255,255,.68) 3px 9px);
+}
+@keyframes surge { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .balanca { animation: none; } }
+
+.balanca-topo { padding: 14px 16px 12px 21px; border-bottom: 1px solid #eef2f7; }
+.balanca-topo b { font-size: 1.02rem; letter-spacing: -.01em; }
+.serie { font-family: var(--mono); font-size: .78rem; color: var(--aco); margin-top: 2px;
+  display: block; }
+.serie i { font-style: normal; text-transform: uppercase; letter-spacing: .08em;
+  font-size: .68rem; opacity: .8; margin-right: 4px; }
+
+.atual { display: flex; align-items: center; gap: 14px; padding: 14px 16px 14px 21px;
+  flex-wrap: wrap; }
+.leitura { flex: 1 1 180px; min-width: 0; }
+.leitura .rot { font-size: .68rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--aco); }
+.leitura .num { font-family: var(--mono); font-size: 1.22rem; font-weight: 600;
+  letter-spacing: .01em; word-break: break-all; }
+.leitura .quando { font-family: var(--mono); font-size: .84rem; color: var(--aco); margin-top: 1px; }
+.selo { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em; color: var(--conforme);
+  border: 1.5px solid var(--conforme); border-radius: 7px; padding: 3px 8px; }
+.emissor { font-size: .8rem; color: var(--aco); padding: 0 16px 12px 21px; }
+.emissor b { color: var(--tinta); font-weight: 600; }
+
+.baixar { background: var(--tinta); color: #fff; border: none; padding: 10px 16px;
+  border-radius: 10px; cursor: pointer; font: inherit; font-size: .88rem; font-weight: 600;
+  white-space: nowrap; transition: .15s; }
+.baixar:hover { background: #1b3a5c; }
+.baixar.leve { background: #fff; color: var(--tinta); border: 1px solid var(--linha);
+  font-weight: 500; padding: 7px 12px; font-size: .82rem; }
+.baixar.leve:hover { border-color: var(--ciano); color: var(--ciano-esc); }
+
+details.historico { border-top: 1px dashed var(--linha); }
+details.historico summary { cursor: pointer; padding: 10px 16px 10px 21px; font-size: .84rem;
+  color: var(--aco); list-style: none; }
+details.historico summary::-webkit-details-marker { display: none; }
+details.historico summary::before { content: '▸ '; color: var(--ciano-esc); }
+details.historico[open] summary::before { content: '▾ '; }
+details.historico summary:hover { color: var(--tinta); }
+.hist-item { display: flex; align-items: center; gap: 12px; padding: 9px 16px 9px 21px;
+  border-top: 1px solid #f1f5f9; font-size: .86rem; flex-wrap: wrap; }
+.hist-item .n { font-family: var(--mono); flex: 1 1 140px; }
+.hist-item .d { font-family: var(--mono); color: var(--aco); }
+
+/* ── situação de validade (assinatura da tela) ─────── */
+.selo.vig { color: var(--conforme); border-color: var(--conforme); }
+.selo.avencer { color: #b7791f; border-color: #b7791f; }
+.selo.venc { color: #b3283a; border-color: #b3283a; }
+.selo.semper { color: var(--aco); border-color: var(--linha); font-weight: 600; }
+.prazo { font-size: .78rem; color: var(--aco); margin-top: 2px; }
+.prazo b { color: var(--tinta); }
+
+.resumo-validade {
+  background: #fff; border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 13px 16px; margin-bottom: 12px;
+}
+.resumo-validade .titulo { font-size: .95rem; font-weight: 600; }
+.resumo-validade .barra { display: flex; height: 8px; border-radius: 99px; overflow: hidden;
+  margin: 10px 0 8px; background: #eef2f7; }
+.resumo-validade .barra span { display: block; height: 100%; }
+.legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: .82rem; color: var(--aco); }
+.legenda i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip { padding: 7px 13px; border-radius: 99px; border: 1px solid var(--linha); background: #fff;
+  font: inherit; font-size: .85rem; color: var(--aco); cursor: pointer; transition: .15s; }
+.chip:hover { border-color: var(--ciano); color: var(--tinta); }
+.chip.ativo { background: var(--tinta); border-color: var(--tinta); color: #fff; font-weight: 600; }
+
+.pedir { background: #0f7a52; color: #fff; border: none; padding: 9px 14px;
+  border-radius: 10px; cursor: pointer; font: inherit; font-size: .85rem; font-weight: 600; }
+.pedir:hover { background: #0c6543; }
+.pedir.leve { background: #fff; color: #0f7a52; border: 1px solid #0f7a52; }
+.pedir.leve:hover { background: #f0f9f4; }
+.acoes-topo { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.copiado { font-size: .78rem; color: var(--conforme); margin-left: 6px; }
+
+/* ── resultado da calibração ───────────────────────── */
+.resultado { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem;
+  font-weight: 700; border-radius: 8px; padding: 5px 11px; }
+.resultado.ok { color: #0f7a52; background: #eaf6f0; border: 1px solid #bfe3d2; }
+.resultado.nok { color: #b3283a; background: #fdf0f1; border: 1px solid #f2c9ce; }
+.resultado.rbc { color: #0a5c40; background: #eef7f2; border: 1px solid #bfe0d0; }
+.linha-resultado { padding: 0 16px 12px 21px; }
+.linha-resultado .obs { display: block; font-size: .78rem; color: var(--aco);
+  margin-top: 5px; line-height: 1.45; }
+.aviso-nok { background: #fdf0f1; border-top: 1px solid #f2c9ce; color: #8f2230;
+  padding: 11px 16px 11px 21px; font-size: .85rem; line-height: 1.5; }
+.aviso-nok b { font-weight: 700; }
+
+/* ── estado do certificado (cancelado/substituído) ── */
+.tarja { display: block; padding: 9px 16px 9px 21px; font-size: .84rem; line-height: 1.45; }
+.tarja.cancelado { background: #fdf0f1; color: #8f2230; border-top: 1px solid #f2c9ce; }
+.tarja.substituido { background: #f4f7fb; color: #3f556e; border-top: 1px solid #e2eaf2; }
+.tarja b { font-weight: 700; }
+.balanca.sem-valido { border-color: #e8b4bb; }
+
+.etiquetas { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 12px 21px; }
+.etq { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem;
+  border: 1px solid var(--linha); border-radius: 7px; padding: 3px 8px; color: var(--aco); }
+.etq b { color: var(--tinta); font-family: var(--mono); font-weight: 600; }
+.etq.rbc { border-color: #0a5c40; color: #0a5c40; background: #eef7f2; font-weight: 700;
+  letter-spacing: .04em; }
+
+/* ── assinatura do sistema (discreta, no rodapé) ───── */
+.marca-sis { text-align: center; margin: 22px 0 30px; }
+.marca-sis a { display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  color: var(--aco); font-size: .8rem; padding: 5px 12px; border-radius: 99px;
+  border: 1px solid transparent; transition: .18s; }
+.marca-sis a:hover { color: var(--tinta); border-color: var(--linha); background: #fff; }
+.marca-sis a b { color: var(--ciano-esc); font-weight: 700; }
+
+/* ── quem atende (contato) ─────────────────────────── */
+.ajuda-bloco { background: #fff; border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 15px 17px; margin-top: 18px; }
+.ajuda-bloco h3 { font-size: .98rem; margin-bottom: 4px; }
+.emp-linha { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  padding: 11px 0; border-top: 1px solid #eef2f7; }
+.emp-linha:first-of-type { border-top: none; }
+.emp-nome { flex: 1; min-width: 170px; }
+.emp-nome b { display: block; font-size: .95rem; }
+.emp-acoes { display: flex; gap: 7px; flex-wrap: wrap; }
+.emp-acoes a { display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px;
+  border: 1px solid var(--linha); border-radius: 9px; text-decoration: none;
+  color: var(--tinta); font-size: .84rem; }
+.emp-acoes a:hover { border-color: var(--ciano); color: var(--ciano-esc); }
+
+/* ── tabela (pesos-padrão) ─────────────────────────── */
+.bloco { background: #fff; border: 1px solid var(--linha); border-radius: var(--raio);
+  padding: 18px; }
+.bloco h2 { font-size: 1.05rem; margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+th, td { padding: 10px 8px; border-bottom: 1px solid #eef2f7; text-align: left; }
+th { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--aco);
+  font-weight: 600; }
+td.mono, .mono { font-family: var(--mono); }
+.scroll { overflow-x: auto; margin-top: 10px; }
+
+/* ── estados vazios / carregando ───────────────────── */
+.vazio { background: #fff; border: 1px dashed var(--linha); border-radius: var(--raio);
+  padding: 34px 22px; text-align: center; }
+.vazio b { display: block; font-size: 1rem; margin-bottom: 5px; }
+.vazio p { color: var(--aco); font-size: .9rem; max-width: 420px; margin: 0 auto; }
+.esqueleto { height: 96px; background: linear-gradient(90deg, #fff 0%, #f4f7fb 50%, #fff 100%);
+  border: 1px solid var(--linha); border-radius: var(--raio); margin-bottom: 12px;
+  animation: pulsa 1.3s ease-in-out infinite; }
+@keyframes pulsa { 0%,100% { opacity: .75 } 50% { opacity: 1 } }
+
+/* ── tela de entrada: duas colunas ─────────────────── */
+.entrada { min-height: 100vh; display: grid; grid-template-columns: 1fr; }
+.entrada-vitrine {
+  background: var(--tinta); color: #fff; padding: 34px 28px 30px;
+  display: flex; flex-direction: column; justify-content: center; gap: 18px;
+  position: relative; overflow: hidden;
+}
+.entrada-vitrine::before {           /* escala graduada: assinatura do portal */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px;
+  background-color: var(--ciano);
+  background-image: repeating-linear-gradient(to right,
+    rgba(255,255,255,0) 0 4px, rgba(255,255,255,.65) 4px 10px);
+}
+.entrada-vitrine h2 { font-size: 1.45rem; line-height: 1.25; letter-spacing: -.02em;
+  max-width: 15ch; }
+.entrada-vitrine h2 em { font-style: normal; color: var(--ciano); }
+.vantagens { list-style: none; display: flex; flex-direction: column; gap: 11px;
+  font-size: .92rem; color: #cfdcea; }
+.vantagens li { display: flex; gap: 10px; align-items: flex-start; }
+.vantagens svg { flex: 0 0 18px; margin-top: 2px; }
+.selo-privacidade { font-size: .78rem; color: #93a9c0; border-top: 1px solid rgba(255,255,255,.12);
+  padding-top: 14px; }
+.entrada-form { display: flex; align-items: center; justify-content: center;
+  padding: 30px 20px 44px; }
+.entrada-form .card { width: 100%; max-width: 400px; }
+.marca-mostrador { display: flex; align-items: center; gap: 11px; }
+.marca-mostrador b { font-size: 1.22rem; letter-spacing: -.02em; }
+.marca-mostrador span { font-size: .68rem; text-transform: uppercase; letter-spacing: .12em;
+  color: #9fb6cd; display: block; margin-top: 1px; }
+.campo-senha { position: relative; }
+.campo-senha input { padding-right: 76px; }
+.ver-senha { position: absolute; right: 8px; bottom: 8px; background: transparent; border: none;
+  color: var(--aco); font: inherit; font-size: .78rem; cursor: pointer; padding: 5px 7px;
+  border-radius: 7px; }
+.ver-senha:hover { background: #f1f5f9; color: var(--tinta); }
+@media (min-width: 900px) {
+  .entrada { grid-template-columns: 1.02fr .98fr; }
+  .entrada-vitrine { padding: 52px 46px; gap: 22px; }
+  .entrada-vitrine h2 { font-size: 1.9rem; }
+  .entrada-form { padding: 40px; }
+}
+
+/* ── telas de entrada (login/cadastro/convite) ─────── */
+.login-wrap { max-width: 430px; margin: 7vh auto; padding: 0 16px; }
+.card { background: #fff; border-radius: var(--raio); padding: 26px 24px;
+  border: 1px solid var(--linha); box-shadow: 0 12px 30px rgba(15,33,56,.07); }
+.portal-marca { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.portal-marca-txt { display: flex; flex-direction: column; line-height: 1.15; }
+.portal-marca-txt b { font-size: 1.3rem; letter-spacing: -.02em; }
+.portal-marca-txt span { font-size: .72rem; color: var(--aco); text-transform: uppercase;
+  letter-spacing: .1em; }
+h1 { font-size: 1.35rem; letter-spacing: -.02em; }
+h2 { font-size: 1.15rem; }
+.sub { color: var(--aco); margin: 4px 0 18px; font-size: .92rem; }
+label { display: block; margin-bottom: 13px; font-size: .8rem; color: var(--aco);
+  font-weight: 500; }
+input { width: 100%; padding: 11px 12px; margin-top: 5px; border: 1px solid var(--linha);
+  border-radius: 10px; font: inherit; font-size: 1rem; color: var(--tinta); background: #fff;
+  transition: .15s; }
+input:focus { outline: none; border-color: var(--ciano);
+  box-shadow: 0 0 0 3px rgba(53,182,232,.18); }
+input:disabled { background: #f4f7fb; color: var(--aco); }
+button.primario { background: var(--tinta); color: #fff; border: none; width: 100%;
+  padding: 13px; border-radius: 10px; font: inherit; font-size: .98rem; font-weight: 600;
+  cursor: pointer; transition: .15s; }
+button.primario:hover { background: #1b3a5c; }
+.link { color: var(--ciano-esc); cursor: pointer; font-size: .88rem; font-weight: 500; }
+.link:hover { text-decoration: underline; }
+.erro { color: var(--erro); font-size: .87rem; margin-top: 10px; }
+.ok { color: var(--conforme); font-size: .89rem; margin-top: 10px; }
+.dica { font-size: .84rem; color: var(--aco); }
+.aviso-seg { background: #f0f7fb; border-left: 3px solid var(--ciano); padding: 11px 14px;
+  border-radius: 0 10px 10px 0; font-size: .84rem; margin-bottom: 16px; color: #204b63; }
+
+@media (max-width: 560px) {
+  header { padding: 12px 14px; }
+  header .quem span { display: none; }
+  .atual { gap: 10px; }
+  .baixar { width: 100%; }
+  .identidade b { font-size: 1.05rem; }
+}
+</style>
+  <link rel="manifest" href="/portal-manifest.json">
+  <meta name="theme-color" content="#0f2138">
+  <link rel="apple-touch-icon" href="/portal-icone.svg">
+</head>
+<body>
+
+<!-- ─── LOGIN / CADASTRO ─── -->
+<div id="tela-login" class="entrada">
+  <section class="entrada-vitrine">
+    <div class="marca-mostrador">
+      <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
+        <path d="M7 33a17 17 0 0 1 34 0" fill="none" stroke="#35b6e8" stroke-width="3.4"
+              stroke-linecap="round"/>
+        <path d="M13.5 21.5l1.7 2.4M24 17.5v3M34.5 21.5l-1.7 2.4" stroke="rgba(255,255,255,.55)"
+              stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="24" y1="33" x2="32" y2="22" stroke="#fff" stroke-width="3.4"
+              stroke-linecap="round"/>
+        <circle cx="24" cy="33" r="3.4" fill="#fff"/>
+      </svg>
+      <div><b>TSCert</b><span>Portal do Cliente</span></div>
+    </div>
+
+    <h2>Seus certificados de calibração, <em>sempre à mão</em>.</h2>
+
+    <ul class="vantagens">
+      <li><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path
+            d="M4 10.5l4 4 8-9" fill="none" stroke="#35b6e8" stroke-width="2.4"
+            stroke-linecap="round" stroke-linejoin="round"/></svg>
+        O histórico completo de cada balança, sem precisar pedir.</li>
+      <li><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path
+            d="M4 10.5l4 4 8-9" fill="none" stroke="#35b6e8" stroke-width="2.4"
+            stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Os certificados dos pesos-padrão, prontos para a auditoria.</li>
+      <li><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path
+            d="M4 10.5l4 4 8-9" fill="none" stroke="#35b6e8" stroke-width="2.4"
+            stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Funciona no celular, sem instalar nada.</li>
+    </ul>
+
+    <p class="selo-privacidade">Você vê apenas os documentos emitidos para o seu CNPJ.</p>
+  </section>
+
+  <section class="entrada-form">
+    <div class="card">
+      <h1>Entrar</h1>
+      <p class="sub">Use o e-mail cadastrado na empresa que calibra suas balanças.</p>
+      <div id="form-login">
+        <label>E-mail
+          <input type="email" id="lg-email" autocomplete="email" inputmode="email"
+                 placeholder="voce@suaempresa.com.br" onkeydown="if(event.key==='Enter')entrar()"></label>
+        <label>Senha
+          <span class="campo-senha">
+            <input type="password" id="lg-senha" autocomplete="current-password"
+                   onkeydown="if(event.key==='Enter')entrar()">
+            <button type="button" class="ver-senha" id="btn-ver-senha"
+                    onclick="alternarSenha()">mostrar</button>
+          </span></label>
+        <button class="primario" id="btn-entrar" onclick="entrar()">Entrar</button>
+        <p style="margin-top:16px;text-align:center">
+          <span class="link" onclick="mostrarEsqueci()">Esqueci minha senha</span>
+          <span style="color:#c8d3de;margin:0 8px">·</span>
+          <span class="link" onclick="mostrarCadastro()">Ainda não tenho acesso</span></p>
+        <p id="lg-erro" class="erro"></p>
+        <div id="lg-ajuda" class="oculta" style="margin-top:10px;background:#f0f7fb;
+             border-left:3px solid var(--ciano);border-radius:0 10px 10px 0;padding:12px 14px">
+          <p id="lg-ajuda-txt" style="font-size:.88rem;color:#204b63"></p>
+          <div id="lg-ajuda-acao" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─── CADASTRO ─── -->
+<div id="tela-cadastro" class="login-wrap oculta">
+  <div class="card">
+    <h1>Criar acesso</h1>
+    <p class="sub">Use o mesmo e-mail que você informou à empresa que calibrou sua balança.</p>
+    <div class="aviso-seg">
+      🔒 Por segurança, o cadastro só funciona com um e-mail já registrado por uma
+      empresa que emitiu certificado para o seu documento (CNPJ/CPF).
+    </div>
+    <label>CNPJ ou CPF <input type="text" id="cd-doc" placeholder="Só números ou formatado"></label>
+    <label>E-mail <input type="email" id="cd-email"></label>
+    <label>Seu nome <input type="text" id="cd-nome"></label>
+    <label>Crie uma senha (mín. 8 caracteres) <input type="password" id="cd-senha"></label>
+    <button class="primario" onclick="cadastrar()">Criar acesso</button>
+    <p style="margin-top:14px;text-align:center">
+      <span class="link" onclick="mostrarLogin()">← Voltar ao login</span></p>
+    <p id="cd-erro" class="erro"></p>
+    <p id="cd-ok" class="ok"></p>
+  </div>
+</div>
+
+<!-- ─── ESQUECI MINHA SENHA ─── -->
+<div id="tela-esqueci" class="login-wrap oculta">
+  <div class="card">
+    <h1>Esqueci minha senha</h1>
+    <p class="sub">Informe o e-mail que você usa para entrar. Enviaremos um link para
+      criar uma senha nova.</p>
+    <label>E-mail <input type="email" id="eq-email" autocomplete="email"
+      placeholder="voce@suaempresa.com.br"
+      onkeydown="if(event.key==='Enter')pedirNovaSenha()"></label>
+    <button class="primario" id="btn-eq" onclick="pedirNovaSenha()">Enviar link</button>
+    <p style="margin-top:14px;text-align:center">
+      <span class="link" onclick="mostrarLogin()">← Voltar para a entrada</span></p>
+    <p id="eq-erro" class="erro"></p>
+    <p id="eq-ok" class="ok"></p>
+  </div>
+</div>
+
+<!-- ─── NOVA SENHA (link do e-mail) ─── -->
+<div id="tela-nova-senha" class="login-wrap oculta">
+  <div class="card">
+    <h1>Criar nova senha</h1>
+    <p class="sub" id="ns-sub">Escolha a senha que você vai usar para entrar.</p>
+    <div class="aviso-seg">🔒 Seu <b>login</b> continua sendo o e-mail abaixo.</div>
+    <label>Login (e-mail) <input type="email" id="ns-email" disabled></label>
+    <label>Nova senha (mín. 8 caracteres)
+      <input type="password" id="ns-senha" autocomplete="new-password"></label>
+    <label>Repita a nova senha
+      <input type="password" id="ns-senha2" autocomplete="new-password"></label>
+    <button class="primario" onclick="salvarNovaSenha()">Salvar e entrar</button>
+    <p style="margin-top:14px;text-align:center">
+      <span class="link" onclick="mostrarLogin()">← Voltar</span></p>
+    <p id="ns-erro" class="erro"></p>
+    <p id="ns-ok" class="ok"></p>
+  </div>
+</div>
+
+<!-- ─── CONVITE (link enviado pela empresa) ─── -->
+<div id="tela-convite" class="login-wrap oculta">
+  <div class="card">
+    <h1>Criar minha senha</h1>
+    <p class="sub" id="cv-sub">Você foi convidado a acessar seus certificados.</p>
+    <div class="aviso-seg">
+      🔒 Seu <b>login</b> é o e-mail abaixo, já cadastrado pela empresa.
+      Escolha uma senha para entrar no portal.
+    </div>
+    <label>Login (e-mail) <input type="email" id="cv-email" disabled></label>
+    <label>Seu nome <input type="text" id="cv-nome" placeholder="como quer ser chamado"></label>
+    <label>Crie uma senha (mín. 8 caracteres)
+      <input type="password" id="cv-senha" autocomplete="new-password"></label>
+    <label>Repita a senha
+      <input type="password" id="cv-senha2" autocomplete="new-password"></label>
+    <button class="primario" onclick="salvarConvite()">Criar acesso</button>
+    <p style="margin-top:14px;text-align:center">
+      <span class="link" onclick="mostrarLogin()">← Já tenho acesso</span></p>
+    <p id="cv-erro" class="erro"></p>
+    <p id="cv-ok" class="ok"></p>
+  </div>
+</div>
+
+<!-- ─── PAINEL ─── -->
+<div id="tela-painel" class="oculta">
+  <header>
+    <span class="portal-hd-marca">
+      <svg viewBox="0 0 48 48" width="26" height="26" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#fff" stroke-width="3"
+          stroke-dasharray="90 33" stroke-linecap="round" transform="rotate(-45 24 24)"/>
+        <text x="24" y="32" font-family="Inter, sans-serif" font-size="24" font-weight="700"
+          fill="#fff" text-anchor="middle">C</text>
+      </svg>
+      <b>TSCert</b> <span class="portal-hd-sub">Portal do Cliente</span></span>
+    <div class="quem">
+      <span id="hd-nome"></span>
+      <button onclick="sair()">Sair</button>
+    </div>
+  </header>
+  <main>
+    <div class="identidade">
+      <b id="id-nome">—</b>
+      <span class="doc" id="id-doc"></span>
+      <span id="id-resumo"></span>
+    </div>
+    <div class="tabs">
+      <button class="tab ativa" id="tab-certs" onclick="verCerts()">Meus certificados</button>
+      <button class="tab" id="tab-pesos" onclick="verPesos()">Pesos-padrão</button>
+    </div>
+    <input type="search" class="busca oculta" id="busca"
+           placeholder="Buscar por balança, série, capacidade, Inmetro, marca ou certificado"
+           oninput="filtrarCerts(this.value)">
+    <p id="busca-aviso" class="dica" style="margin:-6px 2px 12px"></p>
+    <div id="conteudo"></div>
+  </main>
+</div>
+
+<script>
+let token = localStorage.getItem('portal_token');
+let nome = localStorage.getItem('portal_nome');
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dt = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+
+// devolve também o corpo do erro, para a tela saber o que orientar
+async function api(caminho, opcoes = {}) {
+  const r = await fetch('/api/portal' + caminho, {
+    ...opcoes,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(opcoes.headers || {})
+    }
+  });
+  if (r.status === 401 && !caminho.startsWith('/login')) { sair(); throw new Error('Sessão expirada'); }
+  const texto = await r.text();
+  const corpo = texto ? JSON.parse(texto) : null;
+  if (!r.ok) {
+    const err = new Error(corpo?.erro || ('Erro ' + r.status));
+    err.dados = corpo || {};      // leva codigo/detalhe para a tela orientar
+    throw err;
+  }
+  return corpo;
+}
+
+// Todas as telas do portal. Faltavam aqui a do CONVITE (por isso o link do
+// e-mail abria uma pagina em branco) e as de senha.
+function mostrar(t) {
+  ['tela-login', 'tela-cadastro', 'tela-esqueci', 'tela-nova-senha',
+   'tela-convite', 'tela-painel'].forEach(x => {
+    const el = document.getElementById(x);
+    if (el) el.classList.toggle('oculta', x !== t);
+  });
+}
+function mostrarCadastro() { mostrar('tela-cadastro'); }
+function mostrarLogin() { mostrar('tela-login'); }
+
+// Mostra a orientação certa para cada problema — e a AÇÃO para resolver
+function mostrarAjudaLogin(e) {
+  const cx = $('#lg-ajuda'), txt = $('#lg-ajuda-txt'), acao = $('#lg-ajuda-acao');
+  const info = e && e.dados ? e.dados : {};
+  const cod = info.codigo || '';
+  if (!cod) { cx.classList.add('oculta'); return; }
+  txt.textContent = info.detalhe || '';
+  const email = ($('#lg-email').value || '').trim();
+  if (cod === 'nao_validado') {
+    acao.innerHTML = `<button class="primario" style="padding:10px" onclick="reenviarValidacao()">
+      Reenviar o link de confirmação</button>`;
+  } else if (cod === 'sem_acesso') {
+    acao.innerHTML = `<span class="link" onclick="mostrarCadastro()">Criar meu acesso agora →</span>`;
+  } else if (cod === 'senha') {
+    acao.innerHTML = `<button class="primario" style="padding:10px"
+      onclick="mostrarEsqueci()">Criar uma nova senha</button>`;
+  } else {
+    acao.innerHTML = '';
+  }
+  cx.classList.remove('oculta');
+}
+
+async function reenviarValidacao() {
+  const email = ($('#lg-email').value || '').trim();
+  if (!email) { $('#lg-erro').textContent = 'Digite seu e-mail acima.'; return; }
+  try {
+    const r = await api('/reenviar-validacao', { method: 'POST',
+      body: JSON.stringify({ token: email }) });
+    $('#lg-erro').textContent = '';
+    $('#lg-ajuda-txt').textContent = r.mensagem;
+    $('#lg-ajuda-acao').innerHTML = '';
+  } catch (e) { $('#lg-erro').textContent = e.message; }
+}
+
+function alternarSenha() {
+  const c = $('#lg-senha'), b = $('#btn-ver-senha');
+  const mostrando = c.type === 'text';
+  c.type = mostrando ? 'password' : 'text';
+  b.textContent = mostrando ? 'mostrar' : 'ocultar';
+  c.focus();
+}
+
+async function entrar() {
+  $('#lg-erro').textContent = '';
+  const bt = $('#btn-entrar');
+  if (bt) { bt.disabled = true; bt.textContent = 'Entrando…'; }
+  try {
+    const r = await api('/login', { method: 'POST', body: JSON.stringify({
+      email: $('#lg-email').value.trim(), senha: $('#lg-senha').value }) });
+    token = r.token; nome = r.nome || 'Cliente';
+    localStorage.setItem('portal_token', token);
+    if (r.documento) localStorage.setItem('portal_doc', r.documento);
+    localStorage.setItem('portal_nome', nome);
+    irPainel();
+  } catch (e) {
+    $('#lg-erro').textContent = e.message;
+    mostrarAjudaLogin(e);
+  } finally {
+    const bt = $('#btn-entrar');
+    if (bt) { bt.disabled = false; bt.textContent = 'Entrar'; }
+  }
+}
+
+async function cadastrar() {
+  $('#cd-erro').textContent = ''; $('#cd-ok').textContent = '';
+  try {
+    const r = await api('/cadastro', { method: 'POST', body: JSON.stringify({
+      documento: $('#cd-doc').value.trim(),
+      email: $('#cd-email').value.trim(),
+      nome: $('#cd-nome').value.trim(),
+      senha: $('#cd-senha').value }) });
+    $('#cd-ok').textContent = r.mensagem;
+    setTimeout(mostrarLogin, 4000);
+  } catch (e) { $('#cd-erro').textContent = e.message; }
+}
+
+function irPainel() {
+  mostrar('tela-painel');
+  $('#hd-nome').textContent = nome || '';
+  $('#id-nome').textContent = nome || 'Seus certificados';
+  const doc = localStorage.getItem('portal_doc') || '';
+  $('#id-doc').textContent = doc ? formatarDoc(doc) : '';
+  verCerts();
+}
+
+// CNPJ/CPF legível
+function formatarDoc(d) {
+  const s = String(d).replace(/\D/g, '');
+  if (s.length === 14) return s.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  if (s.length === 11) return s.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  return d;
+}
+
+// Texto sem acento e em minúsculas — busca que perdoa "balanca" e "balança"
+function norm(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Número legível: tira zeros à direita SÓ depois da vírgula/ponto decimal
+// (80000 continua 80000; 300.00 vira 300; 15.500 vira 15,5)
+function fmtNum(v) {
+  let s = String(v).trim();
+  if (/[.,]/.test(s)) s = s.replace(/([.,]\d*?)0+$/, '$1').replace(/[.,]$/, '');
+  return s.replace('.', ',');
+}
+
+// Campos da balança que valem para exibir e para buscar (só os que existirem)
+function dadosBal(c) {
+  const d = c.dados_balanca || {};
+  const cap = d.capacidade ?? d.capacidade_max ?? null;
+  const uni = d.unidade || d.unidade_capacidade || 'kg';
+  return {
+    capacidade: cap != null ? `${fmtNum(cap)} ${uni}` : null,
+    inmetro: d.numero_inmetro || d.num_inmetro || d.numero_serie_inmetro || null,
+    classe: d.classe_exatidao || d.classe || null,
+    patrimonio: d.patrimonio || null,
+    local: d.local_instalacao || d.setor || null,
+    divisao: d.divisao_e ?? d.divisao_d ?? null,
+    todos: Object.values(d).filter(v => v !== null && typeof v !== 'object').join(' ')
+  };
+}
+
+// Situação de validade a partir do vencimento calculado
+function situacao(v) {
+  if (!v) return { cod: 'semper', rot: 'sem periodicidade', dias: null };
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const d = new Date(String(v).substring(0, 10) + 'T00:00:00');
+  const dias = Math.round((d - hoje) / 86400000);
+  if (dias < 0) return { cod: 'venc', rot: 'vencida', dias };
+  if (dias <= 60) return { cod: 'avencer', rot: 'vence em breve', dias };
+  return { cod: 'vig', rot: 'vigente', dias };
+}
+function dbr(v) {
+  return v ? new Date(String(v).substring(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+}
+
+let filtroSit = 'todas';
+function filtrarSituacao(f) { filtroSit = f; desenharCerts(); }
+
+async function verCerts() {
+  $('#tab-certs').classList.add('ativa'); $('#tab-pesos').classList.remove('ativa');
+  $('#conteudo').innerHTML = '<div class="esqueleto"></div><div class="esqueleto"></div>';
+  try {
+    const lista = await api('/certificados');
+    window._certs = lista;
+    desenharCerts();
+    carregarContatoEmpresas();
+  } catch (e) {
+    $('#conteudo').innerHTML =
+      `<div class="vazio"><b>Não foi possível carregar</b><p>${esc(e.message)}</p></div>`;
+  }
+}
+
+function desenharCerts() {
+  const lista = window._certs || [];
+  if (!lista.length) {
+    $('#busca').classList.add('oculta');
+    $('#id-resumo').textContent = '';
+    $('#conteudo').innerHTML = `
+      <div class="vazio"><b>Nenhum certificado por aqui ainda</b>
+      <p>Assim que a empresa emitir a primeira calibração para o seu CNPJ,
+         ela aparece nesta tela — e fica guardada.</p></div>`;
+    return;
+  }
+
+  // agrupa por balança; o certificado mais recente define a situação
+  const grupos = new Map();
+  lista.forEach(c => {
+    const chave = (c.balanca || 'Equipamento') + '\u0001' + (c.num_serie || '');
+    if (!grupos.has(chave))
+      grupos.set(chave, { balanca: c.balanca || 'Equipamento', serie: c.num_serie, itens: [] });
+    grupos.get(chave).itens.push(c);
+  });
+  grupos.forEach(g => {
+    g.itens.sort((a, b) => new Date(b.data_calibracao || 0) - new Date(a.data_calibracao || 0));
+    // O cartão representa o certificado VÁLIDO mais recente. Cancelado e
+    // substituído não definem a situação da balança — vão para o histórico.
+    const validos = g.itens.filter(x => x.status === 'emitido');
+    g.atual = validos[0] || g.itens[0];
+    g.semValido = validos.length === 0;
+    g.sit = g.semValido ? { cod: 'venc', rot: 'sem certificado válido', dias: null }
+                        : situacao(g.atual.vence_em);
+  });
+  let todos = [...grupos.values()].sort((a, b) => {
+    const ordem = { venc: 0, avencer: 1, vig: 2, semper: 3 };
+    if (ordem[a.sit.cod] !== ordem[b.sit.cod]) return ordem[a.sit.cod] - ordem[b.sit.cod];
+    return (a.sit.dias ?? 9999) - (b.sit.dias ?? 9999);
+  });
+
+  const cont = { venc: 0, avencer: 0, vig: 0, semper: 0 };
+  todos.forEach(g => cont[g.sit.cod]++);
+  const n = todos.length;
+  const naoConformes = todos.filter(g => g.atual.conforme === false).length;
+
+  $('#id-resumo').textContent =
+    `· ${n} ${n === 1 ? 'balança' : 'balanças'} · ${lista.length} ${
+      lista.length === 1 ? 'certificado' : 'certificados'}`;
+  $('#busca').classList.toggle('oculta', n < 2);
+
+  const vis = filtroSit === 'todas' ? todos
+    : filtroSit === 'nok' ? todos.filter(g => g.atual.conforme === false)
+    : todos.filter(g => g.sit.cod === filtroSit);
+
+  const pct = k => Math.round(100 * cont[k] / n);
+  const resumo = `
+    <div class="resumo-validade">
+      ${naoConformes > 0 ? `<div class="titulo" style="color:#b3283a">
+        ⛔ ${naoConformes === 1
+          ? '1 balança foi reprovada na última calibração'
+          : naoConformes + ' balanças foram reprovadas na última calibração'}</div>
+        <p class="dica" style="margin:4px 0 8px">Balança fora do erro máximo admissível pode
+          gerar prejuízo em cada pesagem e problema em fiscalização. Fale com a empresa.</p>` : ''}
+      <div class="titulo">${cont.venc > 0
+        ? `⛔ ${cont.venc} ${cont.venc === 1 ? 'balança está com a calibração vencida' : 'balanças estão com a calibração vencida'}`
+        : cont.avencer > 0
+          ? `⏰ ${cont.avencer} ${cont.avencer === 1 ? 'balança vence' : 'balanças vencem'} nos próximos 60 dias`
+          : '✅ Todas as suas balanças estão com a calibração em dia'}</div>
+      <div class="barra">
+        ${cont.vig ? `<span style="width:${pct('vig')}%;background:#0f7a52"></span>` : ''}
+        ${cont.avencer ? `<span style="width:${pct('avencer')}%;background:#d69e2e"></span>` : ''}
+        ${cont.venc ? `<span style="width:${pct('venc')}%;background:#b3283a"></span>` : ''}
+        ${cont.semper ? `<span style="width:${pct('semper')}%;background:#b8c4d0"></span>` : ''}
+      </div>
+      <div class="legenda">
+        ${cont.vig ? `<span><i style="background:#0f7a52"></i>${cont.vig} vigente(s)</span>` : ''}
+        ${cont.avencer ? `<span><i style="background:#d69e2e"></i>${cont.avencer} a vencer</span>` : ''}
+        ${cont.venc ? `<span><i style="background:#b3283a"></i>${cont.venc} vencida(s)</span>` : ''}
+        ${cont.semper ? `<span><i style="background:#b8c4d0"></i>${cont.semper} sem periodicidade</span>` : ''}
+      </div>
+    </div>`;
+
+  const chip = (id, rot, qtd) => qtd === 0 && id !== 'todas' ? '' :
+    `<button class="chip ${filtroSit === id ? 'ativo' : ''}" onclick="filtrarSituacao('${id}')">
+      ${rot}${id === 'todas' ? '' : ` (${qtd})`}</button>`;
+  const pedirGeral = `
+    <div class="acoes-topo">
+      ${(cont.venc + cont.avencer) > 0 ? `
+        <button class="pedir" onclick="pedirCalibracao(null)">
+          📅 Solicitar calibração das ${cont.venc + cont.avencer} balança(s) em atenção</button>` : ''}
+      <button class="baixar" onclick="baixarTudo()" id="btn-zip"
+        title="Um arquivo só com o certificado atual de cada balança">
+        📦 Baixar todos (ZIP)</button>
+    </div>`;
+
+  const chips = `<div class="chips">
+    ${chip('todas', 'Todas', n)}
+    ${chip('venc', '⛔ Vencidas', cont.venc)}
+    ${chip('avencer', '⏰ A vencer', cont.avencer)}
+    ${chip('vig', '✅ Vigentes', cont.vig)}
+    ${chip('semper', 'Sem periodicidade', cont.semper)}
+    ${naoConformes > 0
+      ? `<button class="chip ${filtroSit === 'nok' ? 'ativo' : ''}"
+           onclick="filtrarSituacao('nok')" style="border-color:#e8b4bb;color:#b3283a">
+           ✕ Reprovadas (${naoConformes})</button>` : ''}
+  </div>`;
+
+  const cartoes = !vis.length
+    ? '<div class="vazio"><b>Nada nesta seleção</b><p>Troque o filtro acima.</p></div>'
+    : vis.map((g, i) => {
+      const atual = g.atual, antigos = g.itens.filter(x => x !== atual), s = g.sit;
+      const prazo = g.semValido
+        ? '<div class="prazo">Nenhum certificado válido para esta balança no momento.</div>'
+        : s.cod === 'semper'
+          ? '<div class="prazo">A empresa não definiu periodicidade para esta balança.</div>'
+          : s.cod === 'venc'
+            ? `<div class="prazo">Venceu em <b>${dbr(atual.vence_em)}</b> · há ${-s.dias} dia(s)</div>`
+            : `<div class="prazo">Válida até <b>${dbr(atual.vence_em)}</b> · faltam ${s.dias} dia(s)</div>`;
+
+      // Resultado: vem das tabelas de ensaio (mesma regra do PDF e dos
+      // relatórios). null = certificado sem veredito (RBC).
+      const linhaResultado = atual.conforme === true
+        ? `<div class="linha-resultado"><span class="resultado ok">✓ Conforme</span>
+             <span class="obs">A balança atende aos limites de erro da Portaria Inmetro 157/2022
+             em ${atual.pontos_total || 'todos os'} ponto(s) ensaiado(s).</span></div>`
+        : atual.conforme === false
+          ? `<div class="linha-resultado"><span class="resultado nok">✕ Não conforme</span>
+               <span class="obs">${atual.pontos_fora} de ${atual.pontos_total} ponto(s)
+               ensaiado(s) ficaram fora do erro máximo admissível.</span></div>`
+          : atual.acreditado
+            ? `<div class="linha-resultado"><span class="resultado rbc">Calibração acreditada</span>
+                 <span class="obs">Certificado RBC: declara o erro e a incerteza de cada ponto,
+                 sem veredito de conformidade — a avaliação é de quem usa a balança.</span></div>`
+            : '';
+
+      const avisoNok = atual.conforme === false && atual.status === 'emitido'
+        ? `<div class="aviso-nok">⚠️ <b>Esta balança foi reprovada na calibração.</b>
+             Enquanto não for ajustada e recalibrada, cada pesagem pode ter erro acima do
+             tolerado — com risco comercial e em fiscalização.
+             ${atual.houve_ajuste ? 'Houve tentativa de ajuste durante o serviço. ' : ''}
+             Procure a empresa que calibra suas balanças.</div>`
+        : '';
+
+      const tarjaEstado = atual.status === 'cancelado'
+        ? `<div class="tarja cancelado">⛔ <b>Este certificado foi CANCELADO</b>${
+            atual.cancelado_em ? ' em ' + dbr(atual.cancelado_em) : ''}.${
+            atual.motivo_cancelamento ? ' Motivo: ' + esc(atual.motivo_cancelamento) + '.' : ''}
+            <br>Se você tem uma cópia dele guardada, ela não vale mais —
+            procure a empresa que calibra suas balanças.</div>`
+        : atual.status === 'substituido'
+          ? `<div class="tarja substituido">🔄 <b>Substituído por uma revisão</b>${
+              atual.substituido_por ? ': use o certificado <b>' + esc(atual.substituido_por) + '</b>' : ''}.
+              O documento antigo fica no histórico apenas para consulta.</div>`
+          : '';
+
+      const etiquetas = [
+        atual.acreditado ? '<span class="etq rbc">RBC · acreditado</span>' : '',
+        atual.selo_inmetro ? `<span class="etq">selo Inmetro <b>${esc(atual.selo_inmetro)}</b></span>` : '',
+        atual.numero_lacre ? `<span class="etq">lacre <b>${esc(atual.numero_lacre)}</b></span>` : '',
+        atual.local_tipo ? `<span class="etq">${atual.local_tipo === 'laboratorio'
+          ? '🏭 calibrada em laboratório' : '📍 calibrada no local'}${
+          atual.local_detalhe ? ' · ' + esc(atual.local_detalhe) : ''}</span>` : '',
+        atual.revisao_de ? `<span class="etq">revisão do <b>${esc(atual.revisao_de)}</b></span>` : '',
+        atual.houve_ajuste ? '<span class="etq">🔧 houve ajuste na calibração</span>' : ''
+      ].filter(Boolean).join('');
+      const bal = dadosBal(atual);
+      const buscavel = norm([g.balanca, g.serie, atual.marca, atual.modelo,
+        bal.capacidade, bal.inmetro, bal.classe, bal.patrimonio, bal.local, bal.todos,
+        ...g.itens.map(x => x.numero)].filter(Boolean).join(' '));
+      const ficha = [
+        atual.marca || atual.modelo ? esc([atual.marca, atual.modelo].filter(Boolean).join(' ')) : null,
+        bal.capacidade ? `cap. ${esc(bal.capacidade)}` : null,
+        bal.classe ? `classe ${esc(bal.classe)}` : null,
+        bal.inmetro ? `Inmetro ${esc(bal.inmetro)}` : null,
+        bal.patrimonio ? `patrim. ${esc(bal.patrimonio)}` : null
+      ].filter(Boolean).join(' · ');
+      return `
+      <article class="balanca${g.semValido ? ' sem-valido' : ''}" data-sit="${s.cod}" data-busca="${esc(buscavel)}"
+        style="animation-delay:${Math.min(i * 45, 270)}ms">
+        <div class="balanca-topo">
+          <b>${esc(g.balanca)}</b>
+          ${g.serie ? `<span class="serie"><i>série</i>${esc(g.serie)}</span>` : ''}
+          ${ficha ? `<span class="serie">${ficha}</span>` : ''}
+        </div>
+        <div class="atual">
+          <div class="leitura">
+            <div class="rot">Certificado mais recente</div>
+            <div class="num">${esc(atual.numero)}</div>
+            <div class="quando">calibrada em ${dbr(atual.data_calibracao)}</div>
+            ${prazo}
+          </div>
+          <span class="selo ${s.cod}">${s.cod === 'vig' ? '✓' : s.cod === 'venc' ? '!' : '•'} ${s.rot}</span>
+          ${atual.tem_pdf
+            ? `<button class="baixar" onclick="baixarCert('${atual.id}')">Baixar PDF</button>`
+            : '<span class="dica">PDF indisponível</span>'}
+        </div>
+        ${linhaResultado}
+        ${avisoNok}
+        ${tarjaEstado}
+        ${etiquetas ? `<div class="etiquetas">${etiquetas}</div>` : ''}
+        ${atual.empresa ? `<div class="emissor">Emitido por <b>${esc(atual.empresa)}</b></div>` : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 13px 21px">
+          ${s.cod === 'venc' || s.cod === 'avencer' || g.semValido
+            ? `<button class="pedir leve" onclick="pedirCalibracao('${esc(g.balanca)}')">
+                 📅 Solicitar calibração</button>` : ''}
+          ${atual.uuid_validacao
+            ? `<button class="baixar leve" title="Copiar o link público para enviar ao auditor"
+                 onclick="copiarValidacao('${atual.uuid_validacao}', this)">🔗 Link de validação</button>` : ''}
+        </div>
+        ${antigos.length ? `
+          <details class="historico">
+            <summary>${antigos.length} calibração${antigos.length > 1 ? 'ões' : ''} anterior${antigos.length > 1 ? 'es' : ''}</summary>
+            ${antigos.map(a => `
+              <div class="hist-item">
+                <span class="n">${esc(a.numero)}${a.status === 'cancelado'
+                  ? ' <span class="selo venc" style="font-size:.62rem;padding:1px 6px">cancelado</span>'
+                  : a.status === 'substituido'
+                    ? ' <span class="selo semper" style="font-size:.62rem;padding:1px 6px">substituído</span>'
+                    : ''}</span>
+                <span class="d">${dbr(a.data_calibracao)}</span>
+                ${a.tem_pdf ? `<button class="baixar leve" onclick="baixarCert('${a.id}')">PDF</button>` : ''}
+              </div>`).join('')}
+          </details>` : ''}
+      </article>`;
+    }).join('');
+
+  $('#conteudo').innerHTML = resumo + pedirGeral + chips + cartoes +
+    '<div id="contato-empresas"></div>' + marcaSistema();
+  carregarContatoEmpresas();
+}
+
+// Baixa tudo num ZIP — o arquivo que se entrega ao auditor
+async function baixarTudo() {
+  const m = document.createElement('div');
+  m.className = 'modal-portal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(15,33,56,.55);display:flex;' +
+    'align-items:center;justify-content:center;padding:18px;z-index:50';
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  m.innerHTML = `
+    <div class="card" style="max-width:430px;width:100%">
+      <h2 style="margin-bottom:4px">Baixar certificados</h2>
+      <p class="dica" style="margin-bottom:14px">Um arquivo ZIP com o <b>certificado atual
+        de cada balança</b> e um índice em texto listando balança, número, data e validade —
+        pronto para entregar numa auditoria.</p>
+      <label style="display:flex;gap:10px;align-items:flex-start;background:#f4f7fb;
+             border-radius:10px;padding:11px 13px;font-weight:400">
+        <input type="checkbox" id="zip-pesos" checked
+               style="width:17px;height:17px;margin-top:2px;flex:0 0 auto">
+        <span style="line-height:1.4;font-size:.9rem;color:var(--tinta)">
+          <b>Incluir os certificados dos pesos-padrão</b><br>
+          <span class="dica">É o documento da rastreabilidade — o auditor costuma pedir junto.</span>
+        </span></label>
+      <button class="baixar" style="width:100%;padding:13px;margin-top:14px"
+        id="zip-btn" onclick="confirmarZip()">📦 Gerar e baixar</button>
+      <p style="margin-top:12px;text-align:center">
+        <span class="link" onclick="this.closest('.modal-portal').remove()">Cancelar</span></p>
+      <p id="zip-erro" class="erro"></p>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+async function confirmarZip() {
+  const bt = document.getElementById('zip-btn');
+  const pesos = document.getElementById('zip-pesos').checked;
+  bt.disabled = true; bt.textContent = 'Montando o arquivo…';
+  try {
+    const r = await fetch('/api/portal/certificados/zip?pesos=' + pesos,
+      { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.erro || 'Não foi possível gerar o arquivo.');
+    }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'certificados_' + new Date().toISOString().substring(0, 10) + '.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    bt.textContent = '✓ Baixado';
+    setTimeout(() => document.querySelector('.modal-portal')?.remove(), 1200);
+  } catch (e) {
+    document.getElementById('zip-erro').textContent = e.message;
+    bt.disabled = false; bt.textContent = '📦 Gerar e baixar';
+  }
+}
+
+// Copia o link público de validação (o mesmo do QR) para mandar ao auditor
+function copiarValidacao(uuid, botao) {
+  const url = location.origin.replace('portalclientes', 'certificados') + '/validar/' + uuid;
+  navigator.clipboard.writeText(url).then(() => {
+    const antes = botao.textContent;
+    botao.textContent = '✓ link copiado';
+    setTimeout(() => { botao.textContent = antes; }, 2200);
+  }).catch(() => prompt('Copie o link de validação:', url));
+}
+
+// Solicitar calibração — de uma balança ou de todas as que precisam
+function pedirCalibracao(balanca) {
+  const lista = balanca ? [balanca]
+    : [...document.querySelectorAll('.balanca')]
+        .filter(el => ['venc', 'avencer'].includes(el.dataset.sit))
+        .map(el => el.querySelector('.balanca-topo b')?.textContent).filter(Boolean);
+  const m = document.createElement('div');
+  m.className = 'modal-portal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(15,33,56,.55);display:flex;' +
+    'align-items:center;justify-content:center;padding:18px;z-index:50';
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  m.innerHTML = `
+    <div class="card" style="max-width:440px;width:100%">
+      <h2 style="margin-bottom:4px">Solicitar calibração</h2>
+      <p class="dica" style="margin-bottom:12px">Enviaremos seu pedido para a empresa que
+        cuida das suas balanças. Ela entra em contato para combinar a data.</p>
+      <div style="background:#f4f7fb;border-radius:10px;padding:11px 13px;margin-bottom:12px">
+        <b style="font-size:.85rem">${lista.length === 1 ? 'Balança' : lista.length + ' balanças'}:</b>
+        <div class="dica" style="margin-top:4px">${lista.map(esc).join(' · ') || 'todas as minhas balanças'}</div>
+      </div>
+      <label>Mensagem (opcional)
+        <textarea id="pc-msg" rows="3" placeholder="ex.: preferimos manhã, falar com o Sr. Antônio"
+          style="width:100%;padding:11px 12px;border:1px solid var(--linha);border-radius:10px;
+                 font:inherit;font-size:.95rem;resize:vertical"></textarea></label>
+      <button class="pedir" style="width:100%;padding:13px;font-size:.95rem"
+        id="pc-btn" onclick="enviarPedido(${JSON.stringify(lista).replace(/"/g, '&quot;')})">
+        Enviar pedido</button>
+      <p style="margin-top:12px;text-align:center">
+        <span class="link" onclick="this.closest('.modal-portal').remove()">Cancelar</span></p>
+      <p id="pc-erro" class="erro"></p>
+      <p id="pc-ok" class="ok"></p>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+async function enviarPedido(balancas) {
+  const bt = document.getElementById('pc-btn');
+  bt.disabled = true; bt.textContent = 'Enviando…';
+  try {
+    const r = await api('/solicitar-calibracao', { method: 'POST',
+      body: JSON.stringify({ balancas, mensagem: document.getElementById('pc-msg').value.trim() || null }) });
+    document.getElementById('pc-ok').textContent = r.mensagem;
+    document.getElementById('pc-erro').textContent = '';
+    bt.textContent = '✓ Pedido enviado';
+    setTimeout(() => document.querySelector('.modal-portal')?.remove(), 2600);
+  } catch (e) {
+    document.getElementById('pc-erro').textContent = e.message;
+    bt.disabled = false; bt.textContent = 'Enviar pedido';
+  }
+}
+
+// Assinatura do sistema no rodapé. O portal é usado pelo cliente final —
+// e às vezes por quem trabalha com balanças e nunca ouviu falar do TSCert.
+function marcaSistema() {
+  return `
+    <div class="marca-sis">
+      <a href="https://certificados.totalscale.com.br/tscert.html?origem=portal" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+          <path d="M4 17a8 8 0 0 1 16 0" fill="none" stroke="#35b6e8" stroke-width="1.8"
+                stroke-linecap="round"/>
+          <line x1="12" y1="17" x2="16" y2="11" stroke="#35b6e8" stroke-width="1.8"
+                stroke-linecap="round"/>
+          <circle cx="12" cy="17" r="1.7" fill="#35b6e8"/>
+        </svg>
+        <span>Emitido com <b>TSCert</b></span>
+      </a>
+    </div>`;
+}
+
+// Quem procurar quando precisar de ajuda
+async function carregarContatoEmpresas() {
+  const box = document.getElementById('contato-empresas');
+  if (!box) return;
+  let emps;
+  try { emps = await api('/empresas-contato'); } catch (e) { return; }
+  if (!emps || !emps.length) return;
+  const zap = t => {
+    const d = String(t || '').replace(/\D/g, '');
+    if (d.length < 10) return null;
+    return 'https://wa.me/' + (d.length >= 12 ? d : '55' + d);
+  };
+  box.innerHTML = `
+    <div class="ajuda-bloco">
+      <h3>Precisa de uma nova calibração ou tem alguma dúvida?</h3>
+      <p class="dica">Fale com quem cuida das suas balanças:</p>
+      ${emps.map(e => `
+        <div class="emp-linha">
+          <div class="emp-nome"><b>${esc(e.empresa)}</b>
+            <span class="dica">${e.cidade_uf ? esc(e.cidade_uf) + ' · ' : ''}${
+              e.certificados || 0} certificado(s) emitido(s)</span></div>
+          <div class="emp-acoes">
+            ${e.telefone ? `<a href="tel:${esc(String(e.telefone).replace(/\D/g, ''))}">📞 ${esc(e.telefone)}</a>` : ''}
+            ${zap(e.telefone) ? `<a href="${zap(e.telefone)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
+            ${e.email ? `<a href="mailto:${esc(e.email)}">✉️ E-mail</a>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// Filtra os cartões: balança, série, capacidade, Inmetro, marca, modelo,
+// classe, patrimônio e número do certificado — sem acento e sem caixa.
+function filtrarCerts(termo) {
+  const t = norm(termo).trim();
+  let achou = 0;
+  document.querySelectorAll('.balanca').forEach(el => {
+    const bate = !t || (el.dataset.busca || '').includes(t);
+    el.style.display = bate ? '' : 'none';
+    if (bate) achou++;
+  });
+  const av = document.getElementById('busca-aviso');
+  if (av) {
+    av.textContent = !t ? ''
+      : achou === 0 ? 'Nenhuma balança encontrada para “' + termo + '”.'
+      : achou === 1 ? '1 balança encontrada.'
+      : achou + ' balanças encontradas.';
+  }
+}
+
+async function verPesos() {
+  $('#tab-pesos').classList.add('ativa'); $('#tab-certs').classList.remove('ativa');
+  $('#busca').classList.add('oculta');
+  $('#conteudo').innerHTML = '<div class="esqueleto"></div>';
+  try {
+    const lista = await api('/pesos');
+    window._pesos = lista;          // usado para nomear o arquivo no download
+    if (lista.length === 0) {
+      $('#conteudo').innerHTML = `<div class="vazio"><b>Nenhum peso-padrão listado</b>
+        <p>Os certificados dos pesos usados nos seus ensaios aparecem aqui assim que a
+           empresa registrar a rastreabilidade.</p></div>`;
+      return;
+    }
+    $('#conteudo').innerHTML = `<div class="bloco"><h2>Pesos-padrão utilizados</h2>
+      <p class="dica">Certificados de rastreabilidade dos pesos usados nas suas calibrações —
+        é o documento que o auditor costuma pedir.</p>
+      ${lista.some(p => p.valido_nos_usos === false) ? `
+        <div style="background:#fdf6ea;border:1px solid #ecdcc0;border-radius:10px;
+             padding:10px 13px;margin:10px 0;font-size:.85rem;color:#7a5b12">
+          ⚠️ Há peso cujo certificado estava vencido na data de alguma calibração.
+          Vale conferir com a empresa: isso afeta a rastreabilidade daquele ensaio.</div>` : ''}
+      <div class="scroll"><table>
+        <thead><tr><th>Peso</th><th>Certificado</th><th>Validade</th>
+          <th>Usado em</th><th></th></tr></thead>
+        <tbody>${lista.map(p => `
+          <tr>
+            <td><b>${esc(p.identificacao)}</b></td>
+            <td class="mono">${esc(p.num_certificado) || '—'}</td>
+            <td>${dt(p.validade)}
+              ${p.valido_nos_usos === false
+                ? '<br><span class="selo venc" style="font-size:.62rem;padding:1px 6px">vencido no uso</span>'
+                : p.vencido_hoje
+                  ? '<br><span class="dica" title="Estava válido quando foi usado nas suas calibrações">vencido hoje</span>'
+                  : ''}</td>
+            <td>${p.usos === 1
+              ? `<span class="mono">${esc(p.certificados)}</span>`
+              : `<b>${p.usos} calibrações</b>
+                 <br><span class="dica mono" title="${esc(p.certificados)}">${esc(p.certificados)}</span>`}
+              ${p.ultimo_uso ? `<br><span class="dica">último uso em ${dt(p.ultimo_uso)}</span>` : ''}</td>
+            <td>${p.tem_pdf
+              ? `<button class="baixar" onclick="baixarPeso('${p.peso_padrao_id}')">⬇ PDF</button>`
+              : '<span class="dica">sem PDF</span>'}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      <p class="dica" style="margin-top:10px">${lista.length} peso(s) — cada um aparece uma vez,
+        com todas as calibrações em que foi utilizado.</p></div>`;
+  } catch (e) { $('#conteudo').innerHTML =
+      `<div class="vazio"><b>Não foi possível carregar</b><p>${esc(e.message)}</p></div>`; }
+}
+
+async function baixarArquivo(caminho, nomeArq) {
+  try {
+    const r = await fetch('/api/portal' + caminho, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) {
+      // Mensagem específica: "não foi possível" não ajuda ninguém a resolver
+      let motivo = '';
+      try { motivo = (await r.json())?.erro || ''; } catch (x) { /* sem corpo */ }
+      if (r.status === 401 || r.status === 403) {
+        throw new Error(location.search.includes('ver=') || sessionStorage.getItem('visu_sa')
+          ? 'A visualização do super-admin expirou (vale 30 minutos). ' +
+            'Volte ao painel e abra o portal deste cliente de novo.'
+          : 'Sua sessão expirou. Entre novamente para baixar o arquivo.');
+      }
+      if (r.status === 404) {
+        throw new Error(motivo ||
+          'Arquivo não encontrado. O certificado existe, mas o PDF não está disponível — ' +
+          'avise a empresa que emitiu.');
+      }
+      throw new Error(motivo || `Não foi possível baixar (erro ${r.status}).`);
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nomeArq; a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert(e.message); }
+}
+// Nome de arquivo no mesmo padrão do sistema: "NÚMERO - NOME.pdf".
+// No portal, o nome que importa é o de QUEM EMITIU (o cliente já sabe que
+// os certificados são dele).
+function limpaNome(t) {
+  return String(t || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+}
+
+function baixarCert(id) {
+  const c = (window._certs || []).find(x => x.id === id);
+  const nome = c && c.numero
+    ? `${limpaNome(c.numero)}${c.empresa ? ' - ' + limpaNome(c.empresa) : ''}.pdf`
+    : 'certificado.pdf';
+  baixarArquivo('/certificados/' + id + '/pdf', nome);
+}
+
+function baixarPeso(id) {
+  const p = (window._pesos || []).find(x => x.peso_padrao_id === id);
+  const nome = p
+    ? `Peso ${limpaNome(p.identificacao)}${p.num_certificado
+        ? ' - ' + limpaNome(p.num_certificado) : ''}.pdf`
+    : 'certificado-peso.pdf';
+  baixarArquivo('/pesos/' + id + '/pdf', nome);
+}
+
+function sair() {
+  localStorage.removeItem('portal_token'); localStorage.removeItem('portal_nome');
+  token = null; nome = null;
+  mostrar('tela-login');
+}
+
+// ── Esqueci minha senha ──
+function mostrarEsqueci() {
+  mostrar('tela-esqueci');
+  const e = ($('#lg-email').value || '').trim();
+  if (e) $('#eq-email').value = e;
+  $('#eq-email').focus();
+}
+
+async function pedirNovaSenha() {
+  const email = ($('#eq-email').value || '').trim();
+  $('#eq-erro').textContent = ''; $('#eq-ok').textContent = '';
+  if (!email || !email.includes('@')) { $('#eq-erro').textContent = 'Informe um e-mail válido.'; return; }
+  const bt = $('#btn-eq');
+  bt.disabled = true; bt.textContent = 'Enviando…';
+  try {
+    const r = await api('/senha/solicitar', { method: 'POST', body: JSON.stringify({ token: email }) });
+    $('#eq-ok').textContent = r.mensagem;
+  } catch (e) { $('#eq-erro').textContent = e.message; }
+  finally { bt.disabled = false; bt.textContent = 'Enviar link'; }
+}
+
+let tokenNovaSenha = null;
+async function abrirNovaSenha(tk) {
+  try {
+    const d = await api('/senha/' + encodeURIComponent(tk));
+    if (!d.valido) {
+      mostrar('tela-esqueci');
+      $('#eq-erro').textContent = 'Este link expirou ou já foi usado. Peça um novo abaixo.';
+      if (d.email) $('#eq-email').value = d.email;
+      return;
+    }
+    tokenNovaSenha = tk;
+    $('#ns-email').value = d.email;
+    if (d.nome) $('#ns-sub').textContent = `Olá, ${d.nome}! Escolha a senha que você vai usar para entrar.`;
+    mostrar('tela-nova-senha');
+  } catch (e) {
+    mostrar('tela-esqueci');
+    $('#eq-erro').textContent = 'Link não encontrado. Peça um novo abaixo.';
+  }
+}
+
+async function salvarNovaSenha() {
+  const s1 = $('#ns-senha').value, s2 = $('#ns-senha2').value;
+  $('#ns-erro').textContent = ''; $('#ns-ok').textContent = '';
+  if (s1.length < 8) { $('#ns-erro').textContent = 'A senha deve ter ao menos 8 caracteres.'; return; }
+  if (s1 !== s2) { $('#ns-erro').textContent = 'As duas senhas não são iguais.'; return; }
+  try {
+    const r = await api('/senha', { method: 'POST',
+      body: JSON.stringify({ token: tokenNovaSenha, senha: s1 }) });
+    $('#ns-ok').textContent = r.mensagem;
+    setTimeout(() => {
+      mostrar('tela-login');
+      $('#lg-email').value = r.email || $('#ns-email').value;
+      $('#lg-senha').focus();
+      $('#lg-erro').style.color = 'var(--ok-fg)';
+      $('#lg-erro').textContent = 'Senha alterada! Entre com ela agora.';
+      history.replaceState({}, '', '/portal.html');
+    }, 1500);
+  } catch (e) { $('#ns-erro').textContent = e.message; }
+}
+
+// ── Convite da empresa (?convite=token) ──
+let conviteToken = null;
+
+async function abrirConvite(tk) {
+  try {
+    const c = await api('/convite/' + encodeURIComponent(tk));
+    if (!c.valido) {
+      mostrar('tela-login');
+      $('#lg-erro').textContent = c.jaTemAcesso
+        ? 'Este convite já foi usado. Entre com seu e-mail e senha.'
+        : 'Convite expirado ou já utilizado. Peça um novo à empresa.';
+      return;
+    }
+    conviteToken = tk;
+    $('#cv-email').value = c.email;
+    $('#cv-nome').value = c.nome || '';
+    $('#cv-sub').innerHTML = c.empresa
+      ? `<b>${c.empresa}</b> convidou você a acessar seus certificados.`
+      : 'Você foi convidado a acessar seus certificados.';
+    mostrar('tela-convite');
+  } catch (e) {
+    mostrar('tela-login');
+    $('#lg-erro').textContent = 'Convite não encontrado. Peça um novo à empresa.';
+  }
+}
+
+async function salvarConvite() {
+  const s1 = $('#cv-senha').value, s2 = $('#cv-senha2').value;
+  $('#cv-erro').textContent = ''; $('#cv-ok').textContent = '';
+  if (s1.length < 8) { $('#cv-erro').textContent = 'A senha deve ter ao menos 8 caracteres.'; return; }
+  if (s1 !== s2) { $('#cv-erro').textContent = 'As duas senhas não são iguais.'; return; }
+  try {
+    const r = await api('/convite', { method: 'POST', body: JSON.stringify({
+      token: conviteToken, senha: s1, nome: $('#cv-nome').value.trim() || null }) });
+    $('#cv-ok').textContent = r.mensagem;
+    setTimeout(() => {
+      mostrar('tela-login');
+      $('#lg-email').value = $('#cv-email').value;
+      $('#lg-senha').focus();
+      $('#lg-erro').style.color = 'var(--ok-fg)';
+      $('#lg-erro').textContent = 'Acesso criado! Entre com sua senha.';
+      history.replaceState({}, '', '/portal.html');
+    }, 1600);
+  } catch (e) { $('#cv-erro').textContent = e.message; }
+}
+
+// Validação de e-mail via link (?validar=token)
+(async function init() {
+  const params = new URLSearchParams(location.search);
+  // super-admin visualizando o portal como um cliente
+  const verTk = params.get('ver');
+  if (verTk) {
+    token = verTk;
+    localStorage.setItem('portal_token', verTk);
+    try {
+      const p = JSON.parse(atob(verTk.split('.')[1]));
+      nome = p.nome || p.unique_name || 'Cliente';
+      if (p.documento) localStorage.setItem('portal_doc', p.documento);
+    } catch (e) { nome = 'Cliente'; }
+    sessionStorage.setItem('visu_sa', '1');
+    history.replaceState({}, '', '/portal.html');
+    irPainel();
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div style="background:#7a4b00;color:#fff;padding:8px 14px;font-size:.85rem;text-align:center">
+        👁 Visualização do super-admin — você está vendo o portal como este cliente.
+        <span style="opacity:.85">Nenhuma ação é registrada em nome dele.</span></div>`);
+    return;
+  }
+  const nova = params.get('senha');
+  if (nova) { await abrirNovaSenha(nova); return; }
+  const conv = params.get('convite');
+  if (conv) { await abrirConvite(conv); return; }
+  const tk = params.get('validar');
+  if (tk) {
+    try {
+      const r = await api('/validar-email', { method: 'POST', body: JSON.stringify({ token: tk }) });
+      mostrar('tela-login');
+      $('#lg-erro').style.color = 'var(--ok-fg)';
+      $('#lg-erro').textContent = r.mensagem;
+    } catch (e) {
+      mostrar('tela-login');
+      $('#lg-erro').textContent = e.message;
+    }
+    history.replaceState({}, '', '/portal.html');
+    return;
+  }
+  if (token) irPainel(); else mostrar('tela-login');
+})();
+</script>
+</body>
+</html>
