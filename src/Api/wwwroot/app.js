@@ -12432,6 +12432,18 @@ function copiarExcReferencia(btn) {
   recalcular();
 }
 
+// Copia a carga do ensaio de repetibilidade para a indicação da linha
+function copiarRepCarga(btn) {
+  const tr = btn.closest('tr');
+  const carga = Number(tr?.dataset.carga);
+  if (!isFinite(carga) || carga <= 0) { toast('Carga do ensaio de repetibilidade não definida.', 'aviso'); return; }
+  const inp = tr.querySelector('input');
+  const eFaixa = plano?.faixas?.length ? eDaFaixa(carga) : null;
+  inp.value = fmtCampo(carga, eFaixa);
+  sujo = true;
+  recalcular();
+}
+
 // Preenche o "Resultado no display" da sensibilidade com o valor esperado
 // (carga de referência + 1 divisão da faixa)
 function copiarSensEsperado() {
@@ -12601,9 +12613,12 @@ async function montarTelaEnsaio(rascunho) {
   $('#tab-rep tbody').innerHTML = Array.from({ length: rep.medicoes }, (_, i) => `
     <tr data-carga="${rep.carga}">
       <td>${i + 1}</td>
-      <td><input type="number" step="any" inputmode="decimal"
+      <td><div class="ind-wrap"><input type="number" step="any" inputmode="decimal"
            value="${fmtCampo(rascunho?.repetibilidade?.[i]?.indicacao ?? '', plano?.faixas?.length ? eDaFaixa(Number(rep.carga)) : null)}"
-           oninput="recalcular()" onblur="arredondarCampo(this)" step="any" inputmode="decimal"></td>
+           oninput="recalcular()" onblur="arredondarCampo(this)" step="any" inputmode="decimal">
+        <button type="button" class="btn-copiar-carga" tabindex="-1" onclick="copiarRepCarga(this)"
+                title="Copiar a carga do ensaio para a indicação (leitura igual à carga)">=</button>
+      </div></td>
     </tr>`).join('');
 
   $('#ens-erro').textContent = '';
