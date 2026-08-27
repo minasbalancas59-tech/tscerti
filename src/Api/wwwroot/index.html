@@ -428,7 +428,11 @@
         <label>Adição (1 divisão)
           <input type="number" step="any" inputmode="decimal" id="sens-adicao" readonly></label>
         <label>Resultado no display
-          <input type="number" step="any" inputmode="decimal" id="sens-display" onblur="arredondarSensDisplay()"></label>
+          <div class="ind-wrap">
+          <input type="number" step="any" inputmode="decimal" id="sens-display" onblur="arredondarSensDisplay()">
+          <button type="button" class="btn-copiar-carga" tabindex="-1" onclick="copiarSensEsperado()"
+                  title="Preencher com o esperado (carga de referência + 1 divisão)">=</button>
+          </div></label>
       </div>
       <p id="sens-aviso" class="erro" style="margin-top:6px"></p>
       </div>

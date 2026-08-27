@@ -12403,17 +12403,46 @@ function linhaExcHtml(pos, indic = '', numero = null, antes = '') {
   // número de exibição: centro = 1; seções = 2, 3, 4...
   const rotulo = numero != null ? numero : (ehCentro ? 1 : '?');
   const comAjuste = $('#ens-houve-ajuste')?.checked;
+  // Resolução de exibição: o "e" da FAIXA da carga do ensaio (multi-intervalo)
+  const resExc = plano?.faixas?.length ? eDaFaixa(Number(plano.excentricidade.carga)) : null;
   return `<tr data-pos="${esc(pos)}" data-carga="${plano.excentricidade.carga}">
     <td>${rotulo}${ehCentro ? ' <span class="dica">(ref.)</span>' : ''}</td>
     <td class="col-antes-exc" style="display:${comAjuste ? '' : 'none'}"><input type="number" step="any"
-         inputmode="decimal" class="in-exc-antes" value="${fmtCampo(antes)}"
+         inputmode="decimal" class="in-exc-antes" value="${fmtCampo(antes, resExc)}"
          onblur="arredondarCampo(this)"></td>
-    <td><input type="number" step="any" inputmode="decimal" class="in-exc"
-         value="${fmtCampo(indic)}"
-         oninput="recalcular()" onblur="arredondarCampo(this)"></td>
+    <td><div class="ind-wrap"><input type="number" step="any" inputmode="decimal" class="in-exc"
+         value="${fmtCampo(indic, resExc)}"
+         oninput="recalcular()" onblur="arredondarCampo(this)">
+      ${ehCentro ? '' : `<button type="button" class="btn-copiar-carga" tabindex="-1"
+              onclick="copiarExcReferencia(this)"
+              title="Copiar a leitura da referência (posição 1) para esta posição">=</button>`}
+    </div></td>
     <td class="num exc-erro">—</td>
     <td class="exc-acao"></td>
   </tr>`;
+}
+
+// Copia a leitura da posição de referência (centro) para a posição da linha
+function copiarExcReferencia(btn) {
+  const ref = document.querySelector('#tab-exc tbody tr[data-pos="centro"] .in-exc');
+  if (!ref || ref.value === '') { toast('Preencha primeiro a leitura da posição 1 (referência).', 'aviso'); return; }
+  const inp = btn.closest('td').querySelector('.in-exc');
+  inp.value = ref.value;
+  sujo = true;
+  recalcular();
+}
+
+// Preenche o "Resultado no display" da sensibilidade com o valor esperado
+// (carga de referência + 1 divisão da faixa)
+function copiarSensEsperado() {
+  const num = s => s === '' || s == null ? null : Number(s);
+  const ref = num($('#sens-ref')?.value);
+  const adic = num($('#sens-adicao')?.value);
+  if (ref == null || adic == null) { toast('Preencha primeiro a carga de referência.', 'aviso'); return; }
+  const eFaixa = plano?.faixas?.length ? eDaFaixa(ref) : null;
+  $('#sens-display').value = fmtCampo(ref + adic, eFaixa);
+  sujo = true;
+  recalcular();
 }
 
 // Renumera a coluna de posição após adicionar/remover (1=centro, 2,3...)
@@ -12573,7 +12602,7 @@ async function montarTelaEnsaio(rascunho) {
     <tr data-carga="${rep.carga}">
       <td>${i + 1}</td>
       <td><input type="number" step="any" inputmode="decimal"
-           value="${fmtCampo(rascunho?.repetibilidade?.[i]?.indicacao ?? '')}"
+           value="${fmtCampo(rascunho?.repetibilidade?.[i]?.indicacao ?? '', plano?.faixas?.length ? eDaFaixa(Number(rep.carga)) : null)}"
            oninput="recalcular()" onblur="arredondarCampo(this)" step="any" inputmode="decimal"></td>
     </tr>`).join('');
 
