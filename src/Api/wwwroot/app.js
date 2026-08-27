@@ -12250,18 +12250,18 @@ function linhaIndicacaoHtml(carga, indic, antes = '', semLeitura = false, semLei
     ? 'background:#b02a37;color:#fff;border-color:#b02a37'
     : '';
   return `<td><input type="number" step="any" inputmode="decimal" class="in-carga"
-             value="${fmtCampo(carga)}" onchange="atualizarCarga(this)" onblur="arredondarCampo(this)"></td>
+             value="${fmtCampo(carga, plano?.faixas?.length ? eDaFaixa(Number(carga)) : null)}" onchange="atualizarCarga(this)" onblur="arredondarCampo(this)"></td>
     <td class="col-antes" style="${mostrarAntes ? '' : 'display:none'}">
       <div class="ind-wrap">
       <input type="number" step="any" inputmode="decimal" class="in-antes"
-             value="${semLeituraAntes ? '' : fmtCampo(antes)}" ${slaInp} onblur="arredondarCampo(this)">
+             value="${semLeituraAntes ? '' : fmtCampo(antes, plano?.faixas?.length ? eDaFaixa(Number(carga)) : null)}" ${slaInp} onblur="arredondarCampo(this)">
       <button type="button" class="btn-sem-leitura btn-sla${semLeituraAntes ? ' sl-on' : ''}" tabindex="-1"
               style="${slaBtn}" onclick="toggleSemLeituraAntes(this)"
               title="Sem leitura antes do ajuste: o visor não indicou nesta carga antes de ajustar">∅</button>
       </div></td>
     <td><div class="ind-wrap">
       <input type="number" step="any" inputmode="decimal" class="in-indic"
-             value="${semLeitura ? '' : fmtCampo(indic)}" ${slInp} oninput="recalcular()" onblur="arredondarCampo(this)">
+             value="${semLeitura ? '' : fmtCampo(indic, plano?.faixas?.length ? eDaFaixa(Number(carga)) : null)}" ${slInp} oninput="recalcular()" onblur="arredondarCampo(this)">
       <button type="button" class="btn-copiar-carga" tabindex="-1" onclick="copiarCargaParaIndicacao(this)"
               title="Copiar a carga para a indicação (leitura igual à carga)">=</button>
       <button type="button" class="btn-sem-leitura${semLeitura ? ' sl-on' : ''}" tabindex="-1"
@@ -12490,8 +12490,8 @@ async function montarTelaEnsaio(rascunho) {
         <div class="caixa-multi">
           <div class="caixa-multi-titulo">⚖️ Balança de múltipla escala (multi-intervalo)</div>
           <div class="caixa-multi-faixas">
-            <div><span class="cm-rot">Capacidades:</span> ${plano.faixas.map(f => fmtCampo(f.limite_sup)).join(' / ')} ${unid()}</div>
-            <div><span class="cm-rot">Divisões (e):</span> ${plano.faixas.map(f => fmtCampo(f.divisao_e)).join(' / ')} ${unid()}</div>
+            <div><span class="cm-rot">Capacidades:</span> ${plano.faixas.map(f => fmtCampo(f.limite_sup, f.divisao_e)).join(' / ')} ${unid()}</div>
+            <div><span class="cm-rot">Divisões (e):</span> ${plano.faixas.map(f => fmtCampo(f.divisao_e, f.divisao_e)).join(' / ')} ${unid()}</div>
           </div>
         </div>`;
     } else {
