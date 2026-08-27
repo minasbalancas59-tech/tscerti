@@ -95,6 +95,13 @@ function fmtU(n) {
   const casas = plano?.casasDecimais ?? 3;
   return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
+// Incerteza: exibida com UMA casa a mais que as leituras — ela precisa de
+// mais precisão que a menor divisão da balança (escala única ou múltipla)
+function fmtUInc(n) {
+  if (n == null) return '—';
+  const casas = (plano?.casasDecimais ?? 3) + 1;
+  return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+}
 // Unidades de massa são sempre minúsculas (kg, g, t) — normaliza na exibição
 const normUnid = u => (u || 'kg').toString().trim().toLowerCase();
 const unid = () => normUnid(plano?.unidade);
@@ -3309,6 +3316,9 @@ async function abrirRevisao(id) {
   const un = normUnid(c.unidade);
   const fR = n => n == null ? '—' : Number(n).toLocaleString('pt-BR',
     { minimumFractionDigits: casasRev, maximumFractionDigits: casasRev });
+  // Incerteza com uma casa a mais que as leituras (mais precisão que a divisão)
+  const fRInc = n => n == null ? '—' : Number(n).toLocaleString('pt-BR',
+    { minimumFractionDigits: casasRev + 1, maximumFractionDigits: casasRev + 1 });
   const temAjuste = !!c.houve_ajuste;
 
   const linhaInd = l => `<tr>
@@ -3319,7 +3329,7 @@ async function abrirRevisao(id) {
     <td class="num">${l.sem_leitura
       ? '<span style="color:#b02a37;font-style:italic">sem leitura</span>' : fR(l.indicacao)}</td>
     <td class="num">${l.sem_leitura ? '—' : (l.erro > 0 ? '+' : '') + fR(l.erro)}</td>
-    <td class="num">${l.sem_leitura ? '—' : '± ' + fR(l.incerteza)}</td><td class="num">± ${fR(l.ema)}</td>
+    <td class="num">${l.sem_leitura ? '—' : '± ' + fRInc(l.incerteza)}</td><td class="num">± ${fR(l.ema)}</td>
     <td>${l.aprovado == null ? '—' : l.aprovado
       ? '<span class="badge ok">Conforme</span>'
       : '<span class="badge rep">Não conforme</span>'}</td></tr>`;
@@ -13299,7 +13309,7 @@ async function enviarAprovacao() {
         <tr><td class="num">${fmtU(p.carga_aplicada)}</td>
             <td class="num">${fmtU(p.indicacao)}</td>
             <td class="num">${(p.erro > 0 ? '+' : '') + fmtU(p.erro)}</td>
-            <td class="num">± ${fmtU(p.incerteza)}</td>
+            <td class="num">± ${fmtUInc(p.incerteza)}</td>
             <td class="num">± ${fmtU(p.ema)}</td>
             <td>${p.aprovado == null ? '—' : p.aprovado
               ? '<span class="badge ok">OK</span>'

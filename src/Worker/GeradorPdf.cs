@@ -374,7 +374,7 @@ public static class GeradorPdf
                             // Ponto SEM LEITURA: o visor nao indicou na carga (Joao, 22/08/2026)
                             C(l.SemLeitura ? "sem leitura **" : Val(l.Indicacao, d.CasasDecimais));
                             C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + Val(l.Erro, d.CasasDecimais));
-                            C(l.SemLeitura ? "—" : "± " + Val(l.Incerteza, d.CasasDecimais));
+                            C(l.SemLeitura ? "—" : "± " + Val(l.Incerteza, d.CasasDecimais + 1));
                             C("± " + Val(l.Ema, d.CasasDecimais));
                             if (completo)
                             {
@@ -782,7 +782,7 @@ public static class GeradorPdf
                             // Ponto SEM LEITURA (Joao, 22/08/2026)
                             C(l.SemLeitura ? "sem leitura **" : V(l.Indicacao));
                             C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
-                            C(l.SemLeitura ? "—" : "± " + V(l.Incerteza));
+                            C(l.SemLeitura ? "—" : "± " + Val(l.Incerteza, casas + 1));
                             C("± " + V(l.Ema));
                             C(l.SemLeitura ? "—" : "2,00"); C(l.SemLeitura ? "—" : "∞");
                             var tur = (l.Ema is > 0 && l.Incerteza is > 0)
