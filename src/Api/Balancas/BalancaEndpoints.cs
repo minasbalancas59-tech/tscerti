@@ -233,11 +233,13 @@ public static class BalancaEndpoints
         {
             await using var conn = await Tenant.AbrirConexao(ds, user);
             var empresaId = Tenant.EmpresaId(user);
-            var existe = await conn.ExecuteScalarAsync<bool>(
-                "SELECT EXISTS(SELECT 1 FROM balanca WHERE id=@id)", new { id });
-            if (!existe) return Results.NotFound();
+            var capacidade = await conn.ExecuteScalarAsync<decimal?>(
+                "SELECT capacidade FROM balanca WHERE id=@id", new { id });
+            if (capacidade is null) return Results.NotFound();
 
-            // Validação: se há faixas, ao menos 2, em ordem crescente
+            // Validação: se há faixas, ao menos 2, em ordem crescente, e a
+            // última faixa deve terminar exatamente na capacidade da balança
+            // (senão sobra um trecho da balança sem "e" definido).
             var faixas = req.Faixas ?? new List<FaixaReq>();
             if (faixas.Count > 0)
             {
@@ -252,6 +254,10 @@ public static class BalancaEndpoints
                     if (i > 0 && faixas[i].LimiteSup <= faixas[i - 1].LimiteSup)
                         return Results.BadRequest(new { erro = "Os limites das faixas devem estar em ordem crescente." });
                 }
+                if (Math.Abs(faixas[^1].LimiteSup - capacidade.Value) > 0.0000001m)
+                    return Results.BadRequest(new { erro =
+                        $"A última faixa vai até {faixas[^1].LimiteSup}, mas a capacidade da balança é " +
+                        $"{capacidade.Value}. A última faixa deve terminar exatamente na capacidade." });
             }
 
             await using var tx = await conn.BeginTransactionAsync();
@@ -272,6 +278,7 @@ public static class BalancaEndpoints
                 "balanca", id, "faixas", new { faixas }, Auditoria.Ip(ctx));
             return Results.Ok(new { ok = true, total = faixas.Count });
         });
+
 
         g.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {

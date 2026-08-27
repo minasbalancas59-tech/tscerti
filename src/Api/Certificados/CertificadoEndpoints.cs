@@ -42,14 +42,49 @@ public static class CertificadoEndpoints
                 .ToLowerInvariant().Contains("rodovi");
             var cargasRodoviaria = new List<decimal> { 20m * e };
             for (int k = 1; k <= 10; k++) cargasRodoviaria.Add(k * 1000m);
-            var (posicoes, cargaExc) = Metrologia.SugerirExcentricidade(
-                (string)b.tipo, cap, e);
 
             // Faixas da balança (multi-intervalo). Vazio = faixa única.
             var faixas = await conn.QueryAsync("""
                 SELECT ordem, limite_sup, divisao_e FROM balanca_faixa
                  WHERE balanca_id = @id ORDER BY ordem
                 """, new { id });
+            var faixasList = faixas.ToList();
+            bool multi = faixasList.Count > 0;
+            var faixasTuplas = faixasList
+                .Select(f => ((decimal)f.limite_sup, (decimal)f.divisao_e)).ToList();
+
+            // ── Sugestão de pontos: usa as versões faixa-aware quando a
+            //    balança é multi-intervalo (tripla escala); senão, o
+            //    cálculo padrão de sempre com o "e" único — sem mudança
+            //    nenhuma de comportamento pras balanças normais. ──
+            List<decimal> indicacaoSugerida;
+            decimal? cargaSensibilidade;
+            string[] posicoes; decimal cargaExc;
+            decimal cargaRepetibilidade;
+
+            if (rodoviaria)
+            {
+                indicacaoSugerida = cargasRodoviaria;
+                cargaSensibilidade = 10000m;
+                (posicoes, cargaExc) = Metrologia.SugerirExcentricidade((string)b.tipo, cap, e);
+                cargaRepetibilidade = Metrologia.CargaMeioFundo(cap, e);
+            }
+            else if (multi)
+            {
+                indicacaoSugerida = Metrologia.SugerirCargasIndicacaoMulti(
+                    faixasTuplas, cap, (string)b.classe_exatidao);
+                cargaSensibilidade = null;
+                (posicoes, cargaExc) = Metrologia.SugerirExcentricidadeMulti(
+                    (string)b.tipo, faixasTuplas, cap);
+                cargaRepetibilidade = Metrologia.CargaMeioFundoMulti(faixasTuplas, cap);
+            }
+            else
+            {
+                indicacaoSugerida = Metrologia.SugerirCargasIndicacao(cap, e, (string)b.classe_exatidao);
+                cargaSensibilidade = null;
+                (posicoes, cargaExc) = Metrologia.SugerirExcentricidade((string)b.tipo, cap, e);
+                cargaRepetibilidade = Metrologia.CargaMeioFundo(cap, e);
+            }
 
             var config = await conn.QuerySingleOrDefaultAsync("""
                 SELECT usa_excentricidade, usa_repetibilidade, num_repeticoes,
@@ -62,7 +97,6 @@ public static class CertificadoEndpoints
             // Casas decimais de exibição: usa a MENOR divisão relevante.
             //  - escala única: o menor entre e e d (d costuma ser menor);
             //  - multi-intervalo: o menor e entre as faixas.
-            var faixasList = faixas.ToList();
             decimal menorDivisao = e;
             decimal? dReal = b.divisao_d;
             if (dReal is { } dd && dd > 0) menorDivisao = Math.Min(menorDivisao, dd);
@@ -78,15 +112,13 @@ public static class CertificadoEndpoints
                 unidade = (string)b.unidade,
                 casasDecimais = Unidades.CasasDecimais(menorDivisao),
                 config,
-                indicacao = rodoviaria
-                    ? (object)cargasRodoviaria
-                    : Metrologia.SugerirCargasIndicacao(cap, e, (string)b.classe_exatidao),
-                sensibilidade = new { carga = rodoviaria ? (decimal?)10000m : null },
+                indicacao = indicacaoSugerida,
+                sensibilidade = new { carga = cargaSensibilidade },
                 excentricidade = new { posicoes, carga = cargaExc },
                 repetibilidade = new
                 {
                     medicoes = nRep,
-                    carga = Metrologia.CargaMeioFundo(cap, e)  // ~50% da capacidade
+                    carga = cargaRepetibilidade  // ~50% da capacidade
                 },
                 // Regras da classe: o frontend calcula o EMA ao vivo
                 emaRegras = await Metrologia.RegrasEma(conn, (string)b.classe_exatidao),

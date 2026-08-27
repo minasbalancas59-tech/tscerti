@@ -43,6 +43,88 @@ public static class Metrologia
         return cargas;
     }
 
+    /// <summary>
+    /// Cargas sugeridas para balanças MULTI-INTERVALO (2 ou 3 faixas):
+    /// gera os mesmos percentuais (10/25/50/75/100%) de cada faixa
+    /// individualmente, arredondando cada ponto pelo "e" DAQUELA faixa
+    /// — em vez de usar um "e" único para a balança inteira. A carga
+    /// mínima (Min) usa sempre o "e" da faixa 1 (a mais fina), conforme
+    /// OIML R76. Faixas devem vir ordenadas por limite_sup crescente.
+    /// </summary>
+    public static List<decimal> SugerirCargasIndicacaoMulti(
+        List<(decimal limiteKg, decimal eKg)> faixas, decimal capacidadeKg, string? classe = null)
+    {
+        if (faixas.Count == 0) return new List<decimal>();
+
+        var cargas = new List<decimal>();
+        decimal limiteAnterior = 0;
+        var percentuais = new[] { 0.25m, 0.50m, 0.75m, 1.00m };
+        foreach (var (limiteKg, eKg) in faixas)
+        {
+            var passo = eKg * 10; if (passo <= 0) passo = 1;
+            var largura = limiteKg - limiteAnterior;
+            foreach (var p in percentuais)
+            {
+                var alvo = limiteAnterior + largura * p;
+                var c = Math.Round(alvo / passo) * passo;
+                c = Math.Min(Math.Max(c, limiteAnterior + passo), limiteKg);
+                cargas.Add(c);
+            }
+            limiteAnterior = limiteKg;
+        }
+        // Garante que o último ponto seja exatamente a capacidade
+        cargas = cargas.Distinct().OrderBy(c => c).ToList();
+        if (cargas.Count > 0 && cargas[^1] != capacidadeKg)
+            cargas[^1] = capacidadeKg;
+
+        // Carga mínima (Min): sempre pelo "e" da faixa 1 (a mais fina)
+        var eMin = faixas[0].eKg;
+        var mult = classe switch { "I" => 100m, "II" => 50m, "III" => 20m, "IIII" => 10m, _ => 20m };
+        var cargaMin = mult * eMin;
+        if (cargaMin > 0 && cargaMin < capacidadeKg)
+        {
+            cargas = cargas.Where(c => c > cargaMin).ToList();
+            cargas.Insert(0, cargaMin);
+        }
+        return cargas;
+    }
+
+    /// <summary>
+    /// Carga de repetibilidade (~50% da capacidade) para MULTI-INTERVALO:
+    /// arredonda pelo "e" da faixa onde essa carga cai, não pelo "e" único.
+    /// </summary>
+    public static decimal CargaMeioFundoMulti(List<(decimal limiteKg, decimal eKg)> faixas, decimal capacidadeKg)
+    {
+        if (faixas.Count == 0) return 0;
+        var metade = capacidadeKg / 2m;
+        var eDaCarga = faixas.FirstOrDefault(f => metade <= f.limiteKg).eKg;
+        if (eDaCarga <= 0) eDaCarga = faixas[^1].eKg;
+        var passo = eDaCarga * 10; if (passo <= 0) passo = eDaCarga > 0 ? eDaCarga : 1;
+        var carga = Math.Round(metade / passo) * passo;
+        return carga <= 0 ? passo : carga;
+    }
+
+    /// <summary>
+    /// Excentricidade (~1/3 da capacidade) para MULTI-INTERVALO: arredonda
+    /// pelo "e" da faixa onde a carga de 1/3 da capacidade cai.
+    /// </summary>
+    public static (string[] posicoes, decimal carga) SugerirExcentricidadeMulti(
+        string tipo, List<(decimal limiteKg, decimal eKg)> faixas, decimal capacidadeKg)
+    {
+        var t = (tipo ?? "").ToLowerInvariant();
+        var posicoes = (t.Contains("rodovi") || t.Contains("ferrovi"))
+            ? new[] { "centro", "secao_1", "secao_2", "secao_3", "secao_4" }
+            : new[] { "centro", "frente_esq", "frente_dir", "fundo_esq", "fundo_dir" };
+        if (faixas.Count == 0) return (posicoes, 0);
+        var umTerco = capacidadeKg / 3m;
+        var eDaCarga = faixas.FirstOrDefault(f => umTerco <= f.limiteKg).eKg;
+        if (eDaCarga <= 0) eDaCarga = faixas[^1].eKg;
+        var passo = eDaCarga * 10; if (passo <= 0) passo = eDaCarga > 0 ? eDaCarga : 1;
+        var carga = Math.Round(umTerco / passo) * passo;
+        if (carga <= 0) carga = passo;
+        return (posicoes, carga);
+    }
+
     /// <summary>Posições de excentricidade conforme o tipo de balança.</summary>
     /// <summary>Carga ~50% da capacidade, arredondada ao múltiplo de 10·e (repetibilidade).</summary>
     public static decimal CargaMeioFundo(decimal capacidade, decimal e)

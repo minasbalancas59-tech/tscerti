@@ -10013,7 +10013,9 @@ async function formBalanca(clienteId, b = null) {
         ${campo('Portaria de aprovação', 'b-portaria', 'text', b?.portaria_aprovacao)}
         <label>Unidade *<select id="b-unid" onchange="sugerirClasse()">${selUnid(b?.unidade)}</select></label>
         ${campo('Capacidade *', 'b-cap', 'number', b?.capacidade, 'step="any" inputmode="decimal" oninput="sugerirClasse()"')}
-        ${campo('Divisão e *', 'b-e', 'number', b?.divisao_e, 'step="any" inputmode="decimal" oninput="sugerirClasse()"')}
+        <div id="b-e-wrap">
+          ${campo('Divisão e *', 'b-e', 'number', b?.divisao_e, 'step="any" inputmode="decimal" oninput="sugerirClasse()"')}
+        </div>
         ${campo('Divisão d', 'b-d', 'number', b?.divisao_d ?? '', 'step="any" inputmode="decimal"')}
         <label>Classe *
           <button type="button" class="btn-ajuda" onclick="ajudaClasse()" title="Como a classe é calculada" style="margin-left:4px">?</button>
@@ -10021,6 +10023,21 @@ async function formBalanca(clienteId, b = null) {
         ${campo('Periodicidade (meses)', 'b-per', 'number', b?.periodicidade_meses ?? 12)}
       </div>
       <p id="b-classe-dica" class="dica"></p>
+
+      <div class="subcard" style="margin-top:12px;background:#f8fafc;border-left:3px solid #6c8ab0">
+        <label class="chk"><input type="checkbox" id="b-multi" onchange="toggleFaixas()"
+          ${b?.multi_intervalo ? 'checked' : ''}>
+          Balança multi-intervalo (divisão muda por faixa)</label>
+        <div id="b-faixas-area" class="${b?.multi_intervalo ? '' : 'oculta'}">
+          <p class="dica">Informe o limite superior e a divisão (e) de cada faixa, em ordem crescente.
+            A última faixa deve terminar exatamente na capacidade da balança.</p>
+          <div id="b-faixas-linhas"></div>
+          <button type="button" class="btn-mini" onclick="addFaixaLinha()">+ Adicionar faixa</button>
+          <p class="dica" style="margin:10px 0 4px">Cobertura das faixas até a capacidade</p>
+          <div id="b-regua" style="position:relative;height:38px;border-radius:6px;overflow:hidden;display:flex;background:#eef1f4"></div>
+          <p id="b-regua-aviso" style="font-size:12.5px;margin:6px 0 0"></p>
+        </div>
+      </div>
 
       <div class="subcard" style="margin-top:12px;background:#f8fafc">
         <p class="dica" style="margin:0 0 6px"><b>Ensaios aplicáveis</b> — desmarque
@@ -10033,17 +10050,6 @@ async function formBalanca(clienteId, b = null) {
         <label class="chk"><input type="checkbox" id="b-faz-sens"
           ${b?.faz_sensibilidade === false ? '' : 'checked'}>
           Realiza ensaio de sensibilidade</label>
-      </div>
-      <div class="subcard" style="margin-top:12px;background:#f8fafc">
-        <label class="chk"><input type="checkbox" id="b-multi" onchange="toggleFaixas()"
-          ${b?.multi_intervalo ? 'checked' : ''}>
-          Balança multi-intervalo (divisão muda por faixa)</label>
-        <div id="b-faixas-area" class="${b?.multi_intervalo ? '' : 'oculta'}">
-          <p class="dica">Informe o limite superior e a divisão (e) de cada faixa, em ordem crescente.
-            Ex.: até 6 = 0,002 · até 15 = 0,005 · até 30 = 0,010 (valores na unidade da balança).</p>
-          <div id="b-faixas-linhas"></div>
-          <button type="button" class="btn-mini" onclick="addFaixaLinha()">+ Adicionar faixa</button>
-        </div>
       </div>
 
       ${campo('Local de instalação', 'b-local', 'text', b?.local_instalacao)}
@@ -10062,6 +10068,7 @@ async function formBalanca(clienteId, b = null) {
   // carrega as faixas existentes (ao editar) ou uma linha em branco
   if (b?.id && b?.multi_intervalo) carregarFaixas(b.id);
   else if (b?.multi_intervalo) addFaixaLinha();
+  toggleFaixas();
 }
 
 // ── Faixas (multi-intervalo) ──────────────────────────────────
@@ -10069,8 +10076,45 @@ function toggleFaixas() {
   const area = $('#b-faixas-area');
   const marcado = $('#b-multi').checked;
   area.classList.toggle('oculta', !marcado);
+  const eWrap = $('#b-e-wrap');
+  if (eWrap) eWrap.style.display = marcado ? 'none' : '';
   if (marcado && !$('#b-faixas-linhas').children.length) addFaixaLinha();
   sugerirClasse();
+  renderRegua();
+}
+
+// Desenha a régua proporcional de faixas até a capacidade, e avisa
+// se a última faixa não bater exatamente com a capacidade cadastrada.
+function renderRegua() {
+  const regua = $('#b-regua'), aviso = $('#b-regua-aviso');
+  if (!regua || !aviso) return;
+  const cap = Number($('#b-cap')?.value) || 0;
+  const { faixas } = coletarFaixas();
+  regua.innerHTML = '';
+  const cores = ['#dbe9f7', '#dcefd6', '#fbe9c9'];
+  const textos = ['#1e4a72', '#245c1a', '#7a5205'];
+  let anterior = 0;
+  faixas.forEach((f, i) => {
+    const largura = Math.max((f.limiteSup || 0) - anterior, 0);
+    const pct = cap > 0 ? (largura / cap * 100) : 0;
+    const seg = document.createElement('div');
+    seg.style.cssText = `width:${pct}%;background:${cores[i % 3]};color:${textos[i % 3]};` +
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+      'font-size:10.5px;font-weight:600;border-right:1px solid #fff;overflow:hidden';
+    seg.innerHTML = `<span>até ${fmt(f.limiteSup || 0)}</span><span style="font-weight:400">e=${fmt(f.divisaoE || 0)}</span>`;
+    regua.appendChild(seg);
+    anterior = f.limiteSup || 0;
+  });
+  const ultima = faixas.length ? faixas[faixas.length - 1].limiteSup : 0;
+  if (faixas.length && Math.abs((ultima || 0) - cap) > 1e-9) {
+    aviso.style.color = '#b02a37';
+    aviso.textContent = `⚠️ A última faixa vai até ${fmt(ultima || 0)}, mas a capacidade é ${fmt(cap)}. Ajuste antes de salvar.`;
+  } else if (faixas.length) {
+    aviso.style.color = '#1e6b3a';
+    aviso.textContent = '✓ Faixas cobrem toda a capacidade.';
+  } else {
+    aviso.textContent = '';
+  }
 }
 
 function addFaixaLinha(limite = '', e = '') {
@@ -10099,6 +10143,7 @@ async function carregarFaixas(balancaId) {
     if (faixas.length) faixas.forEach(f => addFaixaLinha(f.limite_sup, f.divisao_e));
     else addFaixaLinha();
   } catch { addFaixaLinha(); }
+  renderRegua();
 }
 
 // Coleta as faixas do formulário (validando ordem crescente)
@@ -10223,6 +10268,7 @@ function ajudaClasse() {
 }
 
 function sugerirClasse() {
+  renderRegua();
   clearTimeout(timerClasse);
   timerClasse = setTimeout(async () => {
     const cap = Number($('#b-cap')?.value), e = Number($('#b-e')?.value);
@@ -10295,6 +10341,13 @@ async function salvarBalanca(clienteId, id) {
         $('#f-erro').textContent = 'Os limites das faixas devem estar em ordem crescente.';
         return;
       }
+    }
+    // a última faixa deve terminar exatamente na capacidade
+    const cap = corpo.capacidade;
+    const ultima = faixas[faixas.length - 1].limiteSup;
+    if (Math.abs(ultima - cap) > 0.0000001) {
+      $('#f-erro').textContent = `A última faixa vai até ${ultima}, mas a capacidade é ${cap}. Ajuste antes de salvar.`;
+      return;
     }
   }
   try {
