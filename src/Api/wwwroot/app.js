@@ -10023,7 +10023,9 @@ async function formBalanca(clienteId, b = null) {
         <div id="b-e-wrap">
           ${campo('Divisão e *', 'b-e', 'number', b?.divisao_e, 'step="any" inputmode="decimal" oninput="sugerirClasse()"')}
         </div>
-        ${campo('Divisão d', 'b-d', 'number', b?.divisao_d ?? '', 'step="any" inputmode="decimal"')}
+        <div id="b-d-wrap">
+          ${campo('Divisão d', 'b-d', 'number', b?.divisao_d ?? '', 'step="any" inputmode="decimal"')}
+        </div>
         <label>Classe *
           <button type="button" class="btn-ajuda" onclick="ajudaClasse()" title="Como a classe é calculada" style="margin-left:4px">?</button>
           <select id="b-classe" onchange="this.dataset.editadoManual=1;sugerirClasse()">${sel(CLASSES, b?.classe_exatidao || 'III')}</select></label>
@@ -10083,8 +10085,9 @@ function toggleFaixas() {
   const area = $('#b-faixas-area');
   const marcado = $('#b-multi').checked;
   area.classList.toggle('oculta', !marcado);
-  const eWrap = $('#b-e-wrap');
+  const eWrap = $('#b-e-wrap'), dWrap = $('#b-d-wrap');
   if (eWrap) eWrap.style.display = marcado ? 'none' : '';
+  if (dWrap) dWrap.style.display = marcado ? 'none' : '';
   if (marcado && !$('#b-faixas-linhas').children.length) addFaixaLinha();
   sugerirClasse();
   renderRegua();
@@ -10278,19 +10281,23 @@ function sugerirClasse() {
   renderRegua();
   clearTimeout(timerClasse);
   timerClasse = setTimeout(async () => {
-    const cap = Number($('#b-cap')?.value), e = Number($('#b-e')?.value);
+    const cap = Number($('#b-cap')?.value);
+    const multi = !!$('#b-multi')?.checked;
+    const faixasMulti = (multi && typeof coletarFaixas === 'function')
+      ? coletarFaixas().faixas.map(f => ({ limiteSup: f.limiteSup, divisaoE: f.divisaoE }))
+      : null;
+    const faixasValidas = !!(faixasMulti && faixasMulti.length >= 2);
+    const e = Number($('#b-e')?.value);
     const dica = $('#b-classe-dica');
-    if (!dica || !cap || !e) { if (dica) dica.textContent = ''; return; }
+    // Em multi-intervalo com faixas válidas, o "e" único não é necessário —
+    // a classe é calculada a partir das faixas. Só exige "e" em faixa única.
+    if (!dica || !cap || (!faixasValidas && !e)) { if (dica) dica.textContent = ''; return; }
     try {
-      // Se multi-intervalo, envia as faixas para a classificação correta
-      const faixasMulti = ($('#b-multi')?.checked && typeof coletarFaixas === 'function')
-        ? coletarFaixas().faixas.map(f => ({ limiteSup: f.limiteSup, divisaoE: f.divisaoE }))
-        : null;
       const r = await api('/balancas/sugerir-classe', { method: 'POST',
-        body: JSON.stringify({ capacidade: cap, divisaoE: e,
+        body: JSON.stringify({ capacidade: cap, divisaoE: faixasValidas ? (faixasMulti[0].divisaoE || 0) : e,
           unidade: $('#b-unid').value, tipo: $('#b-tipo').value,
           classeEscolhida: $('#b-classe').value,
-          faixas: (faixasMulti && faixasMulti.length >= 2) ? faixasMulti : null }) });
+          faixas: faixasValidas ? faixasMulti : null }) });
 
       // Preenche o campo Classe automaticamente com a classe calculada,
       // mas só se o usuário ainda não tiver alterado manualmente
@@ -10303,6 +10310,12 @@ function sugerirClasse() {
       if (r.alerta) {
         dica.innerHTML = '⚠️ ' + esc(r.alerta);
         dica.style.color = '#b02a37';
+      } else if (faixasValidas) {
+        dica.innerHTML = `Classe <b>${r.sugerida}</b> calculada a partir das ${faixasMulti.length} faixas ` +
+          `(maior nº de divisões entre elas: n = ${r.numeroDivisoes.toLocaleString('pt-BR')})` +
+          (r.classesCompativeis.length > 1 ? ` · também compatível: ${r.classesCompativeis.filter(x => x !== r.sugerida).join(', ')}` : '') +
+          ` — ajuste se a placa indicar outra.`;
+        dica.style.color = '#146c43';
       } else {
         dica.innerHTML = `Classe <b>${r.sugerida}</b> calculada automaticamente ` +
           `(n = ${r.numeroDivisoes.toLocaleString('pt-BR')} divisões)` +
