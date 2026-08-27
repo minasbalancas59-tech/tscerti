@@ -10369,6 +10369,10 @@ async function salvarBalanca(clienteId, id) {
       $('#f-erro').textContent = `A última faixa vai até ${ultima}, mas a capacidade é ${cap}. Ajuste antes de salvar.`;
       return;
     }
+    // O campo "Divisão e" único fica oculto em multi-intervalo: usa como
+    // referência o "e" da faixa 1 (a mais fina) e não envia "d".
+    if (!corpo.divisaoE || corpo.divisaoE <= 0) corpo.divisaoE = faixas[0].divisaoE;
+    corpo.divisaoD = null;
   }
   try {
     const salva = await api(id ? '/balancas/' + id : `/clientes/${clienteId}/balancas`, {
