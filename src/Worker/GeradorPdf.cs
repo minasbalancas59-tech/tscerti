@@ -205,6 +205,24 @@ public static class GeradorPdf
     const string MarcaTexto = "Emitido com TSCert · certificados.totalscale.com.br/tscert.html";
 
     /// <summary>
+    /// Texto da capacidade do instrumento, igual em TODOS os modelos.
+    /// Valor inteiro sai sem casas decimais ("200 kg", "5.000 kg"); valor
+    /// com fração mantém as casas da divisão ("0,500 kg"). Em multi-faixa
+    /// é tudo ou nada: só omite as casas quando TODAS as faixas são
+    /// inteiras, senão "1,5 / 3 / 6" ficaria desalinhado.
+    /// As divisões (d e e) nunca perdem as casas — ver Divisoes().
+    /// </summary>
+    static string Capacidade(DadosCertificado d, string? unidade = null)
+    {
+        var u = string.IsNullOrWhiteSpace(unidade) ? "" : " " + unidade;
+        var valores = d.Faixas is { Count: > 0 }
+            ? d.Faixas.Select(f => f.LimiteSup).ToList()
+            : new List<decimal> { d.Capacidade };
+        var casas = valores.All(v => v == decimal.Truncate(v)) ? 0 : d.CasasDecimais;
+        return string.Join(" / ", valores.Select(v => Val(v, casas))) + u;
+    }
+
+    /// <summary>
     /// Texto das divisões do instrumento, igual em TODOS os modelos:
     ///  · d = e         → "d = e = 0,05"        (não repete o mesmo número)
     ///  · d ≠ e         → "e = 0,05 · d = 0,01"
@@ -334,13 +352,7 @@ public static class GeradorPdf
                             if (d.Modelo is not null)
                                 c.Item().Text($"Modelo: {d.Modelo}").FontSize(8);
                             c.Item().Text($"Identificação: {d.Balanca}  ·  Série: {d.NumSerie ?? "—"}" + (string.IsNullOrWhiteSpace(d.NumSerieIndicador) ? "" : $"  ·  Indicador: {d.NumSerieIndicador}"));
-                            if (d.Faixas is { Count: > 0 })
-                            {
-                                var capF = string.Join(" / ", d.Faixas.Select(f => Val(f.LimiteSup, d.CasasDecimais)));
-                                c.Item().Text($"Cap.: {capF} {d.Unidade}  ·  {Divisoes(d, d.Unidade)}  ·  Classe {d.Classe}");
-                            }
-                            else
-                                c.Item().Text($"Cap.: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade}  ·  {Divisoes(d, d.Unidade)}  ·  Classe {d.Classe}");
+                            c.Item().Text($"Cap.: {Capacidade(d, d.Unidade)}  ·  {Divisoes(d, d.Unidade)}  ·  Classe {d.Classe}");
                             if (d.NumeroInmetro is not null || d.Patrimonio is not null)
                                 c.Item().Text($"Inmetro: {d.NumeroInmetro ?? "-"}  ·  Patrimônio: {d.Patrimonio ?? "-"}").FontSize(8);
                             if (d.PortariaAprovacao is not null)
@@ -737,11 +749,7 @@ public static class GeradorPdf
                     });
                     col.Item().Row(r =>
                     {
-                        var ehMulti = d.Faixas is { Count: > 0 };
-                        var capTxt = ehMulti
-                            ? string.Join(" / ", d.Faixas!.Select(f => V(f.LimiteSup)))
-                            : V(d.Capacidade);
-                        CampoCaixa(r.RelativeItem(), $"CAP. MÁX ({d.Unidade})", capTxt);
+                        CampoCaixa(r.RelativeItem(), $"CAP. MÁX ({d.Unidade})", Capacidade(d));
                         CampoCaixa(r.RelativeItem(1.4f), $"DIVISÃO ({d.Unidade})", Divisoes(d));
                         CampoCaixa(r.RelativeItem(), "CLASSE", d.Classe);
                         CampoCaixa(r.RelativeItem(), "Nº INMETRO", d.NumeroInmetro ?? "—");
@@ -1110,14 +1118,7 @@ public static class GeradorPdf
                             c.Item().Text(marcaModelo.Length > 0 ? marcaModelo : "—").Bold();
                             c.Item().Text($"Identificação: {d.Balanca}").FontSize(8);
                             if (d.NumSerie is not null) c.Item().Text($"Nº de série: {d.NumSerie}" + (string.IsNullOrWhiteSpace(d.NumSerieIndicador) ? "" : $" · Indicador: {d.NumSerieIndicador}")).FontSize(8);
-                            if (d.Faixas is { Count: > 0 })
-                            {
-                                var capF = string.Join(" / ", d.Faixas.Select(f => Val(f.LimiteSup, d.CasasDecimais)));
-                                c.Item().Text($"Capacidade: {capF} {d.Unidade} · {Divisoes(d, d.Unidade)} · Classe {d.Classe}").FontSize(8);
-                            }
-                            else
-                                c.Item().Text($"Capacidade: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade} · " +
-                                              $"{Divisoes(d, d.Unidade)} · Classe {d.Classe}").FontSize(8);
+                            c.Item().Text($"Capacidade: {Capacidade(d, d.Unidade)} · {Divisoes(d, d.Unidade)} · Classe {d.Classe}").FontSize(8);
                             if (d.NumeroInmetro is not null) c.Item().Text($"Inmetro: {d.NumeroInmetro}").FontSize(8);
                         });
                     });
@@ -1504,10 +1505,7 @@ public static class GeradorPdf
 
                     // ── Dados do equipamento ──
                     Titulo("DADOS DO EQUIPAMENTO");
-                    var ehMulti = d.Faixas is { Count: > 0 };
-                    var capTxt = ehMulti
-                        ? string.Join(" / ", d.Faixas!.Select(f => V(f.LimiteSup))) + " " + d.Unidade
-                        : V(d.Capacidade) + " " + d.Unidade;
+                    var capTxt = Capacidade(d, d.Unidade);
                     var divTxt = Divisoes(d);
                     col.Item().Row(r =>
                     {
