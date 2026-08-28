@@ -1,0 +1,56 @@
+From d41af2d146f746200449e12c0c0e1d9723f0e720 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jo=C3=A3o?= <minas.balancas59@gmail.com>
+Date: Fri, 28 Aug 2026 13:33:05 +0000
+Subject: [PATCH] Configuracoes: rodape maior e checkbox de e-mail em linha
+ propria
+
+- 'Texto de rodape' vai de 2 para 6 linhas: e o texto mais longo da
+  tela e ficava cortado, exigindo rolagem dentro do proprio campo.
+  Metodo e periodicidade vao de 2 para 3 linhas.
+- O checkbox 'Enviar o certificado por e-mail automaticamente' estava
+  dentro da grade de dois campos por linha, espremido ao lado de
+  Endereco, com a explicacao quebrando em varias linhas estreitas.
+  Sai da grade e passa a ocupar a largura inteira, logo abaixo dela.
+---
+ src/Api/wwwroot/app.js | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/Api/wwwroot/app.js b/src/Api/wwwroot/app.js
+index 0228dcf..1b19634 100644
+--- a/src/Api/wwwroot/app.js
++++ b/src/Api/wwwroot/app.js
+@@ -10764,24 +10764,24 @@ async function renderConfig() {
+         ${campo('Razão social *', 'cf-razao', 'text', c.razao_social)}
+         ${campo('Nome fantasia', 'cf-fantasia', 'text', c.nome_fantasia)}
+         ${campo('Cláusula da norma — método da substituição', 'cf-clausula-sub', 'text', c.clausula_substituicao)}
+-        <label class="chk"><input type="checkbox" id="cf-email-auto" ${sim(c.envia_email_automatico ?? true)}>
+-          📧 Enviar o certificado por e-mail automaticamente na emissão
+-          <span class="dica" style="display:block;margin-left:24px">Vai para o e-mail do cadastro do cliente
+-          e para os contatos marcados com "Recebe certificados".</span></label>
+         ${campo('Endereço', 'cf-end', 'text', c.endereco)}
+         ${campo('Cidade / UF', 'cf-ciduf', 'text', c.cidade_uf)}
+         ${campo('Telefone', 'cf-fone', 'text', c.telefone)}
+         ${campo('Email', 'cf-email', 'email', c.email)}
+       </div>
++      <label class="chk" style="margin-top:6px"><input type="checkbox" id="cf-email-auto" ${sim(c.envia_email_automatico ?? true)}>
++        📧 Enviar o certificado por e-mail automaticamente na emissão</label>
++      <p class="dica" style="margin:0 0 8px 24px">Vai para o e-mail do cadastro do cliente
++        e para os contatos marcados com "Recebe certificados".</p>
+       <label>Texto de autorização (linha livre no cabeçalho, ex.: "Autorização Inmetro nº 20000077")
+         <input type="text" id="cf-autoriz-txt" value="${esc(c.texto_autorizacao || '')}"></label>
+       ${campo('Título do documento', 'cf-titulo', 'text', c.titulo_documento)}
+       <label>Método / procedimento (texto no certificado)
+-        <textarea id="cf-metodo" rows="2">${esc(c.metodo_calibracao || '')}</textarea></label>
++        <textarea id="cf-metodo" rows="3">${esc(c.metodo_calibracao || '')}</textarea></label>
+       <label>Texto de periodicidade
+-        <textarea id="cf-period" rows="2">${esc(c.texto_periodicidade || '')}</textarea></label>
++        <textarea id="cf-period" rows="3">${esc(c.texto_periodicidade || '')}</textarea></label>
+       <label>Texto de rodapé
+-        <textarea id="cf-rodape" rows="2">${esc(c.texto_rodape || '')}</textarea></label>
++        <textarea id="cf-rodape" rows="6">${esc(c.texto_rodape || '')}</textarea></label>
+     </div>
+ 
+     <div class="card">
+-- 
+2.43.0
+

@@ -10764,24 +10764,24 @@ async function renderConfig() {
         ${campo('Razão social *', 'cf-razao', 'text', c.razao_social)}
         ${campo('Nome fantasia', 'cf-fantasia', 'text', c.nome_fantasia)}
         ${campo('Cláusula da norma — método da substituição', 'cf-clausula-sub', 'text', c.clausula_substituicao)}
-        <label class="chk"><input type="checkbox" id="cf-email-auto" ${sim(c.envia_email_automatico ?? true)}>
-          📧 Enviar o certificado por e-mail automaticamente na emissão
-          <span class="dica" style="display:block;margin-left:24px">Vai para o e-mail do cadastro do cliente
-          e para os contatos marcados com "Recebe certificados".</span></label>
         ${campo('Endereço', 'cf-end', 'text', c.endereco)}
         ${campo('Cidade / UF', 'cf-ciduf', 'text', c.cidade_uf)}
         ${campo('Telefone', 'cf-fone', 'text', c.telefone)}
         ${campo('Email', 'cf-email', 'email', c.email)}
       </div>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" id="cf-email-auto" ${sim(c.envia_email_automatico ?? true)}>
+        📧 Enviar o certificado por e-mail automaticamente na emissão</label>
+      <p class="dica" style="margin:0 0 8px 24px">Vai para o e-mail do cadastro do cliente
+        e para os contatos marcados com "Recebe certificados".</p>
       <label>Texto de autorização (linha livre no cabeçalho, ex.: "Autorização Inmetro nº 20000077")
         <input type="text" id="cf-autoriz-txt" value="${esc(c.texto_autorizacao || '')}"></label>
       ${campo('Título do documento', 'cf-titulo', 'text', c.titulo_documento)}
       <label>Método / procedimento (texto no certificado)
-        <textarea id="cf-metodo" rows="2">${esc(c.metodo_calibracao || '')}</textarea></label>
+        <textarea id="cf-metodo" rows="3">${esc(c.metodo_calibracao || '')}</textarea></label>
       <label>Texto de periodicidade
-        <textarea id="cf-period" rows="2">${esc(c.texto_periodicidade || '')}</textarea></label>
+        <textarea id="cf-period" rows="3">${esc(c.texto_periodicidade || '')}</textarea></label>
       <label>Texto de rodapé
-        <textarea id="cf-rodape" rows="2">${esc(c.texto_rodape || '')}</textarea></label>
+        <textarea id="cf-rodape" rows="6">${esc(c.texto_rodape || '')}</textarea></label>
     </div>
 
     <div class="card">
