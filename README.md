@@ -26,6 +26,42 @@ Os scripts em `db/init/` (schema completo + seed de EMA) rodam
 automaticamente na primeira subida do Postgres. Para recriar o banco
 do zero: `docker compose down -v && docker compose up -d`.
 
+## Atualizando o sistema (rotina padrão)
+
+Toda atualização deve passar por `./atualizar.sh`, que faz backup antes e
+limpa depois — nessa ordem, para nunca limpar nada sem cópia salva.
+
+```bash
+cd /root/cert-saas
+git pull                      # ou aplique o patch: git apply arquivo.patch
+./atualizar.sh --build        # backup no Drive → recompila → limpa
+```
+
+O que o script faz:
+
+1. **Backup no Drive** (`backup-projeto.sh`). Se falhar, aborta e não
+   limpa nada.
+2. **Recompila** api e worker (só com `--build`).
+3. **Limpa o Docker**: `image prune` + `builder prune`. Cada build deixa
+   a imagem anterior órfã; sem isso o disco enche em poucas semanas.
+4. **Apaga os `.patch`** enviados por FileZilla que já foram commitados
+   (o histórico fica no Git; o arquivo não serve mais). Patches
+   versionados no Git são preservados.
+5. **Trunca o `backup.log`** quando passa de 5 MB.
+
+Sem `--build` o script só faz backup e limpeza, útil para uma faxina
+periódica de disco.
+
+### Backups automáticos (cron)
+
+| Horário | Script              | O que salva                        |
+|---------|---------------------|------------------------------------|
+| 03:00   | `backup.sh`         | Banco + PDFs do MinIO → Drive      |
+| 03:30   | `backup-projeto.sh` | Código e configs do projeto → Drive|
+
+Retenção de 60 dias no Drive. O código também vai para o GitHub a cada
+`git push`.
+
 ## Pontos de atenção
 
 - **RLS**: a API executa `SET app.empresa_id` a cada request com o valor
