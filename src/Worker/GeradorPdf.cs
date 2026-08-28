@@ -465,16 +465,18 @@ public static class GeradorPdf
                         });
                     });
 
-                    // ── Sensibilidade (modelo completo) ─────────
-                    if (d.ModeloCert == "completo" && d.Sensibilidade is null && !d.FazSensibilidade)
+                    // ── Sensibilidade / mobilidade (Modelos 1 e 2) ─────────
+                    // No Modelo 1 (clássico) a seção também aparece — o ensaio
+                    // é o mesmo nos dois modelos; só o layout do certificado muda.
+                    if (d.Sensibilidade is null && !d.FazSensibilidade)
                     {
-                        col.Item().PaddingTop(4).Text("4 · Sensibilidade").Bold().FontColor(cor);
+                        col.Item().PaddingTop(4).Text("4 · Sensibilidade (mobilidade)").Bold().FontColor(cor);
                         col.Item().Text("Não aplicável — em razão do tipo do equipamento, este ensaio não é exequível.")
                             .FontSize(7).Italic().FontColor("#667");
                     }
-                    else if (d.ModeloCert == "completo" && d.Sensibilidade is { } sn)
+                    else if (d.Sensibilidade is { } sn)
                     {
-                        col.Item().PaddingTop(4).Text("4 · Sensibilidade").Bold().FontColor(cor);
+                        col.Item().PaddingTop(4).Text("4 · Sensibilidade (mobilidade)").Bold().FontColor(cor);
                         var esperado = sn.CargaReferencia + sn.Adicao;
                         // Conformidade: o display deve indicar a variação dentro de
                         // meia divisão (0,5e). A adição é 1e, então a tolerância é
