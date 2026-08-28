@@ -1148,7 +1148,12 @@ public static class CertificadoEndpoints
                 "SELECT EXISTS(SELECT 1 FROM balanca_faixa WHERE balanca_id = @balancaId)",
                 new { balancaId });
             var ordem = 0;
-            foreach (var (carga, ind, antes, semLeitura, semLeituraAntes) in pontos.OrderBy(p => p.carga))
+            // ORDEM DE APLICAÇÃO, não crescente: o ensaio pode ser um ciclo de
+            // subida e descida (0 → 5500 → 11000 → 5500 → 0) para avaliar
+            // histerese. Ordenar por carga embaralhava as duas metades e
+            // apagava a informação de qual leitura foi na subida e qual na
+            // descida. Guardamos como o técnico aplicou. João, 28/08/2026.
+            foreach (var (carga, ind, antes, semLeitura, semLeituraAntes) in pontos)
             {
                 var (ema, eUsado) = await Metrologia.ObterEmaKgMulti(conn, classe, contexto, carga, e, balancaId);
                 // Resolução para a incerteza: em multi-intervalo, usa o "e" da faixa

@@ -205,6 +205,34 @@ public static class GeradorPdf
     const string MarcaTexto = "Emitido com TSCert · certificados.totalscale.com.br/tscert.html";
 
     /// <summary>
+    /// Seta de sentido para cada ponto de indicação, quando o ensaio foi um
+    /// ciclo (a carga sobe e depois desce, para avaliar histerese):
+    /// "↑" na subida, "↓" na descida. Devolve uma lista vazia quando as
+    /// cargas só crescem — o ensaio simples não precisa da coluna.
+    /// </summary>
+    static List<string> SentidosCiclo(List<LinhaIndicacao> pontos)
+    {
+        var vazio = new List<string>();
+        if (pontos.Count < 3) return vazio;
+        // Só é ciclo se em algum momento a carga diminui
+        var temDescida = false;
+        for (int i = 1; i < pontos.Count; i++)
+            if (pontos[i].Carga < pontos[i - 1].Carga) { temDescida = true; break; }
+        if (!temDescida) return vazio;
+
+        var sentidos = new List<string>();
+        for (int i = 0; i < pontos.Count; i++)
+        {
+            // O sentido de um ponto é dado pela variação até ele; o primeiro
+            // herda o do seguinte. Carga repetida mantém o sentido anterior.
+            if (i == 0) { sentidos.Add(pontos[1].Carga >= pontos[0].Carga ? "↑" : "↓"); continue; }
+            var dif = pontos[i].Carga - pontos[i - 1].Carga;
+            sentidos.Add(dif > 0 ? "↑" : dif < 0 ? "↓" : sentidos[i - 1]);
+        }
+        return sentidos;
+    }
+
+    /// <summary>
     /// Texto da capacidade do instrumento, igual em TODOS os modelos.
     /// Valor inteiro sai sem casas decimais ("200 kg", "5.000 kg"); valor
     /// com fração mantém as casas da divisão ("0,500 kg"). Em multi-faixa
@@ -383,8 +411,13 @@ public static class GeradorPdf
                     col.Item().Table(t =>
                     {
                         var completo = d.ModeloCert == "completo";
+                        // Ciclo de subida e descida: ganha uma coluna estreita
+                        // com a seta do sentido. Ensaio só crescente não tem.
+                        var sentidos = SentidosCiclo(d.Indicacao);
+                        var ehCiclo = sentidos.Count > 0;
                         t.ColumnsDefinition(c =>
                         {
+                            if (ehCiclo) c.ConstantColumn(16);        // ↑/↓
                             c.RelativeColumn();                       // Carga
                             if (d.HouveAjuste) c.RelativeColumn();    // Antes
                             c.RelativeColumn();                       // Indicação (depois)
@@ -395,6 +428,7 @@ public static class GeradorPdf
                         });
                         void Head(string s) { var cell = t.Cell().Background("#eef3f1").Padding(2.5f);
                             (completo ? cell.AlignCenter() : cell).Text(s).FontSize(8).Bold(); }
+                        if (ehCiclo) Head("");
                         Head($"Carga ({d.Unidade})");
                         if (d.HouveAjuste) Head($"Antes ajuste ({d.Unidade})");
                         Head(d.HouveAjuste ? $"Após ajuste ({d.Unidade})" : $"Indicação ({d.Unidade})");
@@ -402,10 +436,14 @@ public static class GeradorPdf
                         Head($"Incerteza ({d.Unidade})"); Head($"EMA ({d.Unidade})");
                         if (completo) { Head("k"); Head("veff"); Head("TUR"); }
                         Head("Situação");
-                        foreach (var l in d.Indicacao)
+                        for (int iInd = 0; iInd < d.Indicacao.Count; iInd++)
                         {
+                            var l = d.Indicacao[iInd];
                             void C(string s) { var cell = t.Cell().BorderBottom(0.5f).BorderColor("#e6e6e6").Padding(2.5f);
                                 (completo ? cell.AlignCenter() : cell).Text(s).FontSize(8); }
+                            if (ehCiclo)
+                                t.Cell().BorderBottom(0.5f).BorderColor("#e6e6e6").Padding(2.5f)
+                                 .AlignCenter().Text(sentidos[iInd]).FontSize(8).FontColor("#667");
                             C(Val(l.Carga, d.CasasDecimais) + (d.SubCargas != null && d.SubCargas.Contains(l.Carga) ? " *" : ""));
                             if (d.HouveAjuste) C(l.SemLeituraAntes ? "sem leitura **"
                                 : l.IndicacaoAntes is null ? "—" : Val(l.IndicacaoAntes, d.CasasDecimais));
@@ -790,8 +828,11 @@ public static class GeradorPdf
                         // neste modelo. Só aparece quando houve ajuste de verdade.
                         var indComAntes = d.HouveAjuste &&
                             d.Indicacao.Any(x => x.IndicacaoAntes is not null || x.SemLeituraAntes);
+                        var sentidos3 = SentidosCiclo(d.Indicacao);
+                        var ehCiclo3 = sentidos3.Count > 0;
                         t.ColumnsDefinition(c =>
                         {
+                            if (ehCiclo3) c.ConstantColumn(13);         // ↑/↓
                             c.RelativeColumn();                         // Carga
                             if (indComAntes) c.RelativeColumn();        // Antes do ajuste
                             c.RelativeColumn(); c.RelativeColumn();
@@ -802,13 +843,16 @@ public static class GeradorPdf
                             .Padding(2.5f).AlignCenter().Text(s).FontSize(7).Bold();
                         void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
                             .Padding(2.5f).AlignCenter().Text(s).FontSize(7).FontColor(fc ?? "#1c2b33");
+                        if (ehCiclo3) H("");
                         H($"Carga ({d.Unidade})");
                         if (indComAntes) H($"Antes ajuste ({d.Unidade})");
                         H(indComAntes ? $"Após ajuste ({d.Unidade})" : $"Indicação ({d.Unidade})");
                         H($"Erro ({d.Unidade})");
                         H($"Incerteza ({d.Unidade})"); H($"EMA ({d.Unidade})"); H("k"); H("veff"); H("TUR"); H("Situação");
-                        foreach (var l in d.Indicacao)
+                        for (int i3 = 0; i3 < d.Indicacao.Count; i3++)
                         {
+                            var l = d.Indicacao[i3];
+                            if (ehCiclo3) C(sentidos3[i3], "#667");
                             C(V(l.Carga));
                             if (indComAntes) C(l.SemLeituraAntes ? "sem leitura **"
                                 : l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes));
@@ -1662,10 +1706,13 @@ public static class GeradorPdf
                     if (indComAntes)
                         col.Item().Text("A balança foi ajustada. A avaliação de conformidade refere-se à leitura final (após o ajuste).")
                            .FontSize(5.5f).Italic().FontColor("#667");
+                    var sentidos4 = SentidosCiclo(d.Indicacao);
+                    var ehCiclo4 = sentidos4.Count > 0;
                     col.Item().Table(t =>
                     {
                         t.ColumnsDefinition(c =>
                         {
+                            if (ehCiclo4) c.ConstantColumn(13);       // ↑/↓
                             c.RelativeColumn();                       // carga
                             if (indComAntes) c.RelativeColumn();      // antes
                             c.RelativeColumn();                       // indicação
@@ -1676,15 +1723,18 @@ public static class GeradorPdf
                         });
                         void H(string s) => t.Cell().Background(cinza).Border(0.4f).BorderColor(borda)
                             .Padding(1.5f).AlignCenter().Text(s).FontSize(5.5f).Bold();
+                        if (ehCiclo4) H("");
                         H($"CARGA ({d.Unidade})");
                         if (indComAntes) H($"ANTES AJUSTE ({d.Unidade})");
                         H(indComAntes ? $"APÓS AJUSTE ({d.Unidade})" : $"INDICAÇÃO ({d.Unidade})");
                         H($"ERRO ({d.Unidade})"); H($"INCERTEZA ({d.Unidade})");
                         H($"EMA ({d.Unidade})"); H("SITUAÇÃO");
-                        foreach (var l in d.Indicacao)
+                        for (int i4 = 0; i4 < d.Indicacao.Count; i4++)
                         {
+                            var l = d.Indicacao[i4];
                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
                                 .Padding(1.5f).AlignCenter().Text(s).FontSize(7.5f).FontColor(fc ?? "#1c2b33");
+                            if (ehCiclo4) C(sentidos4[i4], "#667");
                             C(V(l.Carga));
                             if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
                             C(l.SemLeitura ? "**" : V(l.Indicacao));
