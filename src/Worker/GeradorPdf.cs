@@ -459,8 +459,8 @@ public static class GeradorPdf
                                 // 820 px de largura; com FitWidth o QuestPDF mantinha a
                                 // caixa antiga e CORTAVA o terceiro desenho.
                                 // A altura acompanha a proporção 820x240.
-                                c.Item().PaddingTop(2).AlignRight()
-                                    .Width(165).Height(165f * 240f / 820f)
+                                c.Item().AlignRight()
+                                    .Width(150).Height(150f * 240f / 820f)
                                     .Image(desenhoExc).FitArea();
                         });
                     });
@@ -470,13 +470,13 @@ public static class GeradorPdf
                     // é o mesmo nos dois modelos; só o layout do certificado muda.
                     if (d.Sensibilidade is null && !d.FazSensibilidade)
                     {
-                        col.Item().PaddingTop(4).Text("4 · Sensibilidade (mobilidade)").Bold().FontColor(cor);
+                        col.Item().Text("4 · Sensibilidade (mobilidade)").Bold().FontColor(cor);
                         col.Item().Text("Não aplicável — em razão do tipo do equipamento, este ensaio não é exequível.")
                             .FontSize(7).Italic().FontColor("#667");
                     }
                     else if (d.Sensibilidade is { } sn)
                     {
-                        col.Item().PaddingTop(4).Text("4 · Sensibilidade (mobilidade)").Bold().FontColor(cor);
+                        col.Item().Text("4 · Sensibilidade (mobilidade)").Bold().FontColor(cor);
                         var esperado = sn.CargaReferencia + sn.Adicao;
                         // Conformidade: o display deve indicar a variação dentro de
                         // meia divisão (0,5e). A adição é 1e, então a tolerância é
