@@ -96,6 +96,49 @@ public static class Auditoria
         ?? ctx.Connection.RemoteIpAddress?.ToString();
 }
 
+/// <summary>
+/// Limpeza e validação de e-mail. Nasceu de um envio que falhou porque o
+/// endereço estava gravado com espaço no fim ("...@dominio.com.b r"):
+/// o cadastro aceitava qualquer texto e o erro só aparecia na hora do
+/// envio do certificado, quando já era tarde. João, 28/08/2026.
+/// </summary>
+public static class Email
+{
+    /// <summary>
+    /// Tira espaços das pontas e do meio (colar de planilha costuma trazer
+    /// espaço fino e quebra de linha), e devolve em minúsculas. Texto vazio
+    /// vira null — e-mail é opcional no cadastro.
+    /// </summary>
+    public static string? Limpar(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return null;
+        var limpo = new string(email.Where(c => !char.IsWhiteSpace(c)).ToArray())
+            .Trim().ToLowerInvariant();
+        return limpo.Length == 0 ? null : limpo;
+    }
+
+    /// <summary>
+    /// Formato de endereço: um @, com texto antes e um domínio com ponto
+    /// depois. Não tenta cobrir toda a RFC 5322 — a intenção é barrar o
+    /// erro de digitação, não o endereço exótico porém válido.
+    /// </summary>
+    public static bool Valido(string? email)
+    {
+        var e = Limpar(email);
+        if (e is null) return false;
+        if (e.Length > 254) return false;
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            e, @"^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$");
+    }
+
+    /// <summary>Mensagem de erro pronta, ou null se estiver tudo certo.</summary>
+    public static string? Erro(string? email, string campo = "E-mail")
+        => string.IsNullOrWhiteSpace(email) || Valido(email)
+            ? null
+            : $"{campo} inválido: \"{email.Trim()}\". Verifique se não há espaço "
+              + "sobrando ou letra faltando (ex.: .com.br).";
+}
+
 public static class Cnpj
 {
     /// <summary>Valida os dígitos verificadores. Aceita com ou sem máscara.</summary>

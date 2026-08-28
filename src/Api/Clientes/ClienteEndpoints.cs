@@ -100,13 +100,19 @@ public static class ClienteEndpoints
             if (!Tenant.EhGestor(user)) return Results.Forbid();
             if (string.IsNullOrWhiteSpace(req.Nome))
                 return Results.BadRequest(new { erro = "Informe o nome do contato." });
+            if (CertSaas.Api.Infra.Email.Erro(req.Email) is { } erroC)
+                return Results.BadRequest(new { erro = erroC });
+            if (req.RecebeCertificado && string.IsNullOrWhiteSpace(req.Email))
+                return Results.BadRequest(new { erro =
+                    "Contato marcado para receber certificados precisa de e-mail." });
             await using var conn = await Tenant.AbrirConexao(ds, user);
             var novoId = await conn.ExecuteScalarAsync<Guid>("""
                 INSERT INTO cliente_contato (empresa_id, cliente_id, nome, cargo,
                                              telefone, email, observacao, recebe_certificado)
                 VALUES (current_empresa_id(), @id, @Nome, @Cargo, @Telefone, @Email, @Observacao, @RecebeCertificado)
                 RETURNING id
-                """, new { id, req.Nome, req.Cargo, req.Telefone, req.Email, req.Observacao, req.RecebeCertificado });
+                """, new { id, req.Nome, req.Cargo, req.Telefone,
+                          Email = CertSaas.Api.Infra.Email.Limpar(req.Email), req.Observacao, req.RecebeCertificado });
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "cliente_contato", novoId, "insert", req, Auditoria.Ip(ctx));
             return Results.Created($"/api/clientes/{id}/contatos/{novoId}", new { id = novoId });
@@ -118,6 +124,11 @@ public static class ClienteEndpoints
             if (!Tenant.EhGestor(user)) return Results.Forbid();
             if (string.IsNullOrWhiteSpace(req.Nome))
                 return Results.BadRequest(new { erro = "Informe o nome do contato." });
+            if (CertSaas.Api.Infra.Email.Erro(req.Email) is { } erroC)
+                return Results.BadRequest(new { erro = erroC });
+            if (req.RecebeCertificado && string.IsNullOrWhiteSpace(req.Email))
+                return Results.BadRequest(new { erro =
+                    "Contato marcado para receber certificados precisa de e-mail." });
             await using var conn = await Tenant.AbrirConexao(ds, user);
             var n = await conn.ExecuteAsync("""
                 UPDATE cliente_contato
@@ -125,7 +136,8 @@ public static class ClienteEndpoints
                        email = @Email, observacao = @Observacao,
                        recebe_certificado = @RecebeCertificado
                  WHERE id = @cid
-                """, new { cid, req.Nome, req.Cargo, req.Telefone, req.Email, req.Observacao, req.RecebeCertificado });
+                """, new { cid, req.Nome, req.Cargo, req.Telefone,
+                          Email = CertSaas.Api.Infra.Email.Limpar(req.Email), req.Observacao, req.RecebeCertificado });
             if (n == 0) return Results.NotFound();
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "cliente_contato", cid, "update", req, Auditoria.Ip(ctx));
@@ -196,7 +208,7 @@ public static class ClienteEndpoints
                     """,
                     new { empresaId, req.RazaoSocial, req.NomeFantasia,
                           cnpj = req.Cnpj is null ? null : Cnpj.LimparDoc(req.Cnpj),
-                          req.Email, req.Telefone, req.Endereco, req.Cidade,
+                          Email = CertSaas.Api.Infra.Email.Limpar(req.Email), req.Telefone, req.Endereco, req.Cidade,
                           Uf = req.Uf?.ToUpperInvariant(), req.Cep,
                           TipoPessoa = req.TipoPessoa ?? "PJ" });
 
@@ -228,7 +240,7 @@ public static class ClienteEndpoints
                 """,
                 new { id, req.RazaoSocial, req.NomeFantasia,
                       cnpj = req.Cnpj is null ? null : Cnpj.LimparDoc(req.Cnpj),
-                      req.Email, req.Telefone, req.Endereco, req.Cidade,
+                      Email = CertSaas.Api.Infra.Email.Limpar(req.Email), req.Telefone, req.Endereco, req.Cidade,
                       Uf = req.Uf?.ToUpperInvariant(), req.Cep,
                       TipoPessoa = req.TipoPessoa ?? "PJ" });
             if (n == 0) return Results.NotFound();
@@ -270,6 +282,9 @@ public static class ClienteEndpoints
         }
         if (req.Uf is { Length: > 0 } && req.Uf.Length != 2)
             return "UF deve ter 2 letras.";
+        // E-mail: é por ele que o certificado é enviado ao cliente, então o
+        // erro precisa aparecer aqui, e não na hora do envio.
+        if (CertSaas.Api.Infra.Email.Erro(req.Email) is { } erroEmail) return erroEmail;
         return null;
     }
 }

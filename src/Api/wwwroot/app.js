@@ -9861,6 +9861,27 @@ function setTipoPessoa(tp) {
   if (lblFant) lblFant.style.display = pj ? '' : 'none';
 }
 
+// ── E-mail: mesma regra do backend (CertSaas.Api.Infra.Email) ──
+// Tira espaços de qualquer posição — colar de planilha traz espaço fino e
+// quebra de linha, e foi assim que um endereço terminado em ".com.b r"
+// entrou no cadastro e só falhou na hora de enviar o certificado.
+function limparEmail(v) {
+  if (!v) return null;
+  const limpo = String(v).replace(/\s+/g, '').toLowerCase();
+  return limpo || null;
+}
+function emailValido(v) {
+  const e = limparEmail(v);
+  return !!e && e.length <= 254 && /^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$/.test(e);
+}
+// Devolve a mensagem de erro, ou null quando está tudo certo (vazio passa)
+function erroEmail(v, campo = 'E-mail') {
+  if (!v || !String(v).trim()) return null;
+  return emailValido(v) ? null
+    : `${campo} inválido: "${String(v).trim()}". Verifique se não há espaço `
+      + 'sobrando ou letra faltando (ex.: .com.br).';
+}
+
 async function salvarCliente(id) {
   const corpo = {
     razaoSocial: $('#f-razao').value, cnpj: $('#f-cnpj').value || null,
@@ -9871,6 +9892,9 @@ async function salvarCliente(id) {
     cep: $('#f-cep').value || null,
     endereco: $('#f-end').value || null
   };
+  const eErro = erroEmail(corpo.email);
+  if (eErro) { $('#f-erro').textContent = eErro; return; }
+  corpo.email = limparEmail(corpo.email);
   try {
     await api('/clientes' + (id ? '/' + id : ''), {
       method: id ? 'PUT' : 'POST', body: JSON.stringify(corpo) });
@@ -13873,6 +13897,13 @@ async function salvarContato(clienteId, contatoId) {
     observacao: document.getElementById('ct-obs')?.value || null
   };
   if (!corpo.nome.trim()) { if (erro) erro.textContent = 'Informe o nome.'; return; }
+  const ctErro = erroEmail(corpo.email);
+  if (ctErro) { if (erro) erro.textContent = ctErro; return; }
+  if (corpo.recebeCertificado && !corpo.email) {
+    if (erro) erro.textContent = 'Contato marcado para receber certificados precisa de e-mail.';
+    return;
+  }
+  corpo.email = limparEmail(corpo.email);
   try {
     if (contatoId) await api('/clientes/contatos/' + contatoId, { method: 'PUT', body: JSON.stringify(corpo) });
     else await api('/clientes/' + clienteId + '/contatos', { method: 'POST', body: JSON.stringify(corpo) });
