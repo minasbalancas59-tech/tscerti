@@ -10034,7 +10034,12 @@ async function formBalanca(clienteId, b = null) {
           ${campo('Divisão e *', 'b-e', 'number', b?.divisao_e, 'step="any" inputmode="decimal" oninput="sugerirClasse()"')}
         </div>
         <div id="b-d-wrap">
-          ${campo('Divisão d', 'b-d', 'number', b?.divisao_d ?? '', 'step="any" inputmode="decimal"')}
+          ${campo('Divisão d *', 'b-d', 'number', b?.divisao_d ?? '', 'step="any" inputmode="decimal" oninput="sugerirClasse()"')}
+          <p class="dica" style="grid-column:1/-1;margin-top:-6px">Divisão real do visor.
+            Se a balança não distingue as duas, informe o mesmo valor do e —
+            o botão abaixo preenche para você.</p>
+          <button type="button" class="btn-mini" style="grid-column:1/-1;justify-self:start"
+            onclick="copiarEparaD()">d = e · copiar a divisão e</button>
         </div>
         <label>Classe *
           <button type="button" class="btn-ajuda" onclick="ajudaClasse()" title="Como a classe é calculada" style="margin-left:4px">?</button>
@@ -10091,6 +10096,15 @@ async function formBalanca(clienteId, b = null) {
 }
 
 // ── Faixas (multi-intervalo) ──────────────────────────────────
+// Copia a divisão e para o campo d — atalho para as balanças em que os
+// dois valores coincidem (a maioria das de escala única)
+function copiarEparaD() {
+  const e = $('#b-e')?.value;
+  if (!e) { toast('Preencha primeiro a divisão e.', 'aviso'); return; }
+  $('#b-d').value = e;
+  sugerirClasse();
+}
+
 function toggleFaixas() {
   const area = $('#b-faixas-area');
   const marcado = $('#b-multi').checked;
@@ -10358,6 +10372,17 @@ async function salvarBalanca(clienteId, id) {
   };
   const { multi, faixas } = coletarFaixas();
   corpo.multiIntervalo = multi;
+
+  // Em escala única o d é obrigatório: o certificado sempre declara d e e
+  if (!multi && (!corpo.divisaoD || corpo.divisaoD <= 0)) {
+    $('#f-erro').textContent = 'Informe a divisão d. Se a balança não distingue '
+      + 'as duas divisões, use o botão "d = e" para repetir o valor do e.';
+    return;
+  }
+  if (!multi && corpo.divisaoD > corpo.divisaoE) {
+    $('#f-erro').textContent = 'A divisão d não pode ser maior que a divisão e.';
+    return;
+  }
 
   // Validação das faixas (se multi-intervalo)
   if (multi) {

@@ -204,6 +204,27 @@ public static class GeradorPdf
     // No papel, endereço curto: ninguém digita URL com parâmetro.
     const string MarcaTexto = "Emitido com TSCert · certificados.totalscale.com.br/tscert.html";
 
+    /// <summary>
+    /// Texto das divisões do instrumento, igual em TODOS os modelos:
+    ///  · d = e         → "d = e = 0,05"        (não repete o mesmo número)
+    ///  · d ≠ e         → "e = 0,05 · d = 0,01"
+    ///  · multi-faixa   → "d = e = 0,002 / 0,005 / 0,010"
+    /// O d é obrigatório no cadastro; a ausência (certificados antigos)
+    /// vale como d = e, que é o que ela sempre significou na prática.
+    /// Passe a unidade quando o texto for uma linha corrida (Modelos 1, 2
+    /// e RBC); omita quando o rótulo do campo já a traz (Modelos 3 e 4).
+    /// </summary>
+    static string Divisoes(DadosCertificado d, string? unidade = null)
+    {
+        var u = string.IsNullOrWhiteSpace(unidade) ? "" : " " + unidade;
+        string V(decimal? v) => Val(v, d.CasasDecimais);
+        if (d.Faixas is { Count: > 0 })
+            return "d = e = " + string.Join(" / ", d.Faixas.Select(f => V(f.DivisaoE))) + u;
+        if (d.DivisaoD is not { } dd || dd <= 0 || dd == d.DivisaoE)
+            return "d = e = " + V(d.DivisaoE) + u;
+        return "e = " + V(d.DivisaoE) + u + "  ·  d = " + V(dd) + u;
+    }
+
     // Ordem de serviço: só aparece no certificado quando preenchida.
     static string? OsTexto(DadosCertificado d) =>
         string.IsNullOrWhiteSpace(d.OrdemServico) ? null : $"Ordem de serviço: {d.OrdemServico}";
@@ -316,11 +337,10 @@ public static class GeradorPdf
                             if (d.Faixas is { Count: > 0 })
                             {
                                 var capF = string.Join(" / ", d.Faixas.Select(f => Val(f.LimiteSup, d.CasasDecimais)));
-                                var divF = string.Join(" / ", d.Faixas.Select(f => Val(f.DivisaoE, d.CasasDecimais)));
-                                c.Item().Text($"Cap.: {capF} {d.Unidade}  ·  e = {divF} {d.Unidade}  ·  Classe {d.Classe}");
+                                c.Item().Text($"Cap.: {capF} {d.Unidade}  ·  {Divisoes(d, d.Unidade)}  ·  Classe {d.Classe}");
                             }
                             else
-                                c.Item().Text($"Cap.: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade}  ·  e = {Val(d.DivisaoE, d.CasasDecimais)} {d.Unidade}  ·  Classe {d.Classe}");
+                                c.Item().Text($"Cap.: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade}  ·  {Divisoes(d, d.Unidade)}  ·  Classe {d.Classe}");
                             if (d.NumeroInmetro is not null || d.Patrimonio is not null)
                                 c.Item().Text($"Inmetro: {d.NumeroInmetro ?? "-"}  ·  Patrimônio: {d.Patrimonio ?? "-"}").FontSize(8);
                             if (d.PortariaAprovacao is not null)
@@ -721,11 +741,8 @@ public static class GeradorPdf
                         var capTxt = ehMulti
                             ? string.Join(" / ", d.Faixas!.Select(f => V(f.LimiteSup)))
                             : V(d.Capacidade);
-                        var divTxt = ehMulti
-                            ? string.Join(" / ", d.Faixas!.Select(f => V(f.DivisaoE)))
-                            : V(d.DivisaoE);
                         CampoCaixa(r.RelativeItem(), $"CAP. MÁX ({d.Unidade})", capTxt);
-                        CampoCaixa(r.RelativeItem(), $"DIVISÃO e ({d.Unidade})", divTxt);
+                        CampoCaixa(r.RelativeItem(1.4f), $"DIVISÃO ({d.Unidade})", Divisoes(d));
                         CampoCaixa(r.RelativeItem(), "CLASSE", d.Classe);
                         CampoCaixa(r.RelativeItem(), "Nº INMETRO", d.NumeroInmetro ?? "—");
                     });
@@ -1096,12 +1113,11 @@ public static class GeradorPdf
                             if (d.Faixas is { Count: > 0 })
                             {
                                 var capF = string.Join(" / ", d.Faixas.Select(f => Val(f.LimiteSup, d.CasasDecimais)));
-                                var divF = string.Join(" / ", d.Faixas.Select(f => Val(f.DivisaoE, d.CasasDecimais)));
-                                c.Item().Text($"Capacidade: {capF} {d.Unidade} · e = {divF} {d.Unidade} · Classe {d.Classe}").FontSize(8);
+                                c.Item().Text($"Capacidade: {capF} {d.Unidade} · {Divisoes(d, d.Unidade)} · Classe {d.Classe}").FontSize(8);
                             }
                             else
                                 c.Item().Text($"Capacidade: {Val(d.Capacidade, d.CasasDecimais)} {d.Unidade} · " +
-                                              $"e = {Val(d.DivisaoE, d.CasasDecimais)} {d.Unidade} · Classe {d.Classe}").FontSize(8);
+                                              $"{Divisoes(d, d.Unidade)} · Classe {d.Classe}").FontSize(8);
                             if (d.NumeroInmetro is not null) c.Item().Text($"Inmetro: {d.NumeroInmetro}").FontSize(8);
                         });
                     });
@@ -1492,21 +1508,7 @@ public static class GeradorPdf
                     var capTxt = ehMulti
                         ? string.Join(" / ", d.Faixas!.Select(f => V(f.LimiteSup))) + " " + d.Unidade
                         : V(d.Capacidade) + " " + d.Unidade;
-                    // Resolução: o d (divisão real do visor) sai junto do e.
-                    // Quando os dois são iguais, sai condensado "d = e = 0,05";
-                    // quando diferem, os dois valores aparecem. Em
-                    // multi-intervalo cada faixa tem seu e e o d não se aplica.
-                    string ResolucaoTxt()
-                    {
-                        if (ehMulti)
-                            return "e = " + string.Join(" / ", d.Faixas!.Select(f => V(f.DivisaoE)));
-                        // Sem d cadastrado equivale a d = e: a balança não
-                        // distingue a divisão real da de verificação.
-                        if (d.DivisaoD is not { } dd4 || dd4 <= 0 || dd4 == d.DivisaoE)
-                            return "d = e = " + V(d.DivisaoE);
-                        return "e = " + V(d.DivisaoE) + "   ·   d = " + V(dd4);
-                    }
-                    var divTxt = ResolucaoTxt();
+                    var divTxt = Divisoes(d);
                     col.Item().Row(r =>
                     {
                         Campo(r.RelativeItem(15), "FABRICANTE / MODELO",

@@ -352,6 +352,16 @@ public static class BalancaEndpoints
         if (req.DivisaoE <= 0) return "Divisão (e) deve ser maior que zero.";
         if (req.DivisaoE >= req.Capacidade)
             return "Divisão (e) deve ser menor que a capacidade.";
+        // Em multi-intervalo o d não se aplica (cada faixa tem seu e); em
+        // escala única ele é obrigatório e o certificado sempre o declara.
+        if (!req.MultiIntervalo)
+        {
+            if (req.DivisaoD is not { } dd || dd <= 0)
+                return "Divisão (d) é obrigatória. Se a balança não distingue "
+                     + "as duas divisões, informe o mesmo valor do e.";
+            if (dd > req.DivisaoE)
+                return "Divisão (d) não pode ser maior que a divisão (e).";
+        }
         if (req.PeriodicidadeMeses is < 1 or > 60)
             return "Periodicidade deve estar entre 1 e 60 meses.";
         if (req.Unidade is not ("g" or "kg" or "t"))
