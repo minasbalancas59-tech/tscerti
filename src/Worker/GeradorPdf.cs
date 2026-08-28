@@ -31,7 +31,8 @@ public record DadosCertificado(
     string? OrdemServico = null, string? EnderecoCalibracao = null,
     bool MarcaSistema = true,
     List<decimal>? SubCargas = null, string? NotaSubstituicao = null,
-    string? InstrucaoIt = null, string? InstrucaoRev = null);
+    string? InstrucaoIt = null, string? InstrucaoRev = null,
+    decimal? DivisaoD = null);
 
 public record LinhaSensibilidade(decimal CargaReferencia, decimal Adicao, decimal ResultadoDisplay);
 
@@ -1491,9 +1492,21 @@ public static class GeradorPdf
                     var capTxt = ehMulti
                         ? string.Join(" / ", d.Faixas!.Select(f => V(f.LimiteSup))) + " " + d.Unidade
                         : V(d.Capacidade) + " " + d.Unidade;
-                    var divTxt = ehMulti
-                        ? "e = " + string.Join(" / ", d.Faixas!.Select(f => V(f.DivisaoE)))
-                        : "e = " + V(d.DivisaoE);
+                    // Resolução: o d (divisão real do visor) sai junto do e.
+                    // Quando os dois são iguais, sai condensado "d = e = 0,05";
+                    // quando diferem, os dois valores aparecem. Em
+                    // multi-intervalo cada faixa tem seu e e o d não se aplica.
+                    string ResolucaoTxt()
+                    {
+                        if (ehMulti)
+                            return "e = " + string.Join(" / ", d.Faixas!.Select(f => V(f.DivisaoE)));
+                        // Sem d cadastrado equivale a d = e: a balança não
+                        // distingue a divisão real da de verificação.
+                        if (d.DivisaoD is not { } dd4 || dd4 <= 0 || dd4 == d.DivisaoE)
+                            return "d = e = " + V(d.DivisaoE);
+                        return "e = " + V(d.DivisaoE) + "   ·   d = " + V(dd4);
+                    }
+                    var divTxt = ResolucaoTxt();
                     col.Item().Row(r =>
                     {
                         Campo(r.RelativeItem(15), "FABRICANTE / MODELO",

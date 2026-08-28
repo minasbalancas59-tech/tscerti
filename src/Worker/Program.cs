@@ -530,7 +530,8 @@ public sealed class FilaWorker(
             c.LogoLargura, c.LogoAltura, c.LogoAlinhamento,
             c.OrdemServico, c.EnderecoCalibracao, c.MarcaSistema,
             SubCargas: subCargas, NotaSubstituicao: notaSub,
-            InstrucaoIt: c.InstrucaoIt, InstrucaoRev: c.InstrucaoRev);
+            InstrucaoIt: c.InstrucaoIt, InstrucaoRev: c.InstrucaoRev,
+            DivisaoD: c.DivisaoD);
 
         // Baixa o logo da empresa (se houver) para embutir no PDF
         byte[]? logoBytes = null;
