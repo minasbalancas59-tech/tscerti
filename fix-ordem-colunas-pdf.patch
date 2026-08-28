@@ -1,0 +1,51 @@
+From 1bd32bd4fc6213e514b5d448629650257b3fa467 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jo=C3=A3o?= <minas.balancas59@gmail.com>
+Date: Fri, 28 Aug 2026 13:15:20 +0000
+Subject: [PATCH] Corrige geracao de PDF quebrada pelas colunas do Modelo 4
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+As colunas instrucao_it/instrucao_rev foram acrescentadas no MEIO do
+SELECT do cabecalho, mas no fim do record CabecalhoCert. Como o record
+e posicional, o Dapper nao conseguia materializar e TODA geracao de
+PDF passou a falhar com 'A parameterless default constructor ... is
+required' — nao so o Modelo 4. Colunas movidas para o fim da lista,
+na mesma ordem do record. Comentario de aviso reforcado.
+---
+ src/Worker/Program.cs | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/Worker/Program.cs b/src/Worker/Program.cs
+index b6a7bb4..45122ef 100644
+--- a/src/Worker/Program.cs
++++ b/src/Worker/Program.cs
+@@ -329,7 +329,6 @@ public sealed class FilaWorker(
+                    e.texto_rodape AS TextoRodape, e.cor_marca AS CorMarca, e.logo_url AS LogoUrl, e.texto_autorizacao AS TextoAutorizacao,
+                    e.mostra_validade AS MostraValidade,
+                    e.modelo_certificado AS ModeloCertificado,
+-                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev,
+                    cl.razao_social AS Cliente, cl.cidade AS CidadeCliente, cl.uf AS UfCliente,
+                    cl.endereco AS EnderecoCliente, cl.cnpj AS CnpjCliente,
+                    b.identificacao AS Balanca, b.marca AS Marca, b.modelo AS Modelo, b.num_serie AS NumSerie,
+@@ -345,10 +344,14 @@ public sealed class FilaWorker(
+                    b.faz_excentricidade AS FazExcentricidade, b.faz_sensibilidade AS FazSensibilidade,
+                    e.logo_largura AS LogoLargura, e.logo_altura AS LogoAltura, e.logo_alinhamento AS LogoAlinhamento,
+                    -- ORDEM IMPORTA: o record CabecalhoCert é posicional, então
+-                   -- estas duas colunas ficam NO FIM, na mesma ordem em que
+-                   -- foram declaradas lá. Colocá-las no meio quebra o Dapper.
++                   -- estas colunas ficam NO FIM, na mesma ordem em que foram
++                   -- declaradas lá. Colocá-las no meio quebra o Dapper com
++                   -- "A parameterless default constructor ... is required".
++                   -- Ao adicionar um campo novo: acrescente no fim do record E
++                   -- no fim desta lista, nunca no meio.
+                    ct.ordem_servico AS OrdemServico, ct.endereco_calibracao AS EnderecoCalibracao,
+-                   e.marca_sistema_pdf AS MarcaSistema
++                   e.marca_sistema_pdf AS MarcaSistema,
++                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev
+               FROM certificado ct
+               JOIN empresa e  ON e.id = ct.empresa_id
+               JOIN cliente cl ON cl.id = ct.cliente_id
+-- 
+2.43.0
+

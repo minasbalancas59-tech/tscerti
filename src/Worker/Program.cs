@@ -329,7 +329,6 @@ public sealed class FilaWorker(
                    e.texto_rodape AS TextoRodape, e.cor_marca AS CorMarca, e.logo_url AS LogoUrl, e.texto_autorizacao AS TextoAutorizacao,
                    e.mostra_validade AS MostraValidade,
                    e.modelo_certificado AS ModeloCertificado,
-                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev,
                    cl.razao_social AS Cliente, cl.cidade AS CidadeCliente, cl.uf AS UfCliente,
                    cl.endereco AS EnderecoCliente, cl.cnpj AS CnpjCliente,
                    b.identificacao AS Balanca, b.marca AS Marca, b.modelo AS Modelo, b.num_serie AS NumSerie,
@@ -345,10 +344,14 @@ public sealed class FilaWorker(
                    b.faz_excentricidade AS FazExcentricidade, b.faz_sensibilidade AS FazSensibilidade,
                    e.logo_largura AS LogoLargura, e.logo_altura AS LogoAltura, e.logo_alinhamento AS LogoAlinhamento,
                    -- ORDEM IMPORTA: o record CabecalhoCert é posicional, então
-                   -- estas duas colunas ficam NO FIM, na mesma ordem em que
-                   -- foram declaradas lá. Colocá-las no meio quebra o Dapper.
+                   -- estas colunas ficam NO FIM, na mesma ordem em que foram
+                   -- declaradas lá. Colocá-las no meio quebra o Dapper com
+                   -- "A parameterless default constructor ... is required".
+                   -- Ao adicionar um campo novo: acrescente no fim do record E
+                   -- no fim desta lista, nunca no meio.
                    ct.ordem_servico AS OrdemServico, ct.endereco_calibracao AS EnderecoCalibracao,
-                   e.marca_sistema_pdf AS MarcaSistema
+                   e.marca_sistema_pdf AS MarcaSistema,
+                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev
               FROM certificado ct
               JOIN empresa e  ON e.id = ct.empresa_id
               JOIN cliente cl ON cl.id = ct.cliente_id
