@@ -1,0 +1,107 @@
+From 59a23bba32ff488c2db191b975699f67c6409a1f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jo=C3=A3o?= <minas.balancas59@gmail.com>
+Date: Fri, 28 Aug 2026 13:26:10 +0000
+Subject: [PATCH] Modelo 4: referencia da excentricidade, unidades e rodape
+ redundante
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Excentricidade: a caixa mostrava 'Carga aplicada' com a carga do
+  PLANO, que nao corresponde as leituras quando o tecnico aplica outra
+  carga (ex.: plano 66,50 kg e leituras de 40,00 kg no MB-2026/0080).
+  Passa a mostrar a leitura de referencia (posicao 1), que e contra
+  ela que os erros das demais posicoes sao calculados.
+- Unidade de medida agora aparece no cabecalho de TODAS as colunas de
+  valor, em todos os ensaios (sensibilidade, excentricidade,
+  repetibilidade e pesagem).
+- Removida a linha TECNICO / Nº DA AUTORIZACAO / DATA do rodape: o
+  tecnico ja assina logo acima, a data esta em 'data da calibracao' e
+  o numero de autorizacao ja sai no cabecalho da empresa.
+---
+ src/Worker/GeradorPdf.cs | 34 +++++++++++++---------------------
+ 1 file changed, 13 insertions(+), 21 deletions(-)
+
+diff --git a/src/Worker/GeradorPdf.cs b/src/Worker/GeradorPdf.cs
+index bd947a7..5b75114 100644
+--- a/src/Worker/GeradorPdf.cs
++++ b/src/Worker/GeradorPdf.cs
+@@ -1553,7 +1553,8 @@ public static class GeradorPdf
+                                     void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
+                                         .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s)
+                                         .FontSize(7.5f).FontColor(fc ?? "#1c2b33");
+-                                    H("CARGA REF."); H("ADIÇÃO 1e"); H("ESPERADO"); H("DISPLAY"); H("SITUAÇÃO");
++                                    H($"CARGA REF. ({d.Unidade})"); H($"ADIÇÃO 1e ({d.Unidade})");
++                                    H($"ESPERADO ({d.Unidade})"); H($"DISPLAY ({d.Unidade})"); H("SITUAÇÃO");
+                                     C(V(sn.CargaReferencia)); C(V(sn.Adicao)); C(V(esp)); C(V(sn.ResultadoDisplay));
+                                     C(okS ? "Conforme" : "Não conforme", okS ? "#146c43" : "#b02a37");
+                                 });
+@@ -1567,7 +1568,8 @@ public static class GeradorPdf
+                             if (d.Repetibilidade.Count > 0)
+                             {
+                                 c.Item().PaddingHorizontal(2).PaddingTop(1).AlignCenter()
+-                                 .Text($"Carga: {V(d.Repetibilidade[0].Carga)} {d.Unidade}").FontSize(6);
++                                 .Text($"Carga aplicada: {V(d.Repetibilidade[0].Carga)} {d.Unidade}  ·  indicações em {d.Unidade}")
++                                 .FontSize(6);
+                                 // Grade de 2 colunas (1ª|3ª / 2ª|4ª …), como no formulário original
+                                 c.Item().Table(t =>
+                                 {
+@@ -1604,7 +1606,8 @@ public static class GeradorPdf
+                                 {
+                                     if (d.Excentricidade.Count > 0)
+                                         rr.RelativeItem().AlignMiddle().PaddingLeft(3).Text(
+-                                            $"Carga aplicada: {V(d.Excentricidade[0].Carga)} {d.Unidade}").FontSize(6.5f);
++                                            $"Referência (pos. 1): {V(d.Excentricidade[0].Indicacao)} {d.Unidade}")
++                                          .FontSize(6.5f);
+                                     var des = DesenhoExcPng(cor);
+                                     if (des is not null)
+                                         rr.ConstantItem(120).PaddingVertical(1)
+@@ -1618,8 +1621,9 @@ public static class GeradorPdf
+                                     void H(string s) => t.Cell().Background(cinza).BorderTop(0.4f).BorderBottom(0.4f)
+                                         .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s).FontSize(5).Bold();
+                                     H("POS.");
+-                                    if (excComAntes) H("ANTES");
+-                                    H(excComAntes ? "APÓS AJUSTE" : $"INDIC. ({d.Unidade})"); H("ERRO"); H("SITUAÇÃO");
++                                    if (excComAntes) H($"ANTES ({d.Unidade})");
++                                    H(excComAntes ? $"APÓS AJUSTE ({d.Unidade})" : $"INDIC. ({d.Unidade})");
++                                    H($"ERRO ({d.Unidade})"); H("SITUAÇÃO");
+                                     int pos = 1;
+                                     foreach (var l in d.Excentricidade)
+                                     {
+@@ -1660,9 +1664,10 @@ public static class GeradorPdf
+                         void H(string s) => t.Cell().Background(cinza).Border(0.4f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text(s).FontSize(5.5f).Bold();
+                         H($"CARGA ({d.Unidade})");
+-                        if (indComAntes) H("ANTES AJUSTE");
+-                        H(indComAntes ? "APÓS AJUSTE" : $"INDICAÇÃO ({d.Unidade})");
+-                        H("ERRO"); H("INCERTEZA"); H("EMA"); H("SITUAÇÃO");
++                        if (indComAntes) H($"ANTES AJUSTE ({d.Unidade})");
++                        H(indComAntes ? $"APÓS AJUSTE ({d.Unidade})" : $"INDICAÇÃO ({d.Unidade})");
++                        H($"ERRO ({d.Unidade})"); H($"INCERTEZA ({d.Unidade})");
++                        H($"EMA ({d.Unidade})"); H("SITUAÇÃO");
+                         foreach (var l in d.Indicacao)
+                         {
+                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
+@@ -1797,19 +1802,6 @@ public static class GeradorPdf
+                         });
+                     });
+ 
+-                    // ── Técnico / autorização / data ──
+-                    col.Item().Border(0.5f).BorderColor(borda).Padding(2).Row(row =>
+-                    {
+-                        row.RelativeItem(16).Text(t =>
+-                        { t.Span("TÉCNICO: ").FontSize(6).Bold(); t.Span(d.Tecnico).FontSize(8); });
+-                        row.RelativeItem(14).Text(t =>
+-                        { t.Span("Nº DA AUTORIZAÇÃO: ").FontSize(6).Bold();
+-                          t.Span(d.NumAutorizacao ?? "—").FontSize(8); });
+-                        row.RelativeItem(10).AlignRight().Text(t =>
+-                        { t.Span("DATA: ").FontSize(6).Bold();
+-                          t.Span(d.DataCalibracao?.ToString("dd / MM / yy") ?? "—").FontSize(8); });
+-                    });
+-
+                     if (!string.IsNullOrWhiteSpace(d.NotaSubstituicao))
+                         col.Item().Text(d.NotaSubstituicao).FontSize(5.5f).Italic();
+                     if (d.TextoRodape is not null)
+-- 
+2.43.0
+
