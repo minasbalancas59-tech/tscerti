@@ -26,3 +26,7 @@ unpacking
 \[internal\]
 \[stage-1
 {db/
+
+# Patches enviados por FileZilla: sao temporarios. Depois de aplicados,
+# o historico fica nos commits — o arquivo nao deve ser versionado.
+*.patch
