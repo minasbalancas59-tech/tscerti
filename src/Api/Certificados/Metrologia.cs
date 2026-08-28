@@ -155,6 +155,19 @@ public static class Metrologia
     }
 
     /// <summary>EMA em kg para uma carga, pela tabela ema_regra do banco.</summary>
+    /// <remarks>
+    /// PONTO ZERO — decisão de 28/08/2026 (João): a comparação é "maior que"
+    /// (@cargaEmE &gt; faixa_min_e), então uma carga de exatamente 0 não casa
+    /// com nenhuma faixa e fica SEM EMA, aparecendo como "—" no certificado.
+    /// É intencional: o zero entra como registro do ensaio (a incerteza é
+    /// calculada normalmente, sem a parcela dos pesos), mas não é julgado
+    /// conforme/não conforme, porque o zeramento tem critério próprio na
+    /// metrologia legal, distinto do EMA por número de divisões.
+    /// A tabela ema_regra descreve a primeira faixa como iniciando em 0, o
+    /// que pode sugerir que o zero deveria receber 1e — não mude para "&gt;="
+    /// sem decidir isso com o responsável técnico: afeta a conformidade
+    /// declarada em todos os certificados.
+    /// </remarks>
     public static async Task<decimal?> ObterEmaKg(NpgsqlConnection conn,
         string classe, string contexto, decimal cargaKg, decimal eKg)
     {
