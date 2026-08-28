@@ -27,7 +27,9 @@ public record ConfigEmpresaRequest(
     int LogoLargura = 90, int LogoAltura = 55, string? LogoAlinhamento = null,
     // Nome fantasia (etiqueta + cabeçalho do certificado)
     string? NomeFantasia = null,
-    string? ClausulaSubstituicao = null, bool? EnviaEmailAutomatico = null);
+    string? ClausulaSubstituicao = null, bool? EnviaEmailAutomatico = null,
+    // Instrução de calibração (IT + revisão) — fixa por empresa, usada no Modelo 4
+    string? InstrucaoIt = null, string? InstrucaoRev = null);
 
 public static class EmpresaConfigEndpoints
 {
@@ -124,7 +126,8 @@ public static class EmpresaConfigEndpoints
                        clausula_substituicao AS "ClausulaSubstituicao",
                        envia_email_automatico AS "EnviaEmailAutomatico",
                          acreditada, num_acreditacao, selo_rbc_url,
-                         rbc_num_leituras, rbc_num_posicoes_exc
+                         rbc_num_leituras, rbc_num_posicoes_exc,
+                         instrucao_it, instrucao_rev
                   FROM empresa WHERE id = @id
                 """, new { id = Tenant.EmpresaId(user) });
             return cfg is null ? Results.NotFound() : Results.Ok(cfg);
@@ -174,6 +177,8 @@ public static class EmpresaConfigEndpoints
                     validar_permite_download = @ValidarPermiteDownload,
                     modelo_certificado = COALESCE(@ModeloCertificado, modelo_certificado),
                     acreditada = @Acreditada,
+                    instrucao_it = @InstrucaoIt,
+                    instrucao_rev = @InstrucaoRev,
                     num_acreditacao = @NumAcreditacao
                  WHERE id = @id
                 """, new
@@ -187,7 +192,8 @@ public static class EmpresaConfigEndpoints
                     req.UsaAjuste, req.TextoAutorizacao, req.MostraValidade,
                     req.EtiquetaTamanho, req.ValidarPermiteDownload, req.ModeloCertificado,
                     req.Acreditada, req.NumAcreditacao, req.MarcaSistemaPdf,
-                    req.LogoLargura, req.LogoAltura, req.LogoAlinhamento
+                    req.LogoLargura, req.LogoAltura, req.LogoAlinhamento,
+                    req.InstrucaoIt, req.InstrucaoRev
                 });
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "empresa", Tenant.EmpresaId(user), "config", req, Auditoria.Ip(ctx));

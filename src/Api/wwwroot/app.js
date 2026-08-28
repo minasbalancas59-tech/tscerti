@@ -10847,11 +10847,19 @@ async function renderConfig() {
       <label class="chk"><input type="checkbox" id="cf-vdownload" ${sim(c.validar_permite_download)}>
         Permitir que o cliente baixe os certificados na página de validação (QR)</label>
       <label>Modelo do certificado (PDF)
-        <select id="cf-modelo">
+        <select id="cf-modelo" onchange="document.getElementById('cf-instrucao-wrap')?.classList.toggle('oculta', this.value !== 'formulario4')">
           <option value="classico" ${(c.modelo_certificado||'classico')==='classico'?'selected':''}>Modelo 1 — formato relatório</option>
           <option value="completo" ${c.modelo_certificado==='completo'?'selected':''}>Modelo 2 — com sensibilidade, TUR, k e veff</option>
           <option value="formulario" ${c.modelo_certificado==='formulario'?'selected':''}>Modelo 3 — formato formulário (seções numeradas)</option>
+          <option value="formulario4" ${c.modelo_certificado==='formulario4'?'selected':''}>Modelo 4 — formulário em caixas (com conforme/não conforme)</option>
         </select></label>
+      <div id="cf-instrucao-wrap" class="${c.modelo_certificado==='formulario4'?'':'oculta'}">
+        <p class="dica" style="margin-bottom:4px">Instrução de calibração — sai no Modelo 4, igual em todos os certificados.</p>
+        <div class="grid2">
+          ${campo('IT (instrução de trabalho)', 'cf-it', 'text', c.instrucao_it ?? '', 'placeholder="Ex.: MB 01"')}
+          ${campo('Revisão', 'cf-rev', 'text', c.instrucao_rev ?? '', 'placeholder="Ex.: 1.0"')}
+        </div>
+      </div>
       <button type="button" class="btn-mini" onclick="verExemploModelo()">👁️ Ver exemplo em PDF</button>
       <p id="cf-preview-msg" class="dica"></p>
       <label>Tamanho da etiqueta de calibração
@@ -11049,6 +11057,8 @@ async function salvarConfig() {
     etiquetaTamanho: $('#cf-etiqueta').value,
     validarPermiteDownload: $('#cf-vdownload').checked,
     modeloCertificado: $('#cf-modelo').value,
+    instrucaoIt: $('#cf-it')?.value.trim() || null,
+    instrucaoRev: $('#cf-rev')?.value.trim() || null,
     acreditada: $('#cf-acreditada').checked,
     numAcreditacao: $('#cf-numacred').value || null
   };

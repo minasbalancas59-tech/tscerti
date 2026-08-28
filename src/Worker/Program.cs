@@ -329,6 +329,7 @@ public sealed class FilaWorker(
                    e.texto_rodape AS TextoRodape, e.cor_marca AS CorMarca, e.logo_url AS LogoUrl, e.texto_autorizacao AS TextoAutorizacao,
                    e.mostra_validade AS MostraValidade,
                    e.modelo_certificado AS ModeloCertificado,
+                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev,
                    cl.razao_social AS Cliente, cl.cidade AS CidadeCliente, cl.uf AS UfCliente,
                    cl.endereco AS EnderecoCliente, cl.cnpj AS CnpjCliente,
                    b.identificacao AS Balanca, b.marca AS Marca, b.modelo AS Modelo, b.num_serie AS NumSerie,
@@ -525,7 +526,8 @@ public sealed class FilaWorker(
             c.FazExcentricidade, c.FazSensibilidade,
             c.LogoLargura, c.LogoAltura, c.LogoAlinhamento,
             c.OrdemServico, c.EnderecoCalibracao, c.MarcaSistema,
-            SubCargas: subCargas, NotaSubstituicao: notaSub);
+            SubCargas: subCargas, NotaSubstituicao: notaSub,
+            InstrucaoIt: c.InstrucaoIt, InstrucaoRev: c.InstrucaoRev);
 
         // Baixa o logo da empresa (se houver) para embutir no PDF
         byte[]? logoBytes = null;
@@ -3011,4 +3013,5 @@ public sealed record CabecalhoCert(
     bool FazExcentricidade = true, bool FazSensibilidade = true,
     int LogoLargura = 90, int LogoAltura = 55, string? LogoAlinhamento = null,
     string? OrdemServico = null, string? EnderecoCalibracao = null,
-    bool MarcaSistema = true);
+    bool MarcaSistema = true,
+    string? InstrucaoIt = null, string? InstrucaoRev = null);

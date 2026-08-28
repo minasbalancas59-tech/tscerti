@@ -30,7 +30,8 @@ public record DadosCertificado(
     int LogoLargura = 90, int LogoAltura = 55, string? LogoAlinhamento = null,
     string? OrdemServico = null, string? EnderecoCalibracao = null,
     bool MarcaSistema = true,
-    List<decimal>? SubCargas = null, string? NotaSubstituicao = null);
+    List<decimal>? SubCargas = null, string? NotaSubstituicao = null,
+    string? InstrucaoIt = null, string? InstrucaoRev = null);
 
 public record LinhaSensibilidade(decimal CargaReferencia, decimal Adicao, decimal ResultadoDisplay);
 
@@ -218,6 +219,10 @@ public static class GeradorPdf
         // Certificado RBC (acreditado) tem layout e conteúdo próprios
         if (d.Rbc is not null)
             return GerarModeloRbc(d, qrPng, logoPng, assinTecnico, assinAprovador, marcaDagua, cor, seloRbc);
+
+        // Modelo 4 (formulário em caixas) tem layout próprio
+        if (d.ModeloCert == "formulario4")
+            return GerarModelo4(d, qrPng, logoPng, assinTecnico, assinAprovador, marcaDagua, cor);
 
         // Modelo 3 (formulário) tem layout próprio
         if (d.ModeloCert == "formulario")
@@ -1372,6 +1377,455 @@ public static class GeradorPdf
                             .FontSize(5).FontColor("#b8c2cc");
                     });
                     col.Item().AlignCenter().Text("— fim do documento —").FontSize(6).FontColor("#aaa");
+                });
+            });
+        }).GeneratePdf();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MODELO 4 — formulário em caixas (layout inspirado no usado
+    // pela Balanças Gaúcha). Mantém o desenho de caixas com bordas
+    // e o resultado geral CONFORME / NÃO-CONFORME, mas com os
+    // nossos padrões de dado: excentricidade numerada (1 = centro),
+    // incerteza por ponto em unidade (não em %), tabela completa de
+    // padrões e coluna "antes do ajuste" quando houve ajuste.
+    // João, 28/08/2026.
+    static byte[] GerarModelo4(DadosCertificado d, byte[]? qrPng, byte[]? logoPng,
+        byte[]? assinTecnico, byte[]? assinAprovador, string? marcaDagua, string cor)
+    {
+        const string borda = "#000000";
+        const string cinza = "#eef3f1";
+        var casas = d.CasasDecimais;
+        string V(decimal? v) => Val(v, casas);
+        string VU(decimal? v) => Val(v, casas + 1);   // incerteza: 1 casa a mais
+
+        string vencimento = (d.DataCalibracao is not null && d.PeriodicidadeMeses > 0)
+            ? d.DataCalibracao.Value.AddMonths(d.PeriodicidadeMeses).ToString("dd/MM/yyyy")
+            : "—";
+
+        // Resultado geral: NÃO-CONFORME se qualquer ponto reprovou
+        bool conforme = !d.Indicacao.Any(x => x.Aprovado == false)
+                     && !d.Excentricidade.Any(x => x.Aprovado == false);
+
+        bool indComAntes = d.HouveAjuste &&
+            d.Indicacao.Any(x => x.IndicacaoAntes is not null || x.SemLeituraAntes);
+        bool excComAntes = d.HouveAjuste && d.Excentricidade.Any(x => x.IndicacaoAntes is not null);
+
+        return Document.Create(doc =>
+        {
+            doc.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(0.8f, Unit.Centimetre);
+                page.DefaultTextStyle(x => x.FontSize(8).FontColor("#1c2b33"));
+
+                if (!string.IsNullOrEmpty(marcaDagua))
+                    page.Foreground().AlignCenter().AlignMiddle()
+                        .Rotate(-35).Text(marcaDagua)
+                        .FontSize(120).Bold().FontColor("#20E53935");
+
+                page.Content().Border(1.2f).BorderColor(borda).Padding(4).Column(col =>
+                {
+                    col.Spacing(2);
+
+                    // Helpers de caixa/campo do formulário
+                    void Titulo(string s) => col.Item().Background(cinza).Border(0.7f)
+                        .BorderColor(borda).Padding(1.5f).AlignCenter()
+                        .Text(s).FontSize(6.5f).Bold();
+
+                    void Campo(QuestPDF.Infrastructure.IContainer cel, string rot, string val,
+                        bool centro = false)
+                        => cel.Border(0.5f).BorderColor(borda).Padding(1.5f).Column(cc =>
+                        {
+                            cc.Item().Text(rot).FontSize(5.2f).FontColor("#555");
+                            var t = cc.Item();
+                            (centro ? t.AlignCenter() : t)
+                                .Text(string.IsNullOrWhiteSpace(val) ? "—" : val).FontSize(8.5f);
+                        });
+
+                    // ── Cabeçalho ──
+                    col.Item().Row(row =>
+                    {
+                        if (logoPng is not null)
+                            row.ConstantItem(Math.Clamp(d.LogoLargura, 30, 160)).PaddingRight(6)
+                               .MaxHeight(Math.Clamp(d.LogoAltura, 20, 60)).Image(logoPng).FitArea();
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Text(d.NomeFantasia ?? d.Empresa).FontSize(11).Bold().FontColor(cor);
+                            if (d.EnderecoEmpresa is not null)
+                                c.Item().Text(d.EnderecoEmpresa).FontSize(6);
+                            if (d.CidadeUfEmpresa is not null)
+                                c.Item().Text(d.CidadeUfEmpresa).FontSize(6);
+                            if (!string.IsNullOrWhiteSpace(d.TextoAutorizacao))
+                                c.Item().Text(d.TextoAutorizacao).FontSize(6);
+                        });
+                        row.RelativeItem().AlignMiddle().Column(c =>
+                        {
+                            c.Item().AlignCenter().Text(d.TituloDocumento ?? "CERTIFICADO DE CONFORMIDADE")
+                                .FontSize(11).Bold().FontColor(cor);
+                            c.Item().PaddingTop(3).AlignCenter().Text($"Nº :  {d.Numero}").FontSize(11).Bold();
+                            c.Item().AlignCenter().Text($"Emissão: {d.DataEmissao:dd/MM/yyyy}").FontSize(6);
+                            if (d.SubstituiNumero is not null)
+                                c.Item().AlignCenter().Text($"Substitui o certificado {d.SubstituiNumero}")
+                                    .FontSize(6).FontColor("#b02a37");
+                        });
+                    });
+
+                    // ── Dados do cliente ──
+                    Titulo("DADOS DO CLIENTE");
+                    col.Item().Row(r =>
+                    {
+                        Campo(r.RelativeItem(24), "CLIENTE", d.Cliente);
+                        Campo(r.RelativeItem(10), "CNPJ", d.CnpjCliente ?? "—");
+                    });
+                    col.Item().Row(r =>
+                    {
+                        Campo(r.RelativeItem(20), "ENDEREÇO", d.EnderecoCliente ?? "—");
+                        Campo(r.RelativeItem(9), "MUNICÍPIO", d.CidadeCliente ?? "—");
+                        Campo(r.RelativeItem(4), "ESTADO", d.UfCliente ?? "—", true);
+                    });
+
+                    // ── Dados do equipamento ──
+                    Titulo("DADOS DO EQUIPAMENTO");
+                    var ehMulti = d.Faixas is { Count: > 0 };
+                    var capTxt = ehMulti
+                        ? string.Join(" / ", d.Faixas!.Select(f => V(f.LimiteSup))) + " " + d.Unidade
+                        : V(d.Capacidade) + " " + d.Unidade;
+                    var divTxt = ehMulti
+                        ? "e = " + string.Join(" / ", d.Faixas!.Select(f => V(f.DivisaoE)))
+                        : "e = " + V(d.DivisaoE);
+                    col.Item().Row(r =>
+                    {
+                        Campo(r.RelativeItem(15), "FABRICANTE / MODELO",
+                            $"{d.Marca ?? "—"} / {d.Modelo ?? "—"}");
+                        Campo(r.RelativeItem(13), "SÉRIE / INDICADOR",
+                            (d.NumSerie ?? "—") + (string.IsNullOrWhiteSpace(d.NumSerieIndicador)
+                                ? "" : " / " + d.NumSerieIndicador), true);
+                        Campo(r.RelativeItem(12), "CAPACIDADE", capTxt, true);
+                        Campo(r.RelativeItem(6), "CLASSE", d.Classe, true);
+                        Campo(r.RelativeItem(13), $"RESOLUÇÃO ({d.Unidade})", divTxt, true);
+                    });
+                    col.Item().Row(r =>
+                    {
+                        Campo(r.RelativeItem(12), "IDENTIFICAÇÃO", d.Balanca);
+                        Campo(r.RelativeItem(12), "Nº INMETRO / PATRIMÔNIO",
+                            $"{d.NumeroInmetro ?? "-"} / {d.Patrimonio ?? "-"}");
+                        Campo(r.RelativeItem(10), "PORTARIA APROVAÇÃO", d.PortariaAprovacao ?? "—", true);
+                        Campo(r.RelativeItem(13), "LACRE / SELO INMETRO",
+                            $"{d.NumeroLacre ?? "-"} / {d.SeloInmetro ?? "-"}");
+                    });
+
+                    // ── Condições e datas ──
+                    col.Item().Row(r =>
+                    {
+                        Campo(r.RelativeItem(10), "DATA DA CALIBRAÇÃO",
+                            d.DataCalibracao?.ToString("dd/MM/yyyy") ?? "—", true);
+                        Campo(r.RelativeItem(10), "PRÓXIMA CALIBRAÇÃO", vencimento, true);
+                        Campo(r.RelativeItem(8), "TEMPERATURA",
+                            d.Temperatura is null ? "—" : d.Temperatura.Value.ToString("0.##", Pt) + " °C", true);
+                        Campo(r.RelativeItem(7), "UMIDADE",
+                            d.Umidade is null ? "—" : d.Umidade.Value.ToString("0.##", Pt) + " %", true);
+                        Campo(r.RelativeItem(16), "LOCAL DA CALIBRAÇÃO", LocalTexto(d));
+                        if (OsTexto(d) is not null)
+                            Campo(r.RelativeItem(9), "ORDEM DE SERVIÇO", d.OrdemServico!, true);
+                    });
+
+                    // ── Ensaios: sensibilidade + repetibilidade | excentricidade ──
+                    Titulo("E N S A I O S");
+                    col.Item().Border(0.5f).BorderColor(borda).Row(row =>
+                    {
+                        // Coluna esquerda
+                        row.RelativeItem().BorderRight(0.5f).BorderColor(borda).Column(c =>
+                        {
+                            c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text("SENSIBILIDADE (MOBILIDADE)").FontSize(6).Bold();
+                            if (d.Sensibilidade is { } sn)
+                            {
+                                var esp = sn.CargaReferencia + sn.Adicao;
+                                var tol = sn.Adicao > 0 ? sn.Adicao / 2m : 0.0000001m;
+                                var okS = Math.Abs(sn.ResultadoDisplay - esp) <= tol;
+                                c.Item().Table(t =>
+                                {
+                                    t.ColumnsDefinition(x => { x.RelativeColumn(); x.RelativeColumn();
+                                        x.RelativeColumn(); x.RelativeColumn(); x.RelativeColumn(); });
+                                    void H(string s) => t.Cell().Background(cinza).BorderBottom(0.4f)
+                                        .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s).FontSize(5).Bold();
+                                    void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
+                                        .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s)
+                                        .FontSize(7.5f).FontColor(fc ?? "#1c2b33");
+                                    H("CARGA REF."); H("ADIÇÃO 1e"); H("ESPERADO"); H("DISPLAY"); H("SITUAÇÃO");
+                                    C(V(sn.CargaReferencia)); C(V(sn.Adicao)); C(V(esp)); C(V(sn.ResultadoDisplay));
+                                    C(okS ? "Conforme" : "Não conforme", okS ? "#146c43" : "#b02a37");
+                                });
+                            }
+                            else
+                                c.Item().Padding(2).AlignCenter().Text(
+                                    d.FazSensibilidade ? "—" : "Não aplicável").FontSize(6.5f).Italic();
+
+                            c.Item().Background(cinza).BorderTop(0.5f).BorderBottom(0.5f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text("REPETIBILIDADE").FontSize(6).Bold();
+                            if (d.Repetibilidade.Count > 0)
+                            {
+                                c.Item().PaddingHorizontal(2).PaddingTop(1).AlignCenter()
+                                 .Text($"Carga: {V(d.Repetibilidade[0].Carga)} {d.Unidade}").FontSize(6);
+                                // Grade de 2 colunas (1ª|3ª / 2ª|4ª …), como no formulário original
+                                c.Item().Table(t =>
+                                {
+                                    t.ColumnsDefinition(x => { x.ConstantColumn(14); x.RelativeColumn();
+                                        x.ConstantColumn(14); x.RelativeColumn(); });
+                                    var lista = d.Repetibilidade.ToList();
+                                    int metade = (lista.Count + 1) / 2;
+                                    for (int i = 0; i < metade; i++)
+                                    {
+                                        void Cel(string s, bool num) => t.Cell().BorderBottom(0.4f)
+                                            .BorderRight(0.4f).BorderColor(borda).Padding(1.5f)
+                                            .AlignCenter().Text(s).FontSize(num ? 5.5f : 7.5f);
+                                        Cel($"{lista[i].Medicao}ª", true);
+                                        Cel(V(lista[i].Indicacao), false);
+                                        var j = i + metade;
+                                        if (j < lista.Count) { Cel($"{lista[j].Medicao}ª", true); Cel(V(lista[j].Indicacao), false); }
+                                        else { Cel("", true); Cel("", false); }
+                                    }
+                                });
+                            }
+                        });
+
+                        // Coluna direita — excentricidade
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text("EXCENTRICIDADE").FontSize(6).Bold();
+                            if (!d.FazExcentricidade && d.Excentricidade.Count == 0)
+                                c.Item().Padding(3).Text("Não aplicável — em razão do tipo do equipamento, este ensaio não é exequível.")
+                                    .FontSize(6).Italic().FontColor("#667");
+                            else
+                            {
+                                c.Item().Row(rr =>
+                                {
+                                    if (d.Excentricidade.Count > 0)
+                                        rr.RelativeItem().AlignMiddle().PaddingLeft(3).Text(
+                                            $"Carga aplicada: {V(d.Excentricidade[0].Carga)} {d.Unidade}").FontSize(6.5f);
+                                    var des = DesenhoExcPng(cor);
+                                    if (des is not null)
+                                        rr.ConstantItem(120).PaddingVertical(1)
+                                          .Height(120f * 240f / 820f).Image(des).FitArea();
+                                });
+                                c.Item().Table(t =>
+                                {
+                                    t.ColumnsDefinition(x => { x.ConstantColumn(20);
+                                        if (excComAntes) x.RelativeColumn();
+                                        x.RelativeColumn(); x.RelativeColumn(); x.RelativeColumn(); });
+                                    void H(string s) => t.Cell().Background(cinza).BorderTop(0.4f).BorderBottom(0.4f)
+                                        .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s).FontSize(5).Bold();
+                                    H("POS.");
+                                    if (excComAntes) H("ANTES");
+                                    H(excComAntes ? "APÓS AJUSTE" : $"INDIC. ({d.Unidade})"); H("ERRO"); H("SITUAÇÃO");
+                                    int pos = 1;
+                                    foreach (var l in d.Excentricidade)
+                                    {
+                                        void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
+                                            .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s)
+                                            .FontSize(7).FontColor(fc ?? "#1c2b33");
+                                        C(pos + (pos == 1 ? " (ref.)" : ""));
+                                        if (excComAntes) C(l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes));
+                                        C(V(l.Indicacao));
+                                        C((l.Erro > 0 ? "+" : "") + V(l.Erro));
+                                        if (pos == 1) C("ref.");
+                                        else C(l.Aprovado is null ? "—" : l.Aprovado.Value ? "Conforme" : "Não conforme",
+                                            l.Aprovado == false ? "#b02a37" : "#146c43");
+                                        pos++;
+                                    }
+                                });
+                            }
+                        });
+                    });
+
+                    // ── Ensaio de pesagem (indicação) ──
+                    Titulo("ENSAIO DE PESAGEM (INDICAÇÃO)");
+                    if (indComAntes)
+                        col.Item().Text("A balança foi ajustada. A avaliação de conformidade refere-se à leitura final (após o ajuste).")
+                           .FontSize(5.5f).Italic().FontColor("#667");
+                    col.Item().Table(t =>
+                    {
+                        t.ColumnsDefinition(c =>
+                        {
+                            c.RelativeColumn();                       // carga
+                            if (indComAntes) c.RelativeColumn();      // antes
+                            c.RelativeColumn();                       // indicação
+                            c.RelativeColumn(0.8f);                   // erro
+                            c.RelativeColumn();                       // incerteza
+                            c.RelativeColumn(0.8f);                   // EMA
+                            c.RelativeColumn();                       // situação
+                        });
+                        void H(string s) => t.Cell().Background(cinza).Border(0.4f).BorderColor(borda)
+                            .Padding(1.5f).AlignCenter().Text(s).FontSize(5.5f).Bold();
+                        H($"CARGA ({d.Unidade})");
+                        if (indComAntes) H("ANTES AJUSTE");
+                        H(indComAntes ? "APÓS AJUSTE" : $"INDICAÇÃO ({d.Unidade})");
+                        H("ERRO"); H("INCERTEZA"); H("EMA"); H("SITUAÇÃO");
+                        foreach (var l in d.Indicacao)
+                        {
+                            void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
+                                .Padding(1.5f).AlignCenter().Text(s).FontSize(7.5f).FontColor(fc ?? "#1c2b33");
+                            C(V(l.Carga));
+                            if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
+                            C(l.SemLeitura ? "**" : V(l.Indicacao));
+                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
+                            C(l.SemLeitura ? "—" : "± " + VU(l.Incerteza));
+                            C("± " + V(l.Ema));
+                            C(l.Aprovado is null ? "—" : l.Aprovado.Value ? "Conforme" : "Não conforme",
+                              l.Aprovado == false ? "#b02a37" : "#146c43");
+                        }
+                    });
+                    if (d.Indicacao.Any(x => x.SemLeitura || x.SemLeituraAntes))
+                        col.Item().Text("** O instrumento não apresentou indicação no visor durante a aplicação da carga.")
+                           .FontSize(5.5f).Italic().FontColor("#b02a37");
+
+                    // ── Padrões utilizados ──
+                    Titulo("PADRÕES DE TRABALHO UTILIZADOS");
+                    col.Item().Table(t =>
+                    {
+                        t.ColumnsDefinition(c => { c.RelativeColumn(2.6f); c.RelativeColumn(0.7f);
+                            c.RelativeColumn(1.3f); c.RelativeColumn(); c.RelativeColumn(); });
+                        void H(string s) => t.Cell().Background(cinza).Border(0.4f).BorderColor(borda)
+                            .Padding(1.5f).AlignCenter().Text(s).FontSize(5.5f).Bold();
+                        H("PADRÃO"); H("CLASSE"); H("CERTIFICADO"); H("CALIBRADO"); H("VÁLIDO ATÉ");
+                        foreach (var p in d.Pesos)
+                        {
+                            void C(string s, bool esq = false) { var cel = t.Cell().Border(0.4f)
+                                .BorderColor(borda).Padding(1.5f); (esq ? cel : cel.AlignCenter())
+                                .Text(s).FontSize(7); }
+                            C($"{p.Identificacao} ({p.ValorNominal})", true); C(p.Classe);
+                            C(p.NumCertificado ?? "—");
+                            C(p.DataCalibracao?.ToString("dd/MM/yyyy") ?? "—");
+                            C(p.Validade?.ToString("dd/MM/yyyy") ?? "—");
+                        }
+                    });
+
+                    // ── Procedimento | Observações ──
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Border(0.5f).BorderColor(borda).Column(c =>
+                        {
+                            c.Item().Background(cinza).BorderBottom(0.4f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text("PROCEDIMENTO").FontSize(6).Bold();
+                            var ctx4 = d.ContextoEma == "em_uso"
+                                ? "erros máximos admissíveis em serviço (em uso)"
+                                : "erros máximos admissíveis em verificação subsequente";
+                            c.Item().Padding(2).Text($"Tolerâncias admitidas de acordo com a regulamentação: {ctx4}, conforme Portaria Inmetro nº 157/2022.")
+                                .FontSize(6);
+                            c.Item().PaddingHorizontal(2).PaddingBottom(2).Text($"Método: {d.Metodo}").FontSize(6);
+                        });
+                        row.ConstantItem(4);
+                        row.RelativeItem().Border(0.5f).BorderColor(borda).Column(c =>
+                        {
+                            c.Item().Background(cinza).BorderBottom(0.4f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text("OBSERVAÇÕES").FontSize(6).Bold();
+                            c.Item().Padding(2).Text(string.IsNullOrWhiteSpace(d.TextoPeriodicidade)
+                                ? "Não aplicável" : d.TextoPeriodicidade).FontSize(6.5f);
+                            c.Item().PaddingHorizontal(2).PaddingBottom(2).Text(
+                                "Incerteza de medição declarada para fator de abrangência k = 2, correspondente a nível de confiança de aproximadamente 95%, conforme o GUM.")
+                                .FontSize(5.5f).FontColor("#667");
+                        });
+                    });
+
+                    // ── Instrução de calibração (com CONFORME/NÃO-CONFORME) | assinaturas ──
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem(11).Border(0.5f).BorderColor(borda).Column(c =>
+                        {
+                            c.Item().Background(cinza).BorderBottom(0.4f).BorderColor(borda)
+                             .Padding(1.5f).AlignCenter().Text("INSTRUÇÃO DE CALIBRAÇÃO").FontSize(6).Bold();
+                            if (!string.IsNullOrWhiteSpace(d.InstrucaoIt) || !string.IsNullOrWhiteSpace(d.InstrucaoRev))
+                                c.Item().Padding(2).Text(t =>
+                                {
+                                    t.Span("IT: ").FontSize(6.5f);
+                                    t.Span(d.InstrucaoIt ?? "—").FontSize(8.5f).Bold();
+                                    t.Span("     REV.: ").FontSize(6.5f);
+                                    t.Span(d.InstrucaoRev ?? "—").FontSize(8.5f).Bold();
+                                });
+                            c.Item().PaddingHorizontal(2).PaddingBottom(2).Row(rr =>
+                            {
+                                rr.RelativeItem().AlignMiddle().Text("RESULTADO GERAL DA CALIBRAÇÃO").FontSize(5.5f);
+                                rr.ConstantItem(84).Column(cc =>
+                                {
+                                    void Caixa(string rot, bool marcada) => cc.Item().Border(0.5f)
+                                        .BorderColor(borda).Row(x =>
+                                        {
+                                            x.ConstantItem(14).BorderRight(0.5f).BorderColor(borda)
+                                             .AlignCenter().Text(marcada ? "X" : " ").FontSize(8).Bold();
+                                            x.RelativeItem().PaddingLeft(2).AlignMiddle()
+                                             .Text(rot).FontSize(5.5f).Bold();
+                                        });
+                                    Caixa("CONFORME", conforme);
+                                    Caixa("NÃO - CONFORME", !conforme);
+                                });
+                            });
+                        });
+                        row.ConstantItem(4);
+                        row.RelativeItem(14).Border(0.5f).BorderColor(borda).Padding(3).Row(rr =>
+                        {
+                            rr.RelativeItem().Column(c =>
+                            {
+                                if (assinTecnico is not null)
+                                    c.Item().Height(20).AlignCenter().Image(assinTecnico).FitArea();
+                                else c.Item().Height(20);
+                                c.Item().LineHorizontal(0.5f).LineColor("#333");
+                                c.Item().AlignCenter().Text(d.Tecnico).FontSize(7);
+                                c.Item().AlignCenter().Text("Técnico executor").FontSize(5.5f).FontColor("#667");
+                            });
+                            rr.ConstantItem(10);
+                            rr.RelativeItem().Column(c =>
+                            {
+                                if (assinAprovador is not null)
+                                    c.Item().Height(20).AlignCenter().Image(assinAprovador).FitArea();
+                                else c.Item().Height(20);
+                                c.Item().LineHorizontal(0.5f).LineColor("#333");
+                                c.Item().AlignCenter().Text(d.Aprovador ?? "—").FontSize(7);
+                                c.Item().AlignCenter().Text($"Responsável técnico{(d.RegistroAprovador is null ? "" : " · " + d.RegistroAprovador)}")
+                                   .FontSize(5.5f).FontColor("#667");
+                            });
+                            if (qrPng is not null)
+                            {
+                                rr.ConstantItem(8);
+                                rr.ConstantItem(42).Column(c =>
+                                {
+                                    c.Item().Width(38).Image(qrPng);
+                                    c.Item().AlignCenter().Text("Validar").FontSize(4.5f).FontColor("#667");
+                                });
+                            }
+                        });
+                    });
+
+                    // ── Técnico / autorização / data ──
+                    col.Item().Border(0.5f).BorderColor(borda).Padding(2).Row(row =>
+                    {
+                        row.RelativeItem(16).Text(t =>
+                        { t.Span("TÉCNICO: ").FontSize(6).Bold(); t.Span(d.Tecnico).FontSize(8); });
+                        row.RelativeItem(14).Text(t =>
+                        { t.Span("Nº DA AUTORIZAÇÃO: ").FontSize(6).Bold();
+                          t.Span(d.NumAutorizacao ?? "—").FontSize(8); });
+                        row.RelativeItem(10).AlignRight().Text(t =>
+                        { t.Span("DATA: ").FontSize(6).Bold();
+                          t.Span(d.DataCalibracao?.ToString("dd / MM / yy") ?? "—").FontSize(8); });
+                    });
+
+                    if (!string.IsNullOrWhiteSpace(d.NotaSubstituicao))
+                        col.Item().Text(d.NotaSubstituicao).FontSize(5.5f).Italic();
+                    if (d.TextoRodape is not null)
+                        col.Item().AlignCenter().Text(d.TextoRodape).FontSize(5.2f).FontColor("#667");
+                    col.Item().AlignCenter().Text($"Validação: {d.UrlBase}/validar/{d.UuidValidacao}")
+                       .FontSize(5).FontColor("#667");
+                    if (d.MarcaSistema)
+                        col.Item().AlignCenter().Text(MarcaTexto).FontSize(4.5f).FontColor("#b8c2cc");
+                });
+
+                page.Footer().AlignRight().Text(t =>
+                {
+                    t.Span($"Certificado {d.Numero} · Página ").FontSize(6).FontColor("#667");
+                    t.CurrentPageNumber().FontSize(6).FontColor("#667");
+                    t.Span(" de ").FontSize(6).FontColor("#667");
+                    t.TotalPages().FontSize(6).FontColor("#667");
                 });
             });
         }).GeneratePdf();
