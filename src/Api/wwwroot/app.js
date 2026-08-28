@@ -8767,7 +8767,9 @@ function formContatoSA(id) {
         <div class="form-grid">
           <label>Nome * <input type="text" id="ct-nome" value="${ct ? esc(ct.nome) : ''}"></label>
           <label>Cargo <input type="text" id="ct-cargo" value="${ct ? esc(ct.cargo || '') : ''}" placeholder="Ex.: Financeiro"></label>
-          <label>E-mail <input type="email" id="ct-email" value="${ct ? esc(ct.email || '') : ''}"></label>
+          <label>E-mail <input type="email" id="ct-email" value="${ct ? esc(ct.email || '') : ''}"
+            style="text-transform:lowercase" autocapitalize="off" autocorrect="off" spellcheck="false"
+            oninput="this.value = this.value.replace(/\s+/g, '').toLowerCase()"></label>
           <label>Telefone <input type="text" id="ct-fone" value="${ct ? esc(ct.telefone || '') : ''}" placeholder="(31) 90000-0000"></label>
         </div>
         <div class="rodape-acoes" style="margin-top:10px">
@@ -9424,8 +9426,15 @@ function abrirTab(tab) {
      pesquisa: renderPesquisa }[tab])();
 }
 
+// Campos de e-mail: minúsculas na tela e no valor, sem autocapitalizar
+// (no celular a primeira letra vinha maiúscula) e sem autocorreção.
+const ATTRS_EMAIL = 'style="text-transform:lowercase" autocapitalize="off" '
+  + 'autocorrect="off" spellcheck="false" '
+  + 'oninput="this.value = this.value.replace(/\\s+/g, \'\').toLowerCase()"';
+
 const campo = (rotulo, id, tipo = 'text', valor = '', extra = '') =>
-  `<label>${rotulo}<input type="${tipo}" id="${id}" value="${esc(valor)}" ${extra}></label>`;
+  `<label>${rotulo}<input type="${tipo}" id="${id}" value="${esc(valor)}" ` +
+  `${tipo === 'email' ? ATTRS_EMAIL + ' ' : ''}${extra}></label>`;
 
 // ── Clientes ────────────────────────────────────────────────────
 let clientesListaCache = [];
