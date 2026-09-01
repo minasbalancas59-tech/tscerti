@@ -1486,9 +1486,9 @@ public static class GeradorPdf
                         .Rotate(-35).Text(marcaDagua)
                         .FontSize(120).Bold().FontColor("#20E53935");
 
-                page.Content().Border(1.2f).BorderColor(borda).Padding(4).Column(col =>
+                page.Content().Border(1.2f).BorderColor(borda).Padding(6).Column(col =>
                 {
-                    col.Spacing(3);
+                    col.Spacing(4);
 
                     // Helpers de caixa/campo do formulário
                     void Titulo(string s) => col.Item().Background(cinza).Border(0.7f)
@@ -1497,7 +1497,7 @@ public static class GeradorPdf
 
                     void Campo(QuestPDF.Infrastructure.IContainer cel, string rot, string val,
                         bool centro = false)
-                        => cel.Border(0.5f).BorderColor(borda).Padding(1.5f).Column(cc =>
+                        => cel.Border(0.5f).BorderColor(borda).Padding(2.5f).Column(cc =>
                         {
                             cc.Item().Text(rot).FontSize(5.2f).FontColor("#555");
                             var t = cc.Item();
@@ -1637,7 +1637,7 @@ public static class GeradorPdf
                                     for (int i = 0; i < metade; i++)
                                     {
                                         void Cel(string s, bool num) => t.Cell().BorderBottom(0.4f)
-                                            .BorderRight(0.4f).BorderColor(borda).Padding(2.5f)
+                                            .BorderRight(0.4f).BorderColor(borda).Padding(4f)
                                             .AlignCenter().Text(s).FontSize(num ? 6f : 8f);
                                         Cel($"{lista[i].Medicao}ª", true);
                                         Cel(V(lista[i].Indicacao), false);
@@ -1685,7 +1685,7 @@ public static class GeradorPdf
                                     foreach (var l in d.Excentricidade)
                                     {
                                         void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
-                                            .BorderColor(borda).Padding(2f).AlignCenter().Text(s)
+                                            .BorderColor(borda).Padding(3.5f).AlignCenter().Text(s)
                                             .FontSize(8).FontColor(fc ?? "#1c2b33");
                                         C(pos == 1 ? "1 (ref.)" : pos.ToString());
                                         if (excComAntes) C(l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes));
@@ -1733,7 +1733,7 @@ public static class GeradorPdf
                         {
                             var l = d.Indicacao[i4];
                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
-                                .Padding(2.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
+                                .Padding(3.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
                             if (ehCiclo4) C(sentidos4[i4], "#667");
                             C(V(l.Carga));
                             if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
@@ -1761,7 +1761,7 @@ public static class GeradorPdf
                         foreach (var p in d.Pesos)
                         {
                             void C(string s, bool esq = false) { var cel = t.Cell().Border(0.4f)
-                                .BorderColor(borda).Padding(2.5f); (esq ? cel : cel.AlignCenter())
+                                .BorderColor(borda).Padding(3.5f); (esq ? cel : cel.AlignCenter())
                                 .Text(s).FontSize(8); }
                             C($"{p.Identificacao} ({p.ValorNominal})", true); C(p.Classe);
                             C(p.NumCertificado ?? "—");
@@ -1865,11 +1865,11 @@ public static class GeradorPdf
                         });
                     });
 
-                    // Empurra o texto legal para o pé da moldura: o miolo do
-                    // formulário fica distribuído na página em vez de amontoado
-                    // no topo com um vazio embaixo.
-                    col.Item().Extend();
-
+                    // NÃO usar col.Item().Extend() aqui: ele ocupa toda a
+                    // altura restante e não sobra espaço para o texto legal,
+                    // que acaba sozinho numa segunda página. A página é
+                    // preenchida aumentando o conteúdo, não empurrando o
+                    // rodapé. João, 01/09/2026.
                     if (!string.IsNullOrWhiteSpace(d.NotaSubstituicao))
                         col.Item().Text(d.NotaSubstituicao).FontSize(6).Italic();
                     if (d.TextoRodape is not null)
