@@ -1,0 +1,54 @@
+════════════════════════════════════════════════════════════════
+ MODELO 4 — LEGIBILIDADE E APROVEITAMENTO DA PÁGINA
+ 28/08/2026
+════════════════════════════════════════════════════════════════
+
+O QUE MUDA
+──────────
+1. Coluna POS. da excentricidade: 20 -> 52 pt.
+   "1 (ref.)" quebrava em duas linhas e desalinhava a primeira
+   linha da tabela. Agora cabe numa linha só.
+
+2. Fonte dos valores: 7 / 7,5 -> 8 pt, igual ao Modelo 1.
+   Vale para sensibilidade, repetibilidade, excentricidade,
+   ensaio de pesagem e tabela de padrões. Células com mais
+   respiro (padding de 1,5 para 2 / 2,5 pt).
+
+3. Diagramas das posições de excentricidade: 120 -> 150 pt.
+
+4. Texto legal desce para o pé da moldura.
+   Antes ficava logo depois das caixas, deixando metade da
+   página em branco. Agora o miolo do formulário se distribui
+   pela página. Espaçamento entre caixas de 2 para 3 pt e
+   rodapé de 5,2 para 5,8 pt.
+
+Nenhum outro modelo é afetado — a mudança é toda dentro de
+GerarModelo4.
+
+
+COMANDOS
+────────
+Envie o .patch para /root/cert-saas pelo FileZilla e rode:
+
+    cd /root/cert-saas
+    git apply --check modelo4-layout.patch
+    git apply modelo4-layout.patch
+    git add -A
+    git commit -m "Modelo 4: legibilidade e aproveitamento da pagina"
+    git push
+    ./atualizar.sh --build
+
+Não há migration nesta atualização.
+
+
+COMO CONFERIR
+─────────────
+Regere um certificado no Modelo 4 e verifique:
+  · "1 (ref.)" numa linha só na tabela de excentricidade;
+  · números do mesmo tamanho dos do Modelo 1;
+  · diagramas das posições maiores;
+  · texto legal no pé da página, sem vão grande no meio.
+
+Se ainda sobrar branco, dá para ir além: aumentar mais as
+fontes ou dar altura mínima às caixas de ensaio. Mande o PDF
+que ajustamos.

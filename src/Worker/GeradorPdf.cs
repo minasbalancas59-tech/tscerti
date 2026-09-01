@@ -1488,7 +1488,7 @@ public static class GeradorPdf
 
                 page.Content().Border(1.2f).BorderColor(borda).Padding(4).Column(col =>
                 {
-                    col.Spacing(2);
+                    col.Spacing(3);
 
                     // Helpers de caixa/campo do formulário
                     void Titulo(string s) => col.Item().Background(cinza).Border(0.7f)
@@ -1608,8 +1608,8 @@ public static class GeradorPdf
                                     void H(string s) => t.Cell().Background(cinza).BorderBottom(0.4f)
                                         .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s).FontSize(5).Bold();
                                     void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
-                                        .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s)
-                                        .FontSize(7.5f).FontColor(fc ?? "#1c2b33");
+                                        .BorderColor(borda).Padding(2f).AlignCenter().Text(s)
+                                        .FontSize(8).FontColor(fc ?? "#1c2b33");
                                     H($"CARGA REF. ({d.Unidade})"); H($"ADIÇÃO 1e ({d.Unidade})");
                                     H($"ESPERADO ({d.Unidade})"); H($"DISPLAY ({d.Unidade})"); H("SITUAÇÃO");
                                     C(V(sn.CargaReferencia)); C(V(sn.Adicao)); C(V(esp)); C(V(sn.ResultadoDisplay));
@@ -1637,8 +1637,8 @@ public static class GeradorPdf
                                     for (int i = 0; i < metade; i++)
                                     {
                                         void Cel(string s, bool num) => t.Cell().BorderBottom(0.4f)
-                                            .BorderRight(0.4f).BorderColor(borda).Padding(1.5f)
-                                            .AlignCenter().Text(s).FontSize(num ? 5.5f : 7.5f);
+                                            .BorderRight(0.4f).BorderColor(borda).Padding(2.5f)
+                                            .AlignCenter().Text(s).FontSize(num ? 6f : 8f);
                                         Cel($"{lista[i].Medicao}ª", true);
                                         Cel(V(lista[i].Indicacao), false);
                                         var j = i + metade;
@@ -1667,12 +1667,12 @@ public static class GeradorPdf
                                           .FontSize(6.5f);
                                     var des = DesenhoExcPng(cor);
                                     if (des is not null)
-                                        rr.ConstantItem(120).PaddingVertical(1)
-                                          .Height(120f * 240f / 820f).Image(des).FitArea();
+                                        rr.ConstantItem(150).PaddingVertical(2)
+                                          .Height(150f * 240f / 820f).Image(des).FitArea();
                                 });
                                 c.Item().Table(t =>
                                 {
-                                    t.ColumnsDefinition(x => { x.ConstantColumn(20);
+                                    t.ColumnsDefinition(x => { x.ConstantColumn(52);
                                         if (excComAntes) x.RelativeColumn();
                                         x.RelativeColumn(); x.RelativeColumn(); x.RelativeColumn(); });
                                     void H(string s) => t.Cell().Background(cinza).BorderTop(0.4f).BorderBottom(0.4f)
@@ -1685,9 +1685,9 @@ public static class GeradorPdf
                                     foreach (var l in d.Excentricidade)
                                     {
                                         void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
-                                            .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s)
-                                            .FontSize(7).FontColor(fc ?? "#1c2b33");
-                                        C(pos + (pos == 1 ? " (ref.)" : ""));
+                                            .BorderColor(borda).Padding(2f).AlignCenter().Text(s)
+                                            .FontSize(8).FontColor(fc ?? "#1c2b33");
+                                        C(pos == 1 ? "1 (ref.)" : pos.ToString());
                                         if (excComAntes) C(l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes));
                                         C(V(l.Indicacao));
                                         C((l.Erro > 0 ? "+" : "") + V(l.Erro));
@@ -1733,7 +1733,7 @@ public static class GeradorPdf
                         {
                             var l = d.Indicacao[i4];
                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
-                                .Padding(1.5f).AlignCenter().Text(s).FontSize(7.5f).FontColor(fc ?? "#1c2b33");
+                                .Padding(2.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
                             if (ehCiclo4) C(sentidos4[i4], "#667");
                             C(V(l.Carga));
                             if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
@@ -1761,8 +1761,8 @@ public static class GeradorPdf
                         foreach (var p in d.Pesos)
                         {
                             void C(string s, bool esq = false) { var cel = t.Cell().Border(0.4f)
-                                .BorderColor(borda).Padding(1.5f); (esq ? cel : cel.AlignCenter())
-                                .Text(s).FontSize(7); }
+                                .BorderColor(borda).Padding(2.5f); (esq ? cel : cel.AlignCenter())
+                                .Text(s).FontSize(8); }
                             C($"{p.Identificacao} ({p.ValorNominal})", true); C(p.Classe);
                             C(p.NumCertificado ?? "—");
                             C(p.DataCalibracao?.ToString("dd/MM/yyyy") ?? "—");
@@ -1865,14 +1865,19 @@ public static class GeradorPdf
                         });
                     });
 
+                    // Empurra o texto legal para o pé da moldura: o miolo do
+                    // formulário fica distribuído na página em vez de amontoado
+                    // no topo com um vazio embaixo.
+                    col.Item().Extend();
+
                     if (!string.IsNullOrWhiteSpace(d.NotaSubstituicao))
-                        col.Item().Text(d.NotaSubstituicao).FontSize(5.5f).Italic();
+                        col.Item().Text(d.NotaSubstituicao).FontSize(6).Italic();
                     if (d.TextoRodape is not null)
-                        col.Item().AlignCenter().Text(d.TextoRodape).FontSize(5.2f).FontColor("#667");
+                        col.Item().AlignCenter().Text(d.TextoRodape).FontSize(5.8f).FontColor("#667");
                     col.Item().AlignCenter().Text($"Validação: {d.UrlBase}/validar/{d.UuidValidacao}")
-                       .FontSize(5).FontColor("#667");
+                       .FontSize(5.5f).FontColor("#667");
                     if (d.MarcaSistema)
-                        col.Item().AlignCenter().Text(MarcaTexto).FontSize(4.5f).FontColor("#b8c2cc");
+                        col.Item().AlignCenter().Text(MarcaTexto).FontSize(5).FontColor("#b8c2cc");
                 });
 
                 page.Footer().AlignRight().Text(t =>
