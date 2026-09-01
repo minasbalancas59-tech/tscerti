@@ -1633,9 +1633,6 @@ public static class GeradorPdf
                              .Padding(1.5f).AlignCenter().Text("REPETIBILIDADE").FontSize(6).Bold();
                             if (d.Repetibilidade.Count > 0)
                             {
-                                c.Item().PaddingHorizontal(2).PaddingTop(1).AlignCenter()
-                                 .Text($"Carga aplicada: {V(d.Repetibilidade[0].Carga)} {d.Unidade}  ·  indicações em {d.Unidade}")
-                                 .FontSize(6);
                                 // Grade de 2 colunas (1ª|3ª / 2ª|4ª …), como no formulário original
                                 c.Item().Table(t =>
                                 {
@@ -1677,8 +1674,8 @@ public static class GeradorPdf
                                           .FontSize(8);
                                     var des = DesenhoExcPng(cor);
                                     if (des is not null)
-                                        rr.ConstantItem(230).PaddingVertical(2)
-                                          .Height(230f * 240f / 820f).Image(des).FitArea();
+                                        rr.ConstantItem(170).PaddingVertical(2)
+                                          .Height(170f * 240f / 820f).Image(des).FitArea();
                                 });
                                 c.Item().Table(t =>
                                 {

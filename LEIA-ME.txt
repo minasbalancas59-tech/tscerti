@@ -1,63 +1,42 @@
 ════════════════════════════════════════════════════════════════
- MODELO 4 — ENSAIOS EM DUAS FAIXAS (VERSÃO CORRIGIDA)
+ MODELO 4 — AJUSTE FINO
  01/09/2026
 ════════════════════════════════════════════════════════════════
 
-⚠ IMPORTANTE — LEIA ANTES
-─────────────────────────
-O patch anterior (modelo4-faixas.patch) tinha um erro de chaves e
-QUEBROU O BUILD DO WORKER. Se você já o aplicou, o worker está sem
-compilar e nenhum PDF é gerado.
-
-Este pacote contém os DOIS commits: a reorganização em duas faixas
-e a correção. Aplique sobre o estado ANTERIOR ao patch quebrado.
-
-Se você já aplicou o modelo4-faixas.patch e deu commit, reverta
-primeiro:
-
-    cd /root/cert-saas
-    git log --oneline -3          # veja o commit "Modelo 4: ensaios em duas faixas"
-    git revert --no-edit HEAD     # se ele for o último
-    # depois aplique este pacote normalmente
-
-
 O QUE MUDA
 ──────────
-O bloco ENSAIOS deixa de ser duas colunas lado a lado:
+1. Diagramas das posições de excentricidade: 230 -> 170 pt.
+   Com a faixa inteira à disposição eles ficaram maiores do que
+   precisavam.
 
-  ┌─────────────────────┬─────────────────────┐
-  │ SENSIBILIDADE       │ REPETIBILIDADE      │
-  ├─────────────────────┴─────────────────────┤
-  │ EXCENTRICIDADE (largura inteira)          │
-  └───────────────────────────────────────────┘
+2. Removida a linha "Carga aplicada: X kg · indicações em kg"
+   da repetibilidade.
+   Além de ocupar altura, ela mostrava a carga do PLANO, que não
+   corresponde às leituras quando o técnico aplica outra carga —
+   no MB-2026/0094 dizia 150,00 kg com leituras de 80,00 kg.
+   A unidade já aparece no cabeçalho do equipamento.
 
-· Diagramas da excentricidade: 150 -> 230 pt.
-· Linha "Referência (pos. 1)": 6,5 -> 8 pt.
-· Paddings reduzidos para compensar a altura extra das duas
-  faixas empilhadas (moldura 6->5, espaçamento 4->3,
-  células 3,5->2,5), evitando estourar para a segunda página.
+Nenhum outro modelo é afetado.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o modelo4-faixas-corrigido.zip
-    git apply --check modelo4-faixas-corrigido.patch
-    git apply modelo4-faixas-corrigido.patch
+    unzip -o modelo4-ajuste-fino.zip
+    git apply --check modelo4-ajuste-fino.patch
+    git apply modelo4-ajuste-fino.patch
     git add -A
-    git commit -m "Modelo 4: ensaios em duas faixas"
+    git commit -m "Modelo 4: diagramas menores e sem legenda da repetibilidade"
     git push
     ./atualizar.sh --build
-    rm -f modelo4-faixas-corrigido.zip
+    rm -f modelo4-ajuste-fino.zip
 
-Se o "git apply --check" reclamar, PARE e avise antes de seguir.
 Não há migration nesta atualização.
 
 
 COMO CONFERIR
 ─────────────
-O build tem que terminar SEM erro (o anterior falhava em
-GeradorPdf.cs com "} expected"). Depois regere o MB-2026/0094:
-  · sensibilidade e repetibilidade lado a lado em cima;
-  · excentricidade sozinha embaixo, diagramas maiores;
-  · UMA página só.
+Regere o MB-2026/0094 no Modelo 4:
+  · diagramas menores na faixa da excentricidade;
+  · repetibilidade só com o título e as medições;
+  · uma página só.
