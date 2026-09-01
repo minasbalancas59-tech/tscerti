@@ -727,7 +727,7 @@ public static class CertificadoEndpoints
                  WHERE (@status IS NULL OR ct.status = @status)
                    AND (NOT @soMeus OR ct.tecnico_id = @meuId)
                    AND (@os IS NULL OR ct.ordem_servico ILIKE '%' || @os || '%')
-                 ORDER BY ct.criado_em DESC LIMIT 100
+                 ORDER BY ct.criado_em DESC LIMIT 300
                 """, new { status, soMeus, meuId, os });
             return Results.Ok(rows);
         });

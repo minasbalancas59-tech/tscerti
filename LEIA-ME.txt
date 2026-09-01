@@ -1,42 +1,54 @@
 ════════════════════════════════════════════════════════════════
- MODELO 4 — AJUSTE FINO
+ CORRIGE O FILTRO "PENDENTES" MOSTRANDO MENOS QUE O PAINEL
  01/09/2026
 ════════════════════════════════════════════════════════════════
 
+O PROBLEMA (visto na Imperium)
+──────────────────────────────
+O card do painel contava 14 aguardando aprovação, mas o filtro
+"⏳ Pendentes" listava só 3.
+
+CAUSA
+─────
+A lista de calibrações vinha do servidor com LIMIT 100, misturando
+todos os status. O filtro não consultava o banco — apenas peneirava
+no navegador o que já tinha sido baixado.
+
+Numa empresa com muito certificado emitido recente, os 100 mais
+novos eram quase todos "emitido", e os pendentes mais antigos
+ficavam fora dessa fatia. O card do painel usa outra consulta, que
+conta direto no banco sem limite — por isso mostrava o número certo.
+
 O QUE MUDA
 ──────────
-1. Diagramas das posições de excentricidade: 230 -> 170 pt.
-   Com a faixa inteira à disposição eles ficaram maiores do que
-   precisavam.
+· O filtro de status passa a recarregar do servidor com ?status=,
+  então o LIMIT se aplica só àquele status.
+· Limite de 100 para 300 registros por consulta.
+· Quando a lista bate no teto, aparece um aviso explicando que há
+  mais registros e como chegar neles (filtros de status, tipo,
+  ordem de serviço ou período).
 
-2. Removida a linha "Carga aplicada: X kg · indicações em kg"
-   da repetibilidade.
-   Além de ocupar altura, ela mostrava a carga do PLANO, que não
-   corresponde às leituras quando o técnico aplica outra carga —
-   no MB-2026/0094 dizia 150,00 kg com leituras de 80,00 kg.
-   A unidade já aparece no cabeçalho do equipamento.
-
-Nenhum outro modelo é afetado.
+Os outros filtros (tipo, OS, período) continuam funcionando no
+navegador, agora sobre um conjunto bem maior.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o modelo4-ajuste-fino.zip
-    git apply --check modelo4-ajuste-fino.patch
-    git apply modelo4-ajuste-fino.patch
+    unzip -o fix-filtro-pendentes.zip
+    git apply --check fix-filtro-pendentes.patch
+    git apply fix-filtro-pendentes.patch
     git add -A
-    git commit -m "Modelo 4: diagramas menores e sem legenda da repetibilidade"
+    git commit -m "Corrige filtro de pendentes mostrando menos que o painel"
     git push
     ./atualizar.sh --build
-    rm -f modelo4-ajuste-fino.zip
+    rm -f fix-filtro-pendentes.zip
 
 Não há migration nesta atualização.
 
 
 COMO CONFERIR
 ─────────────
-Regere o MB-2026/0094 no Modelo 4:
-  · diagramas menores na faixa da excentricidade;
-  · repetibilidade só com o título e as medições;
-  · uma página só.
+No painel da Imperium, clique no filtro "⏳ Pendentes": a
+quantidade listada deve bater com o número do card "Aguardando
+aprovação". Vale conferir também "Rascunhos" e "Emitidos".

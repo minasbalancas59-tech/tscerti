@@ -1078,9 +1078,18 @@ function filtrarTipoGestor(v) {
   filtroTipoGestor = filtroTipoGestor === v ? null : v;
   $('#lista-certs').innerHTML = htmlListaGestor(certsPainelCache);
 }
-function filtrarStatusGestor(st) {
+async function filtrarStatusGestor(st) {
   filtroStatusGestor = (filtroStatusGestor === st) ? '' : st;
-  $('#lista-certs').innerHTML = htmlListaGestor(certsPainelCache);
+  // Recarrega do servidor: a lista vem com LIMIT 100 e, sem pedir o status
+  // ao banco, os registros antigos daquele status ficavam fora da fatia —
+  // o filtro mostrava menos do que o card do painel contava. João, 01/09/2026.
+  const lista = $('#lista-certs');
+  if (lista) lista.innerHTML = '<p class="dica">Carregando…</p>';
+  try {
+    certsPainelCache = await api('/certificados'
+      + (filtroStatusGestor ? '?status=' + encodeURIComponent(filtroStatusGestor) : ''));
+  } catch { /* mantém o cache anterior se a busca falhar */ }
+  if (lista) lista.innerHTML = htmlListaGestor(certsPainelCache || []);
 }
 
 let filtroOS = '', filtroEmisDe = '', filtroEmisAte = '';
@@ -1121,6 +1130,9 @@ function htmlListaGestor(certs) {
       const dt = String(c.data_emissao).slice(0, 10);
       return (!filtroEmisDe || dt >= filtroEmisDe) && (!filtroEmisAte || dt <= filtroEmisAte);
     });
+  // O servidor devolve no máximo 300 registros por consulta; avisa para
+  // ninguém achar que a lista está completa quando bate no teto.
+  const noTeto = certs.length >= 300;
   const btn = (v, rot) => `<button class="btn-mini ${st === v ? 'periodo-ativo' : ''}"
       onclick="filtrarStatusGestor('${v}')">${rot}</button>`;
   const filtros = `
@@ -1151,6 +1163,9 @@ function htmlListaGestor(certs) {
         ${filtroEmisDe || filtroEmisAte ? `<button class="btn-mini" title="Limpar período"
           onclick="event.stopPropagation(); limparFiltroEmissao()">✕ limpar</button>` : ''}
       </div>
+      ${noTeto ? `<p class="dica" style="margin:6px 0 0">Mostrando as 300 calibrações
+        mais recentes. Use os filtros de status, tipo, ordem de serviço ou período
+        para encontrar as demais.</p>` : ''}
     </div>`;
   if (filtrados.length === 0)
     return filtros + '<p class="dica">Nenhuma calibração ' +
