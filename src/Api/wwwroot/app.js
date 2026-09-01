@@ -10013,9 +10013,17 @@ let histClienteCache = [];
 function htmlHistorico(lista) {
   if (lista.length === 0)
     return '<p class="dica">Nenhuma calibração corresponde ao filtro.</p>';
+  // Emitido/substituído abre o PDF; rascunho e aguardando aprovação abrem
+  // o certificado para continuar ou aprovar, sem ter que voltar ao painel
+  // e caçar na lista. abrirCert() já roteia por status. João, 01/09/2026.
+  const emPdf = h => h.status === 'emitido' || h.status === 'substituido';
+  const emAberto = h => h.status === 'rascunho' || h.status === 'aguardando_aprovacao';
+  const rotuloAcao = h => h.status === 'rascunho' ? '✏️ Continuar'
+    : h.status === 'aguardando_aprovacao' ? '⏳ Revisar e emitir' : '📄 PDF';
   return lista.map(h => `
-    <div class="item-cert ${h.status === 'emitido' ? 'clicavel' : ''}"
-         ${h.status === 'emitido' ? `onclick="abrirPdfCertificado('${h.id}')"` : ''}>
+    <div class="item-cert ${emPdf(h) || emAberto(h) ? 'clicavel' : ''}"
+         ${emPdf(h) ? `onclick="abrirPdfCertificado('${h.id}')"`
+           : emAberto(h) ? `onclick="abrirCert('${h.id}','${h.status}')"` : ''}>
       <span>
         <b>${h.numero || '(sem número)'}</b> · ${esc(h.balanca)}${h.num_serie ? ' · Série ' + esc(h.num_serie) : ''}
         <span class="st st-${h.status}">${rotuloStatus(h.status)}</span><br>
@@ -10024,7 +10032,8 @@ function htmlHistorico(lista) {
           ${h.data_emissao ? ' · Emitido: ' + new Date(h.data_emissao).toLocaleDateString('pt-BR') : ''}
           · Téc.: ${esc(h.tecnico)}</span>
       </span>
-      ${h.status === 'emitido' ? '<span class="acoes"><button class="btn-mini">📄 PDF</button></span>' : ''}
+      ${emPdf(h) || emAberto(h)
+        ? `<span class="acoes"><button class="btn-mini">${rotuloAcao(h)}</button></span>` : ''}
     </div>`).join('');
 }
 
