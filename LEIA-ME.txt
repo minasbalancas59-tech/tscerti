@@ -1,32 +1,27 @@
 ════════════════════════════════════════════════════════════════
- MODELO 4 — ENSAIOS EM DUAS FAIXAS
+ MODELO 4 — CORRIGE CERTIFICADO SAINDO EM DUAS PÁGINAS
  01/09/2026
 ════════════════════════════════════════════════════════════════
 
+O PROBLEMA
+──────────
+O ajuste anterior usou col.Item().Extend() para empurrar o texto
+legal até o pé da moldura. Só que o Extend() ocupa TODA a altura
+restante da página — não sobrou espaço para o próprio texto, que
+foi parar sozinho numa segunda página (visto no MB-2026/0094).
+
 O QUE MUDA
 ──────────
-O bloco ENSAIOS deixa de ser duas colunas lado a lado e passa a
-ter duas faixas empilhadas:
+· Extend() removido, com aviso no código para não se repetir.
+· A página passa a ser preenchida aumentando o conteúdo, que é
+  previsível:
+      padding da moldura ......... 4  -> 6
+      espaçamento entre caixas ... 3  -> 4
+      células das tabelas ........ 2 / 2,5 -> 3,5 / 4
+      campos do cabeçalho ........ 1,5 -> 2,5
 
-  ┌─────────────────────┬─────────────────────┐
-  │ SENSIBILIDADE       │ REPETIBILIDADE      │
-  ├─────────────────────┴─────────────────────┤
-  │ EXCENTRICIDADE (largura inteira)          │
-  └───────────────────────────────────────────┘
-
-· A excentricidade tem cinco posições e três diagramas, que
-  ficavam apertados em meia página. Os desenhos vão de 150 para
-  230 pt e a tabela ganha a largura toda.
-· A linha "Referência (pos. 1)" vai de 6,5 para 8 pt.
-
-COMPENSAÇÃO DE ALTURA
-─────────────────────
-Empilhar duas faixas gasta mais altura que duas colunas lado a
-lado. Para não voltar a estourar para a segunda página, parte do
-respiro do patch anterior foi devolvida:
-      padding da moldura ... 6 -> 5
-      espaçamento .......... 4 -> 3
-      células .............. 3,5 -> 2,5
+Continua valendo o que já tinha ficado bom: fonte 8 pt igual ao
+Modelo 1, "1 (ref.)" numa linha só e diagramas de 150 pt.
 
 Nenhum outro modelo é afetado.
 
@@ -36,14 +31,14 @@ COMANDOS
 Suba este .zip para /root/cert-saas pelo FileZilla e rode:
 
     cd /root/cert-saas
-    unzip -o modelo4-faixas.zip
-    git apply --check modelo4-faixas.patch
-    git apply modelo4-faixas.patch
+    unzip -o fix-modelo4-duas-paginas.zip
+    git apply --check fix-modelo4-duas-paginas.patch
+    git apply fix-modelo4-duas-paginas.patch
     git add -A
-    git commit -m "Modelo 4: ensaios em duas faixas"
+    git commit -m "Modelo 4: corrige certificado saindo em duas paginas"
     git push
     ./atualizar.sh --build
-    rm -f modelo4-faixas.zip
+    rm -f fix-modelo4-duas-paginas.zip
 
 Não há migration nesta atualização.
 (Se o unzip não estiver instalado: apt install unzip -y)
@@ -52,10 +47,9 @@ Não há migration nesta atualização.
 COMO CONFERIR
 ─────────────
 Regere o MB-2026/0094 no Modelo 4 — é o caso mais apertado, tem
-endereço de duas linhas. Confira:
-  · sensibilidade e repetibilidade lado a lado em cima;
-  · excentricidade sozinha embaixo, com os diagramas maiores;
-  · UMA página só.
+endereço longo que ocupa duas linhas. Deve sair em UMA página só,
+com o texto legal no pé.
 
-Se voltar a sair em duas páginas, avise: dá para reduzir mais os
-paddings ou diminuir os diagramas.
+Se ainda sobrar branco, dá para aumentar mais, mas com cuidado:
+cada aumento aproxima do limite da página e o risco é voltar a
+quebrar em duas.
