@@ -1486,9 +1486,9 @@ public static class GeradorPdf
                         .Rotate(-35).Text(marcaDagua)
                         .FontSize(120).Bold().FontColor("#20E53935");
 
-                page.Content().Border(1.2f).BorderColor(borda).Padding(6).Column(col =>
+                page.Content().Border(1.2f).BorderColor(borda).Padding(5).Column(col =>
                 {
-                    col.Spacing(4);
+                    col.Spacing(3);
 
                     // Helpers de caixa/campo do formulário
                     void Titulo(string s) => col.Item().Background(cinza).Border(0.7f)
@@ -1587,11 +1587,15 @@ public static class GeradorPdf
                             Campo(r.RelativeItem(9), "ORDEM DE SERVIÇO", d.OrdemServico!, true);
                     });
 
-                    // ── Ensaios: sensibilidade + repetibilidade | excentricidade ──
+                    // ── Ensaios em duas faixas ────────────────────────────
+                    // Cima: sensibilidade | repetibilidade, meio a meio.
+                    // Baixo: excentricidade na largura inteira — a tabela tem
+                    // cinco posições e três diagramas, que ficavam apertados
+                    // espremidos em meia página. João, 01/09/2026.
                     Titulo("E N S A I O S");
                     col.Item().Border(0.5f).BorderColor(borda).Row(row =>
                     {
-                        // Coluna esquerda
+                        // Sensibilidade (esquerda)
                         row.RelativeItem().BorderRight(0.5f).BorderColor(borda).Column(c =>
                         {
                             c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
@@ -1620,7 +1624,12 @@ public static class GeradorPdf
                                 c.Item().Padding(2).AlignCenter().Text(
                                     d.FazSensibilidade ? "—" : "Não aplicável").FontSize(6.5f).Italic();
 
-                            c.Item().Background(cinza).BorderTop(0.5f).BorderBottom(0.5f).BorderColor(borda)
+                        });
+
+                        // Repetibilidade (direita)
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
                              .Padding(1.5f).AlignCenter().Text("REPETIBILIDADE").FontSize(6).Bold();
                             if (d.Repetibilidade.Count > 0)
                             {
@@ -1648,9 +1657,11 @@ public static class GeradorPdf
                                 });
                             }
                         });
+                    });
 
-                        // Coluna direita — excentricidade
-                        row.RelativeItem().Column(c =>
+                    // ── Excentricidade: largura inteira ──
+                    col.Item().Border(0.5f).BorderColor(borda).Column(c =>
+                    {
                         {
                             c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
                              .Padding(1.5f).AlignCenter().Text("EXCENTRICIDADE").FontSize(6).Bold();
@@ -1664,11 +1675,11 @@ public static class GeradorPdf
                                     if (d.Excentricidade.Count > 0)
                                         rr.RelativeItem().AlignMiddle().PaddingLeft(3).Text(
                                             $"Referência (pos. 1): {V(d.Excentricidade[0].Indicacao)} {d.Unidade}")
-                                          .FontSize(6.5f);
+                                          .FontSize(8);
                                     var des = DesenhoExcPng(cor);
                                     if (des is not null)
-                                        rr.ConstantItem(150).PaddingVertical(2)
-                                          .Height(150f * 240f / 820f).Image(des).FitArea();
+                                        rr.ConstantItem(230).PaddingVertical(2)
+                                          .Height(230f * 240f / 820f).Image(des).FitArea();
                                 });
                                 c.Item().Table(t =>
                                 {
@@ -1685,7 +1696,7 @@ public static class GeradorPdf
                                     foreach (var l in d.Excentricidade)
                                     {
                                         void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
-                                            .BorderColor(borda).Padding(3.5f).AlignCenter().Text(s)
+                                            .BorderColor(borda).Padding(2.5f).AlignCenter().Text(s)
                                             .FontSize(8).FontColor(fc ?? "#1c2b33");
                                         C(pos == 1 ? "1 (ref.)" : pos.ToString());
                                         if (excComAntes) C(l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes));
@@ -1733,7 +1744,7 @@ public static class GeradorPdf
                         {
                             var l = d.Indicacao[i4];
                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
-                                .Padding(3.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
+                                .Padding(2.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
                             if (ehCiclo4) C(sentidos4[i4], "#667");
                             C(V(l.Carga));
                             if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
