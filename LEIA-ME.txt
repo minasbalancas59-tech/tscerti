@@ -1,95 +1,55 @@
 ════════════════════════════════════════════════════════════════
- INCERTEZA DE MEDIÇÃO — CONFORME GUM / NIT-DICLA-021 / ILAC-P14
+ CORRIGE O BUILD QUEBRADO PELO PATCH DA INCERTEZA
  02/09/2026
 ════════════════════════════════════════════════════════════════
 
-Contém DOIS commits: a retirada do ± com arredondamento para cima
-(pedido anterior) e agora as regras completas de apresentação.
+O PROBLEMA
+──────────
+O patch anterior (incerteza-norma) quebrou o build do worker:
 
-REGRAS IMPLEMENTADAS
+    GeradorPdf.cs(1825,70): error CS0103:
+    The name 'casasU3' does not exist in the current context
+
+CAUSA
+─────
+A linha que formata a incerteza era idêntica nos Modelos 3 e 4. A
+substituição atingiu as duas, então o Modelo 4 passou a apontar para
+casasU3 — variável que só existe no Modelo 3. Por tabela, o restante
+do bloco do Modelo 4 não chegou a receber as casas da coluna.
+
+O QUE ESTE PATCH FAZ
 ────────────────────
-1. U com no máximo DOIS ALGARISMOS SIGNIFICATIVOS
-   (GUM 7.2.6, NIT-DICLA-021 A.6.3, ILAC-P14).
-   Antes usávamos "divisão + 1 casa", que em balança de divisão
-   grossa dava três algarismos — a rodoviária saía ± 12,4.
+· Modelo 4 passa a usar casasU4 (a própria) na incerteza e também
+  em carga, indicação, erro e EMA — que era o que faltava.
+· Remove a função local VU, que ficou sem uso (aviso CS8321).
 
-2. Arredondamento sempre PARA CIMA.
-   O GUM ilustra 10,47 mΩ → 11 mΩ. Arredondar para baixo reduz a
-   incerteza declarada e é tratado como declaração falsa.
+SITUAÇÃO DO SEU SERVIDOR
+────────────────────────
+O commit quebrado já está aplicado e no GitHub, e o worker está
+rodando com a imagem ANTIGA (o build falhou, então o container não
+foi trocado). Nenhum PDF novo saiu com as regras novas ainda.
 
-3. O RESULTADO HERDA AS CASAS DE U.
-   Carga, indicação e erro passam a usar as mesmas casas da coluna
-   de incerteza (exemplo do GUM: U = 0,027 → y = 10,058).
-
-4. COERÊNCIA COM A RESOLUÇÃO d.
-   Nunca mais casas que o d da balança. Uma 50 kg/10 g deixa de
-   publicar 0,0072.
-
-5. CASAS DA COLUNA PELA MAIOR U DA TABELA.
-   Todas as linhas com o mesmo número de casas, sem misturar
-   precisões nem desalinhar.
-
-6. SAI O ± DO EMA.
-   Erro máximo admissível é tolerância de classe, não incerteza.
-   O checklist da CGCRE lista "± aplicado a tolerância de classe"
-   como não-conformidade. (Na conversa eu tinha dito o contrário —
-   o documento que você trouxe corrigiu isso.)
-
-
-O QUE MUDA NA PRÁTICA
-─────────────────────
-  MB-2026/0094 (e = 0,05):
-      antes   ± 0,041          depois   0,05
-  Tripla escala (e = 0,002/0,005/0,010):
-      antes   ± 0,0016 / 0,0041 / 0,0084
-      depois  0,002 / 0,005 / 0,009
-  Rodoviária (e = 1 kg):
-      antes   ± 12,4           depois   13
-
-Repare no primeiro caso: com d = 0,05 a incerteza é limitada a duas
-casas e 0,0414 sobe para 0,05. É o que a regra 4 determina e é o
-que o código de referência do seu documento faz. Se preferir manter
-a terceira casa nesse caso, é só avisar — mas aí a regra 4 deixa de
-valer e isso precisa estar documentado no procedimento de vocês.
-
-
-⚠ PENDENTE — NÃO COBERTO POR ESTE PATCH
-────────────────────────────────────────
-Os modelos comuns (1 a 4) declaram k = 2 e veff = ∞ FIXOS. Só o
-modelo RBC calcula Welch-Satterthwaite de verdade.
-
-Seu documento aponta isso como não-conformidade: se veff for baixo,
-k = 2 não corresponde a 95% e o certificado tem que declarar o k
-real e o veff. Deixei um comentário no código marcando o ponto.
-
-Corrigir exige mexer no CÁLCULO (Metrologia.IncertezaExpandida),
-não só na apresentação — por isso não entrou aqui. Vale decidir com
-a Regiane se os modelos comuns devem passar a calcular veff.
+Não precisa reverter: este patch aplica por cima e conserta.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o incerteza-norma.zip
-    git apply --check incerteza-norma.patch
-    git apply incerteza-norma.patch
+    unzip -o fix-casasu-modelo4.zip
+    git apply --check fix-casasu-modelo4.patch
+    git apply fix-casasu-modelo4.patch
     git add -A
-    git commit -m "Incerteza conforme GUM 7.2.6, NIT-DICLA-021 e ILAC-P14"
+    git commit -m "Corrige erro de compilacao: casasU3 usada no Modelo 4"
     git push
     ./atualizar.sh --build
-    rm -f incerteza-norma.zip
+    rm -f fix-casasu-modelo4.zip
 
-Não há migration. Se você já aplicou o "incerteza-sem-sinal.patch",
-avise antes de rodar — este pacote contém aquele commit também.
+Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-Regere o MB-2026/0094 e um certificado de tripla escala. Confira:
-  · coluna Incerteza sem ± e com no máximo 2 algarismos;
-  · coluna EMA também sem ±;
-  · carga, indicação e erro com as mesmas casas da incerteza;
-  · todas as linhas da tabela com o mesmo número de casas.
-
-Os valores gravados no banco não mudam — só a forma de exibir.
-Certificados já emitidos só mudam se forem regerados.
+O build tem que terminar SEM erro. Depois regere um certificado em
+cada modelo (1, 2, 3, 4 e RBC) e confira a coluna Incerteza: sem ±,
+no máximo 2 algarismos significativos, e carga/indicação/erro com as
+mesmas casas.

@@ -1535,7 +1535,6 @@ public static class GeradorPdf
         const string cinza = "#eef3f1";
         var casas = d.CasasDecimais;
         string V(decimal? v) => Val(v, casas);
-        string VU(decimal? v) => Val(v, casas + 1);   // incerteza: 1 casa a mais
 
         string vencimento = (d.DataCalibracao is not null && d.PeriodicidadeMeses > 0)
             ? d.DataCalibracao.Value.AddMonths(d.PeriodicidadeMeses).ToString("dd/MM/yyyy")
@@ -1818,12 +1817,12 @@ public static class GeradorPdf
                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
                                 .Padding(2.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
                             if (ehCiclo4) C(sentidos4[i4], "#667");
-                            C(V(l.Carga));
-                            if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
-                            C(l.SemLeitura ? "**" : V(l.Indicacao));
-                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
-                            C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU3));
-                            C(V(l.Ema));
+                            C(Val(l.Carga, casasU4));
+                            if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : Val(l.IndicacaoAntes, casasU4)));
+                            C(l.SemLeitura ? "**" : Val(l.Indicacao, casasU4));
+                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + Val(l.Erro, casasU4));
+                            C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU4));
+                            C(Val(l.Ema, casasU4));
                             C(l.Aprovado is null ? "—" : l.Aprovado.Value ? "Conforme" : "Não conforme",
                               l.Aprovado == false ? "#b02a37" : "#146c43");
                         }
