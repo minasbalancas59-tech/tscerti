@@ -1705,7 +1705,7 @@ public static class GeradorPdf
                         row.RelativeItem().Column(c =>
                         {
                             c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
-                             .Padding(1.5f).AlignCenter().Text("REPETIBILIDADE").FontSize(6).Bold();
+                             .Padding(1.5f).AlignCenter().Text($"REPETIBILIDADE ({d.Unidade})").FontSize(6).Bold();
                             if (d.Repetibilidade.Count > 0)
                             {
                                 // Grade de 2 colunas (1ª|3ª / 2ª|4ª …), como no formulário original
@@ -1744,7 +1744,7 @@ public static class GeradorPdf
                                 c.Item().Row(rr =>
                                 {
                                     if (d.Excentricidade.Count > 0)
-                                        rr.RelativeItem().AlignMiddle().PaddingLeft(3).Text(
+                                        rr.RelativeItem().AlignMiddle().AlignCenter().Text(
                                             $"Referência (pos. 1): {V(d.Excentricidade[0].Indicacao)} {d.Unidade}")
                                           .FontSize(8);
                                     var des = DesenhoExcPng(cor);

@@ -1,55 +1,40 @@
 ════════════════════════════════════════════════════════════════
- CORRIGE O BUILD QUEBRADO PELO PATCH DA INCERTEZA
+ MODELO 4 — UNIDADE NA REPETIBILIDADE E REFERÊNCIA CENTRALIZADA
  02/09/2026
 ════════════════════════════════════════════════════════════════
 
-O PROBLEMA
+O QUE MUDA
 ──────────
-O patch anterior (incerteza-norma) quebrou o build do worker:
+1. REPETIBILIDADE (kg)
+   A caixa ficou sem unidade quando removemos a legenda
+   "Carga aplicada: X kg · indicações em kg". A unidade volta no
+   próprio título da caixa, como já acontece nas outras.
 
-    GeradorPdf.cs(1825,70): error CS0103:
-    The name 'casasU3' does not exist in the current context
+2. "Referência (pos. 1): 40,00 kg" centralizada
+   Desde que a excentricidade passou a ocupar a faixa inteira, o
+   texto ficava colado na borda esquerda, com um vão grande até os
+   diagramas. Agora fica centralizado no espaço à esquerda deles.
 
-CAUSA
-─────
-A linha que formata a incerteza era idêntica nos Modelos 3 e 4. A
-substituição atingiu as duas, então o Modelo 4 passou a apontar para
-casasU3 — variável que só existe no Modelo 3. Por tabela, o restante
-do bloco do Modelo 4 não chegou a receber as casas da coluna.
-
-O QUE ESTE PATCH FAZ
-────────────────────
-· Modelo 4 passa a usar casasU4 (a própria) na incerteza e também
-  em carga, indicação, erro e EMA — que era o que faltava.
-· Remove a função local VU, que ficou sem uso (aviso CS8321).
-
-SITUAÇÃO DO SEU SERVIDOR
-────────────────────────
-O commit quebrado já está aplicado e no GitHub, e o worker está
-rodando com a imagem ANTIGA (o build falhou, então o container não
-foi trocado). Nenhum PDF novo saiu com as regras novas ainda.
-
-Não precisa reverter: este patch aplica por cima e conserta.
+Nenhum outro modelo é afetado.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-casasu-modelo4.zip
-    git apply --check fix-casasu-modelo4.patch
-    git apply fix-casasu-modelo4.patch
+    unzip -o modelo4-unidade-referencia.zip
+    git apply --check modelo4-unidade-referencia.patch
+    git apply modelo4-unidade-referencia.patch
     git add -A
-    git commit -m "Corrige erro de compilacao: casasU3 usada no Modelo 4"
+    git commit -m "Modelo 4: unidade na repetibilidade e referencia centralizada"
     git push
     ./atualizar.sh --build
-    rm -f fix-casasu-modelo4.zip
+    rm -f modelo4-unidade-referencia.zip
 
 Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-O build tem que terminar SEM erro. Depois regere um certificado em
-cada modelo (1, 2, 3, 4 e RBC) e confira a coluna Incerteza: sem ±,
-no máximo 2 algarismos significativos, e carga/indicação/erro com as
-mesmas casas.
+Regere um certificado no Modelo 4:
+  · título da caixa mostra "REPETIBILIDADE (kg)";
+  · "Referência (pos. 1)" centralizada, não colada à esquerda.
