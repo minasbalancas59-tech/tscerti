@@ -90,17 +90,40 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g,
 const fmt = n => n == null ? '—' :
   Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 // Formata respeitando as casas decimais da balança do ensaio atual
-function fmtU(n) {
+function fmtU(n, casas) {
   if (n == null) return '—';
-  const casas = plano?.casasDecimais ?? 3;
-  return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  const c = casas ?? (plano?.casasDecimais ?? 3);
+  return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c });
 }
-// Incerteza: exibida com UMA casa a mais que as leituras — ela precisa de
-// mais precisão que a menor divisão da balança (escala única ou múltipla)
-function fmtUInc(n) {
+// ── Incerteza conforme GUM 7.2.6 / NIT-DICLA-021 / ILAC-P14 ──
+// No máximo DOIS algarismos significativos (não casas decimais), sempre
+// arredondando PARA CIMA, e sem o sinal ±: U é positiva e o sinal pertence
+// à expressão do resultado (y ± U), não a uma célula de tabela. O resultado
+// herda as casas de U, e a coluna usa as casas da MAIOR U da tabela.
+// Mesmo critério do PDF (ArredondarU / CasasTabelaU / ValU).
+function arredondarCima(n, casas) {
+  const f = Math.pow(10, casas);
+  return Math.ceil(Math.abs(Number(n)) * f - 1e-12) / f;
+}
+function casasDeU(u, casasMax) {
+  u = Math.abs(Number(u));
+  if (!(u > 0)) return casasMax;
+  let expo = Math.floor(Math.log10(u));
+  let q = Math.pow(10, expo - 1);
+  let ur = Math.ceil(u / q - 1e-12) * q;
+  if (ur > 0 && Math.floor(Math.log10(ur)) > expo) expo++;
+  return Math.min(Math.max(0, -(expo - 1)), casasMax);
+}
+// Casas da coluna: as da MAIOR incerteza da tabela
+function casasTabelaU(lista, casasMax) {
+  const maior = Math.max(0, ...lista.map(v => Math.abs(Number(v)) || 0));
+  return maior > 0 ? casasDeU(maior, casasMax) : casasMax;
+}
+function fmtUInc(n, casas) {
   if (n == null) return '—';
-  const casas = (plano?.casasDecimais ?? 3) + 1;
-  return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  const c = casas ?? (plano?.casasDecimais ?? 3);
+  return arredondarCima(n, c)
+    .toLocaleString('pt-BR', { minimumFractionDigits: c, maximumFractionDigits: c });
 }
 // Unidades de massa são sempre minúsculas (kg, g, t) — normaliza na exibição
 const normUnid = u => (u || 'kg').toString().trim().toLowerCase();
@@ -3331,9 +3354,13 @@ async function abrirRevisao(id) {
   const un = normUnid(c.unidade);
   const fR = n => n == null ? '—' : Number(n).toLocaleString('pt-BR',
     { minimumFractionDigits: casasRev, maximumFractionDigits: casasRev });
-  // Incerteza com uma casa a mais que as leituras (mais precisão que a divisão)
-  const fRInc = n => n == null ? '—' : Number(n).toLocaleString('pt-BR',
-    { minimumFractionDigits: casasRev + 1, maximumFractionDigits: casasRev + 1 });
+  // Casas da coluna pela MAIOR incerteza da tabela (GUM 7.2.6); o resultado
+  // herda essas casas e a incerteza é arredondada para cima, sem ±
+  const casasCol = casasTabelaU((d.indicacao || []).map(x => x.incerteza), casasRev);
+  const fC = n => n == null ? '—' : Number(n).toLocaleString('pt-BR',
+    { minimumFractionDigits: casasCol, maximumFractionDigits: casasCol });
+  const fRInc = n => n == null ? '—' : arredondarCima(n, casasCol)
+    .toLocaleString('pt-BR', { minimumFractionDigits: casasCol, maximumFractionDigits: casasCol });
   const temAjuste = !!c.houve_ajuste;
 
   const linhaInd = l => `<tr>
@@ -3344,7 +3371,7 @@ async function abrirRevisao(id) {
     <td class="num">${l.sem_leitura
       ? '<span style="color:#b02a37;font-style:italic">sem leitura</span>' : fR(l.indicacao)}</td>
     <td class="num">${l.sem_leitura ? '—' : (l.erro > 0 ? '+' : '') + fR(l.erro)}</td>
-    <td class="num">${l.sem_leitura ? '—' : '± ' + fRInc(l.incerteza)}</td><td class="num">± ${fR(l.ema)}</td>
+    <td class="num">${l.sem_leitura ? '—' : fRInc(l.incerteza)}</td><td class="num">${fC(l.ema)}</td>
     <td>${l.aprovado == null ? '—' : l.aprovado
       ? '<span class="badge ok">Conforme</span>'
       : '<span class="badge rep">Não conforme</span>'}</td></tr>`;
@@ -13397,12 +13424,14 @@ async function enviarAprovacao() {
       <p class="dica" style="margin-top:14px">Resultado calculado pelo servidor (com incerteza, k=2):</p>
       <table><thead><tr><th>Carga</th><th>Indicação</th><th>Erro</th>
         <th>Incerteza</th><th>EMA</th><th>Status</th></tr></thead>
-      <tbody>${r.indicacao.map(p => `
-        <tr><td class="num">${fmtU(p.carga_aplicada)}</td>
-            <td class="num">${fmtU(p.indicacao)}</td>
-            <td class="num">${(p.erro > 0 ? '+' : '') + fmtU(p.erro)}</td>
-            <td class="num">± ${fmtUInc(p.incerteza)}</td>
-            <td class="num">± ${fmtU(p.ema)}</td>
+      <tbody>${(() => { window._casasU = casasTabelaU(
+          r.indicacao.map(p => p.incerteza), plano?.casasDecimais ?? 3); return ''; })()}
+        ${r.indicacao.map(p => `
+        <tr><td class="num">${fmtU(p.carga_aplicada, window._casasU)}</td>
+            <td class="num">${fmtU(p.indicacao, window._casasU)}</td>
+            <td class="num">${(p.erro > 0 ? '+' : '') + fmtU(p.erro, window._casasU)}</td>
+            <td class="num">${fmtUInc(p.incerteza, window._casasU)}</td>
+            <td class="num">${fmtU(p.ema, window._casasU)}</td>
             <td>${p.aprovado == null ? '—' : p.aprovado
               ? '<span class="badge ok">OK</span>'
               : '<span class="badge rep">&gt; EMA</span>'}</td></tr>`).join('')}

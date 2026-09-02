@@ -74,6 +74,69 @@ public static class GeradorPdf
     static string Val(decimal? v, int casas) => v is null ? "—" :
         v.Value.ToString("N" + casas, Pt);
 
+    /// <summary>
+    /// Arredonda a incerteza expandida U conforme GUM/JCGM 100:2008 cl. 7.2.6,
+    /// NIT-DICLA-021 A.6.3 e ILAC-P14: no máximo DOIS ALGARISMOS
+    /// SIGNIFICATIVOS (não casas decimais) e SEMPRE PARA CIMA — arredondar
+    /// para baixo reduz a incerteza declarada e é tratado como declaração
+    /// falsa em auditoria (o GUM ilustra 10,47 mΩ → 11 mΩ).
+    ///
+    /// Devolve o valor arredondado e quantas casas decimais ele exige; o
+    /// resultado (indicação, erro) herda essas casas, conforme o passo 3 do
+    /// GUM: y = 10,057 62 Ω com U = 0,027 Ω vira 10,058 Ω.
+    ///
+    /// casasMax limita pela resolução d da balança: a indicação é múltiplo
+    /// de d, então não faz sentido publicar mais casas que ela.
+    /// </summary>
+    static (decimal U, int Casas) ArredondarU(decimal u, int casasMax)
+    {
+        if (u <= 0) return (0m, 0);
+        // Expoente do 1º algarismo significativo; o passo q é a casa do 2º
+        var expo = (int)Math.Floor(Math.Log10((double)u));
+        var q = (decimal)Math.Pow(10, expo - 1);
+        var ur = Math.Ceiling(u / q) * q;
+        // 0,099 arredondado para cima vira 0,10: o expoente sobe e o passo muda
+        if (ur > 0 && (int)Math.Floor(Math.Log10((double)ur)) > expo)
+        {
+            expo++;
+            q = (decimal)Math.Pow(10, expo - 1);
+            ur = Math.Ceiling(u / q) * q;
+        }
+        var casas = Math.Max(0, -(expo - 1));
+        // Nunca mais casas que a resolução da balança
+        if (casas > casasMax)
+        {
+            casas = casasMax;
+            var f = (decimal)Math.Pow(10, casas);
+            ur = Math.Ceiling(u * f) / f;
+        }
+        return (ur, casas);
+    }
+
+    /// <summary>
+    /// Casas decimais da coluna de incerteza de uma tabela. Todas as linhas
+    /// usam as casas da MAIOR incerteza da tabela (NIT-DICLA-021), para a
+    /// coluna não sair desalinhada nem misturar precisões diferentes.
+    /// </summary>
+    static int CasasTabelaU(IEnumerable<decimal?> incertezas, int casasMax)
+    {
+        var maior = incertezas.Where(x => x is > 0).Select(x => x!.Value).DefaultIfEmpty(0m).Max();
+        return maior <= 0 ? casasMax : ArredondarU(maior, casasMax).Casas;
+    }
+
+    /// <summary>
+    /// Formata a incerteza com as casas já decididas para a coluna, sempre
+    /// arredondando para cima. Sem o sinal ±: U é uma grandeza positiva e o
+    /// sinal pertence à expressão do resultado (y ± U), nunca a uma célula
+    /// de tabela — o GUM 7.2.2 desaconselha e a NIT-DICLA-021 formaliza.
+    /// </summary>
+    static string ValU(decimal? v, int casas)
+    {
+        if (v is null) return "—";
+        var f = (decimal)Math.Pow(10, casas);
+        return (Math.Ceiling(Math.Abs(v.Value) * f) / f).ToString("N" + casas, Pt);
+    }
+
     // Texto do local da calibração conforme terminologia metrológica
     // Gera o desenho de excentricidade (retângulo com X + círculo, 5 posições
     // numeradas) como PNG via SkiaSharp. Cor das bolinhas = cor da marca.
@@ -415,6 +478,10 @@ public static class GeradorPdf
                         // com a seta do sentido. Ensaio só crescente não tem.
                         var sentidos = SentidosCiclo(d.Indicacao);
                         var ehCiclo = sentidos.Count > 0;
+                        // Casas da coluna de incerteza: 2 algarismos significativos
+                        // da MAIOR U da tabela, limitadas pela resolução. O erro e
+                        // a indicação herdam essas casas (GUM 7.2.6, passo 3).
+                        var casasU = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), d.CasasDecimais);
                         t.ColumnsDefinition(c =>
                         {
                             if (ehCiclo) c.ConstantColumn(16);        // ↑/↓
@@ -444,16 +511,21 @@ public static class GeradorPdf
                             if (ehCiclo)
                                 t.Cell().BorderBottom(0.5f).BorderColor("#e6e6e6").Padding(2.5f)
                                  .AlignCenter().Text(sentidos[iInd]).FontSize(8).FontColor("#667");
-                            C(Val(l.Carga, d.CasasDecimais) + (d.SubCargas != null && d.SubCargas.Contains(l.Carga) ? " *" : ""));
+                            C(Val(l.Carga, casasU) + (d.SubCargas != null && d.SubCargas.Contains(l.Carga) ? " *" : ""));
                             if (d.HouveAjuste) C(l.SemLeituraAntes ? "sem leitura **"
-                                : l.IndicacaoAntes is null ? "—" : Val(l.IndicacaoAntes, d.CasasDecimais));
+                                : l.IndicacaoAntes is null ? "—" : Val(l.IndicacaoAntes, casasU));
                             // Ponto SEM LEITURA: o visor nao indicou na carga (Joao, 22/08/2026)
-                            C(l.SemLeitura ? "sem leitura **" : Val(l.Indicacao, d.CasasDecimais));
-                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + Val(l.Erro, d.CasasDecimais));
-                            C(l.SemLeitura ? "—" : "± " + Val(l.Incerteza, d.CasasDecimais + 1));
-                            C("± " + Val(l.Ema, d.CasasDecimais));
+                            C(l.SemLeitura ? "sem leitura **" : Val(l.Indicacao, casasU));
+                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + Val(l.Erro, casasU));
+                            C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU));
+                            C(Val(l.Ema, casasU));
                             if (completo)
                             {
+                                // k e veff: o cálculo dos modelos comuns usa k = 2
+                                // fixo, sem Welch-Satterthwaite (só o RBC calcula
+                                // veff). Declarar "∞" aqui é uma simplificação:
+                                // se veff for baixo, k = 2 não corresponde a 95%.
+                                // Ver observação no LEIA-ME. João, 02/09/2026.
                                 C(l.SemLeitura ? "—" : "2,00"); C(l.SemLeitura ? "—" : "∞");
                                 // TUR = tolerância (EMA) / (2 × incerteza)
                                 var tur = (l.Ema is > 0 && l.Incerteza is > 0)
@@ -611,7 +683,10 @@ public static class GeradorPdf
                         c.Item().Text(t =>
                         {
                             t.Span("Incerteza de medição: ").Bold();
-                            t.Span("declarada para fator de abrangência k = 2, correspondente a nível de confiança de aproximadamente 95%, conforme o GUM.");
+                            t.Span("a incerteza expandida (U) declarada é a listada na coluna Incerteza; "
+                                 + "o resultado de cada ponto deve ser entendido como indicação ± U. "
+                                 + "Fator de abrangência k = 2, correspondente a nível de confiança de "
+                                 + "aproximadamente 95%, conforme o GUM.");
                         });
                         if (d.TextoPeriodicidade is not null)
                             c.Item().Text(d.TextoPeriodicidade).FontSize(8).Italic();
@@ -830,6 +905,7 @@ public static class GeradorPdf
                             d.Indicacao.Any(x => x.IndicacaoAntes is not null || x.SemLeituraAntes);
                         var sentidos3 = SentidosCiclo(d.Indicacao);
                         var ehCiclo3 = sentidos3.Count > 0;
+                        var casasU3 = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), casas);
                         t.ColumnsDefinition(c =>
                         {
                             if (ehCiclo3) c.ConstantColumn(13);         // ↑/↓
@@ -859,8 +935,8 @@ public static class GeradorPdf
                             // Ponto SEM LEITURA (Joao, 22/08/2026)
                             C(l.SemLeitura ? "sem leitura **" : V(l.Indicacao));
                             C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
-                            C(l.SemLeitura ? "—" : "± " + Val(l.Incerteza, casas + 1));
-                            C("± " + V(l.Ema));
+                            C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU3));
+                            C(V(l.Ema));
                             C(l.SemLeitura ? "—" : "2,00"); C(l.SemLeitura ? "—" : "∞");
                             var tur = (l.Ema is > 0 && l.Incerteza is > 0)
                                 ? (double)l.Ema.Value / (2.0 * (double)l.Incerteza.Value) : 0;
@@ -1223,7 +1299,7 @@ public static class GeradorPdf
                                     ? Val(l.USub, d.CasasDecimais) + " *" : Val(l.USub, d.CasasDecimais));
                                 C2(Val(l.UC, d.CasasDecimais));
                                 C2(l.K.ToString("0.00", Pt));
-                                C2("± " + Val(l.U, d.CasasDecimais));
+                                C2(Val(l.U, d.CasasDecimais));
                             }
                         });
                         if (r.Resultados.Any(x => x.DegrausSub is > 0))
@@ -1256,7 +1332,7 @@ public static class GeradorPdf
                             C(Val(l.Carga, d.CasasDecimais));
                             C(Val(l.Media, casasU));
                             C((l.Erro > 0 ? "+" : "") + Val(l.Erro, casasU));
-                            C("± " + Val(l.U, casasU));
+                            C(ValU(l.U, casasU));
                             C(Val(l.K, 2));
                         }
                     });
@@ -1714,6 +1790,7 @@ public static class GeradorPdf
                            .FontSize(5.5f).Italic().FontColor("#667");
                     var sentidos4 = SentidosCiclo(d.Indicacao);
                     var ehCiclo4 = sentidos4.Count > 0;
+                    var casasU4 = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), casas);
                     col.Item().Table(t =>
                     {
                         t.ColumnsDefinition(c =>
@@ -1745,8 +1822,8 @@ public static class GeradorPdf
                             if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
                             C(l.SemLeitura ? "**" : V(l.Indicacao));
                             C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
-                            C(l.SemLeitura ? "—" : "± " + VU(l.Incerteza));
-                            C("± " + V(l.Ema));
+                            C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU3));
+                            C(V(l.Ema));
                             C(l.Aprovado is null ? "—" : l.Aprovado.Value ? "Conforme" : "Não conforme",
                               l.Aprovado == false ? "#b02a37" : "#146c43");
                         }
@@ -1798,7 +1875,9 @@ public static class GeradorPdf
                             c.Item().Padding(2).Text(string.IsNullOrWhiteSpace(d.TextoPeriodicidade)
                                 ? "Não aplicável" : d.TextoPeriodicidade).FontSize(6.5f);
                             c.Item().PaddingHorizontal(2).PaddingBottom(2).Text(
-                                "Incerteza de medição declarada para fator de abrangência k = 2, correspondente a nível de confiança de aproximadamente 95%, conforme o GUM.")
+                                "Incerteza expandida (U) listada na coluna Incerteza; o resultado de cada "
+                              + "ponto deve ser entendido como indicação ± U. Fator de abrangência k = 2, "
+                              + "correspondente a nível de confiança de aproximadamente 95%, conforme o GUM.")
                                 .FontSize(5.5f).FontColor("#667");
                         });
                     });
