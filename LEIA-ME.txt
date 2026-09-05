@@ -1,48 +1,47 @@
 ════════════════════════════════════════════════════════════════
- CORRIGE A TELA "USO DO DIA"
+ CORRIGE "USO DO DIA" TRAVADO EM "CARREGANDO…"
  05/09/2026
 ════════════════════════════════════════════════════════════════
 
-O ERRO
-──────
-  GET /api/sa/uso-dia
-  42883: function sa_uso_dia(timestamp without time zone)
-         does not exist
+O PROBLEMA
+──────────
+A tela abria e ficava parada em "Carregando…", sem erro na tela.
 
-CAUSA — não é a migration
-─────────────────────────
-A função existe. O que não bate é o TIPO do parâmetro: o Npgsql
-envia DateTime como "timestamp without time zone", e o Postgres não
-converte implicitamente para date ao decidir qual função chamar.
+CAUSA
+─────
+A coluna jsonb com a lista de usuários chega como STRING pelo
+Dapper, não como array. O .map() sobre ela estourava — e como isso
+acontecia DEPOIS do try/catch que cobria só a busca na API, a
+exceção ia para o console e a tela ficava congelada.
 
-Corrigido com cast explícito: sa_uso_dia(@dia::date)
+Esse é o pior tipo de falha: não dá nenhuma pista de onde olhar.
 
-Se a migration 153 ainda não tiver rodado, o erro seria o mesmo —
-então confirme, por garantia:
+O QUE MUDA
+──────────
+1. Converte a string para array antes de usar (aceitando também
+   array puro, caso o mapeamento mude um dia).
+2. Envolve a montagem da tela inteira em try/catch, para que
+   qualquer falha futura apareça escrita na tela em vez de deixar
+   o "Carregando…" eterno.
 
-    docker compose exec -T db psql -U certsaas -d certsaas \
-      -c "\df sa_uso_dia"
-
-Deve listar a função. Se não listar, rode a migration antes:
-
-    docker compose exec -T db psql -U certsaas -d certsaas \
-      < db/seed/153_uso_diario.sql
+Só o app.js muda — nada de migration nem de backend.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-uso-dia-tipo.zip
-    git apply --check fix-uso-dia-tipo.patch
-    git apply fix-uso-dia-tipo.patch
+    unzip -o fix-uso-dia-carregando.zip
+    git apply --check fix-uso-dia-carregando.patch
+    git apply fix-uso-dia-carregando.patch
     git add -A
-    git commit -m "Corrige o tipo do parametro em sa_uso_dia"
+    git commit -m "Corrige tela de uso do dia travada em Carregando"
     git push
     ./atualizar.sh --build
-    rm -f fix-uso-dia-tipo.zip
+    rm -f fix-uso-dia-carregando.zip
 
 
 COMO CONFERIR
 ─────────────
-Abra "📅 Uso do dia" no painel do super-admin. Deve listar os
-acessos de hoje, e trocar a data deve funcionar.
+Abra "📅 Uso do dia". Deve listar as empresas com os nomes dos
+usuários que acessaram. Ctrl+Shift+R antes, para o navegador pegar
+o app.js novo.

@@ -5321,6 +5321,15 @@ async function renderUsoDiaSA(dia) {
     ]);
   } catch (e) { $('#sa-conteudo').innerHTML = `<p class="erro">${esc(e.message)}</p>`; return; }
 
+  // A coluna jsonb chega como STRING pelo Dapper, não como array —
+  // sem esta conversão o .map() abaixo estoura e a tela fica travada
+  // em "Carregando…". João, 05/09/2026.
+  const usuariosDe = x => {
+    const v = x.usuarios;
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') { try { return JSON.parse(v) || []; } catch { return []; } }
+    return [];
+  };
   const hora = t => t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
   const dataBr = t => t ? new Date(t).toLocaleDateString('pt-BR') : 'nunca';
   const trial = lista.filter(x => x.plano === 'trial');
@@ -5341,11 +5350,12 @@ async function renderUsoDiaSA(dia) {
           · das ${hora(x.primeiro_acesso)} às ${hora(x.ultimo_acesso)}
           ${x.certificados_dia > 0 ? ` · <b>${x.certificados_dia} calibração${x.certificados_dia === 1 ? '' : 'ões'}</b>` : ' · nenhuma calibração'}
         </span><br>
-        <span class="dica">${(x.usuarios || []).map(u =>
+        <span class="dica">${usuariosDe(x).map(u =>
           `${esc(u.nome)}${u.acessos > 1 ? ` (${u.acessos}×)` : ''}`).join(' · ') || '—'}</span>
       </span>
     </div>`;
 
+  try {
   $('#sa-conteudo').innerHTML = `
     <div class="barra">
       <h2>Uso do dia</h2>
@@ -5387,6 +5397,12 @@ async function renderUsoDiaSA(dia) {
               · cadastrada em ${dataBr(x.criada_em)}</span>
           </span>
         </div>`).join('')}`;
+  } catch (e) {
+    // Sem isto, uma falha aqui deixaria a tela parada em "Carregando…"
+    $('#sa-conteudo').innerHTML = `<p class="erro">Erro ao montar a tela: ${esc(e.message)}</p>
+      <button onclick="renderSA()">← Voltar</button>`;
+    console.error(e);
+  }
 }
 
 async function renderLoginsSA(filtros = {}) {
