@@ -4590,6 +4590,7 @@ async function renderPainelSA() {
           ? ` <span style="background:#b02a37;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${chamados.abertos}</span>` : ''}</button>
         <button onclick="renderErrosSA()">🐞 Erros${erros.abertos > 0
           ? ` <span style="background:#b02a37;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${erros.abertos}</span>` : ''}</button>
+        <button onclick="renderUsoDiaSA()">📅 Uso do dia</button>
         <button onclick="renderLoginsSA()">🔑 Logins</button>
         <button onclick="renderUsuariosLogSA()">👥 Usuários</button>
         <button onclick="renderPainelEmailSA()">📊 Painel de e-mails</button>
@@ -5302,6 +5303,91 @@ const PAPEL_ROTULO = {
 };
 
 let _saEmpresasFiltro = null;
+
+// ── Uso do dia ────────────────────────────────────────────────
+// Quem entrou no sistema num dia, agrupado por empresa. As em trial
+// aparecem primeiro: é onde a falta de acesso indica que o cliente não
+// engatou. Traz junto a lista de quem sumiu. João, 05/09/2026.
+async function renderUsoDiaSA(dia) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  dia = dia || hoje;
+  $('#sa-conteudo').innerHTML = '<p class="dica">Carregando…</p>';
+
+  let lista, sumidas;
+  try {
+    [lista, sumidas] = await Promise.all([
+      saApi('/uso-dia?dia=' + dia),
+      saApi('/sem-acesso?dias=7')
+    ]);
+  } catch (e) { $('#sa-conteudo').innerHTML = `<p class="erro">${esc(e.message)}</p>`; return; }
+
+  const hora = t => t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  const dataBr = t => t ? new Date(t).toLocaleDateString('pt-BR') : 'nunca';
+  const trial = lista.filter(x => x.plano === 'trial');
+  const totUsuarios = lista.reduce((a, x) => a + (x.usuarios_ativos || 0), 0);
+  const totCerts = lista.reduce((a, x) => a + (x.certificados_dia || 0), 0);
+
+  const cartao = x => `
+    <div class="item-cert" style="align-items:flex-start;${x.plano === 'trial' ? 'border-left:3px solid #d68910' : ''}">
+      <span style="flex:1">
+        <b>${esc(x.empresa)}</b>
+        ${x.plano === 'trial' ? '<span class="st st-rascunho">trial</span>' : ''}
+        ${x.empresa_status !== 'ativa' ? `<span class="st st-cancelado">${esc(x.empresa_status)}</span>` : ''}
+        <br>
+        <span class="dica">
+          ${x.usuarios_ativos} usuário${x.usuarios_ativos === 1 ? '' : 's'} ·
+          ${x.total_logins} acesso${x.total_logins === 1 ? '' : 's'}
+          ${x.falhas > 0 ? ` · <span style="color:#b02a37">${x.falhas} falha${x.falhas === 1 ? '' : 's'}</span>` : ''}
+          · das ${hora(x.primeiro_acesso)} às ${hora(x.ultimo_acesso)}
+          ${x.certificados_dia > 0 ? ` · <b>${x.certificados_dia} calibração${x.certificados_dia === 1 ? '' : 'ões'}</b>` : ' · nenhuma calibração'}
+        </span><br>
+        <span class="dica">${(x.usuarios || []).map(u =>
+          `${esc(u.nome)}${u.acessos > 1 ? ` (${u.acessos}×)` : ''}`).join(' · ') || '—'}</span>
+      </span>
+    </div>`;
+
+  $('#sa-conteudo').innerHTML = `
+    <div class="barra">
+      <h2>Uso do dia</h2>
+      <div class="barra-btns">
+        <input type="date" id="uso-dia" value="${dia}" max="${hoje}"
+               onchange="renderUsoDiaSA(this.value)">
+        <button onclick="renderUsoDiaSA('${hoje}')">Hoje</button>
+        <button onclick="renderSA()">← Voltar</button>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><span class="kpi-num">${lista.length}</span><span class="kpi-rotulo">Empresas ativas no dia</span></div>
+      <div class="kpi"><span class="kpi-num kpi-atencao">${trial.length}</span><span class="kpi-rotulo">Delas em trial</span></div>
+      <div class="kpi"><span class="kpi-num">${totUsuarios}</span><span class="kpi-rotulo">Usuários distintos</span></div>
+      <div class="kpi"><span class="kpi-num">${totCerts}</span><span class="kpi-rotulo">Calibrações criadas</span></div>
+    </div>
+
+    ${trial.length ? `<h4 style="margin-top:16px">Em trial — acessaram</h4>${trial.map(cartao).join('')}` : ''}
+
+    ${lista.filter(x => x.plano !== 'trial').length
+      ? `<h4 style="margin-top:16px">Demais empresas</h4>
+         ${lista.filter(x => x.plano !== 'trial').map(cartao).join('')}`
+      : ''}
+
+    ${lista.length === 0 ? '<p class="dica">Nenhum acesso registrado neste dia.</p>' : ''}
+
+    <h4 style="margin-top:22px">Sem acessar há mais de 7 dias</h4>
+    ${sumidas.length === 0
+      ? '<p class="dica">Todas as empresas ativas acessaram na última semana.</p>'
+      : sumidas.map(x => `
+        <div class="item-cert" style="${x.plano === 'trial' ? 'border-left:3px solid #b02a37' : ''}">
+          <span>
+            <b>${esc(x.empresa)}</b>
+            ${x.plano === 'trial' ? '<span class="st st-rascunho">trial</span>' : ''}<br>
+            <span class="dica">Último acesso: ${dataBr(x.ultimo_acesso)}
+              ${x.dias_sem_acesso != null ? ` (há ${x.dias_sem_acesso} dias)` : ''}
+              · ${x.certificados} calibração${x.certificados === 1 ? '' : 'ões'} no total
+              · cadastrada em ${dataBr(x.criada_em)}</span>
+          </span>
+        </div>`).join('')}`;
+}
 
 async function renderLoginsSA(filtros = {}) {
   window._saLoginFiltros = filtros;

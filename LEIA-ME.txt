@@ -1,61 +1,71 @@
 ════════════════════════════════════════════════════════════════
- DOIS ERROS DE BANCO QUE APARECIAM NA TELA DO USUÁRIO
+ PAINEL SA — TELA "USO DO DIA"
  05/09/2026
 ════════════════════════════════════════════════════════════════
 
-ERRO 1 — 8 ocorrências · IMPERIUM SOLUÇÕES EM PESAGEM
-──────────────────────────────────────────────────────
-  PUT /api/balancas/...
-  23505: duplicate key value violates unique constraint
-         "uq_balanca_cliente_num_serie"
+O QUE É
+───────
+Nova aba no painel do super-admin, ao lado de "Logins", mostrando
+quem entrou no sistema num dia — agrupado por empresa.
 
-O cadastro NOVO de balança já capturava esse erro e devolvia
-"Já existe uma balança deste cliente com o número de série X".
-A EDIÇÃO não capturava — o erro cru do Postgres chegava à tela.
+As empresas em TRIAL aparecem destacadas e em primeiro lugar, que
+é onde o acompanhamento importa mais.
 
-As 8 tentativas seguidas em 10 minutos sugerem que o usuário
-tentou várias vezes sem entender o que estava errado.
+POR EMPRESA VOCÊ VÊ
+───────────────────
+  · quantos usuários distintos entraram
+  · total de acessos e quantas tentativas falharam
+  · primeiro e último horário do dia
+  · quantas calibrações foram criadas naquele dia
+  · os nomes de quem entrou (com o nº de acessos de cada um)
 
-Agora a edição devolve:
-  "Já existe outra balança deste cliente com o número de série X.
-   Verifique se o equipamento não está cadastrado em duplicidade."
+E O CONTRÁRIO TAMBÉM
+────────────────────
+No fim da tela: "Sem acessar há mais de 7 dias" — empresas ativas
+que sumiram, com a data do último acesso e quantas calibrações
+emitiram no total.
+
+Esse é o indicador que realmente antecipa abandono: uma empresa em
+trial que parou de entrar não vira cliente.
+
+SELETOR DE DATA
+───────────────
+Botão "Hoje" e um campo de data para olhar qualquer dia anterior.
 
 
-ERRO 2 — 1 ocorrência · BALANCAS NOVA GOIAS
-────────────────────────────────────────────
-  PUT /api/certificados/.../edicao-manual
-  23502: null value in column "adicao" of relation
-         "ensaio_sensibilidade" violates not-null constraint
-
-Já existia validação para carga_referencia, criada em 16/08 após
-ocorrência parecida na mesma empresa — mas só para aquele campo.
-Os outros dois NOT NULL da tabela ficaram de fora.
-
-Agora valida também:
-  · adicao            → "Informe a adição de uma divisão (e)..."
-  · resultado_display → "Informe o resultado indicado no display..."
+DE ONDE VÊM OS DADOS
+────────────────────
+Do log_auditoria, que já registrava login_ok / login_falha /
+login_bloqueado desde sempre. Nenhuma coleta nova precisou ser
+criada — os dados históricos já estão lá e a tela funciona desde o
+primeiro dia com todo o histórico existente.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-erros-banco.zip
-    git apply --check fix-erros-banco.patch
-    git apply fix-erros-banco.patch
+    unzip -o painel-uso-diario.zip
+    git apply --check painel-uso-diario.patch
+    git apply painel-uso-diario.patch
+
+    docker compose exec -T db psql -U certsaas -d certsaas \
+        < db/seed/153_uso_diario.sql
+
     git add -A
-    git commit -m "Trata dois erros de banco que estouravam na tela"
+    git commit -m "Painel SA: tela de uso diario"
     git push
     ./atualizar.sh --build
-    rm -f fix-erros-banco.zip
+    rm -f painel-uso-diario.zip
 
-Não há migration. Só a API precisa recompilar, mas o atualizar.sh
-já refaz as duas imagens.
+⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build — ela cria as
+  funções sa_uso_dia e sa_trial_sem_acesso. Sem ela a tela abre
+  com erro.
 
 
 COMO CONFERIR
 ─────────────
-· Edite uma balança colocando um número de série que já existe em
-  outra balança do MESMO cliente: deve aparecer a mensagem, não um
-  erro técnico.
-· Na edição manual de um certificado, apague a adição da
-  sensibilidade e salve: deve pedir o preenchimento.
+Entre como super-admin e clique em "📅 Uso do dia". Deve listar os
+acessos de hoje. Troque a data para ontem e confira se muda.
+
+Se aparecer "function sa_uso_dia does not exist", a migration não
+rodou.

@@ -1190,6 +1190,26 @@ public static class SuperAdminEndpoints
                 new { busca, empresa, papel, resultado, de, ate }));
         });
 
+        // Uso diário: quem entrou no sistema no dia, agrupado por empresa.
+        // Acompanha a adoção — sobretudo das empresas em trial.
+        g.MapGet("/uso-dia", async (DateTime? dia, ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            if (!Ok(user)) return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            return Results.Ok(await conn.QueryAsync(
+                "SELECT * FROM sa_uso_dia(@dia)",
+                new { dia = dia?.Date ?? DateTime.Today }));
+        });
+
+        // O outro lado: empresas ativas que sumiram — o sinal de abandono
+        g.MapGet("/sem-acesso", async (int? dias, ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            if (!Ok(user)) return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            return Results.Ok(await conn.QueryAsync(
+                "SELECT * FROM sa_trial_sem_acesso(@dias)", new { dias = dias ?? 7 }));
+        });
+
         // Empresas para o seletor do filtro
         g.MapGet("/empresas-filtro", async (ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
