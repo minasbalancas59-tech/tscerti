@@ -1196,8 +1196,11 @@ public static class SuperAdminEndpoints
         {
             if (!Ok(user)) return Results.Forbid();
             await using var conn = await ds.OpenConnectionAsync();
+            // O ::date é necessário: o Npgsql envia DateTime como
+            // "timestamp without time zone" e o Postgres não faz a conversão
+            // implícita ao resolver a função, que recebe date.
             return Results.Ok(await conn.QueryAsync(
-                "SELECT * FROM sa_uso_dia(@dia)",
+                "SELECT * FROM sa_uso_dia(@dia::date)",
                 new { dia = dia?.Date ?? DateTime.Today }));
         });
 

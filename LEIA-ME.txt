@@ -1,71 +1,48 @@
 ════════════════════════════════════════════════════════════════
- PAINEL SA — TELA "USO DO DIA"
+ CORRIGE A TELA "USO DO DIA"
  05/09/2026
 ════════════════════════════════════════════════════════════════
 
-O QUE É
-───────
-Nova aba no painel do super-admin, ao lado de "Logins", mostrando
-quem entrou no sistema num dia — agrupado por empresa.
+O ERRO
+──────
+  GET /api/sa/uso-dia
+  42883: function sa_uso_dia(timestamp without time zone)
+         does not exist
 
-As empresas em TRIAL aparecem destacadas e em primeiro lugar, que
-é onde o acompanhamento importa mais.
+CAUSA — não é a migration
+─────────────────────────
+A função existe. O que não bate é o TIPO do parâmetro: o Npgsql
+envia DateTime como "timestamp without time zone", e o Postgres não
+converte implicitamente para date ao decidir qual função chamar.
 
-POR EMPRESA VOCÊ VÊ
-───────────────────
-  · quantos usuários distintos entraram
-  · total de acessos e quantas tentativas falharam
-  · primeiro e último horário do dia
-  · quantas calibrações foram criadas naquele dia
-  · os nomes de quem entrou (com o nº de acessos de cada um)
+Corrigido com cast explícito: sa_uso_dia(@dia::date)
 
-E O CONTRÁRIO TAMBÉM
-────────────────────
-No fim da tela: "Sem acessar há mais de 7 dias" — empresas ativas
-que sumiram, com a data do último acesso e quantas calibrações
-emitiram no total.
+Se a migration 153 ainda não tiver rodado, o erro seria o mesmo —
+então confirme, por garantia:
 
-Esse é o indicador que realmente antecipa abandono: uma empresa em
-trial que parou de entrar não vira cliente.
+    docker compose exec -T db psql -U certsaas -d certsaas \
+      -c "\df sa_uso_dia"
 
-SELETOR DE DATA
-───────────────
-Botão "Hoje" e um campo de data para olhar qualquer dia anterior.
+Deve listar a função. Se não listar, rode a migration antes:
 
-
-DE ONDE VÊM OS DADOS
-────────────────────
-Do log_auditoria, que já registrava login_ok / login_falha /
-login_bloqueado desde sempre. Nenhuma coleta nova precisou ser
-criada — os dados históricos já estão lá e a tela funciona desde o
-primeiro dia com todo o histórico existente.
+    docker compose exec -T db psql -U certsaas -d certsaas \
+      < db/seed/153_uso_diario.sql
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o painel-uso-diario.zip
-    git apply --check painel-uso-diario.patch
-    git apply painel-uso-diario.patch
-
-    docker compose exec -T db psql -U certsaas -d certsaas \
-        < db/seed/153_uso_diario.sql
-
+    unzip -o fix-uso-dia-tipo.zip
+    git apply --check fix-uso-dia-tipo.patch
+    git apply fix-uso-dia-tipo.patch
     git add -A
-    git commit -m "Painel SA: tela de uso diario"
+    git commit -m "Corrige o tipo do parametro em sa_uso_dia"
     git push
     ./atualizar.sh --build
-    rm -f painel-uso-diario.zip
-
-⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build — ela cria as
-  funções sa_uso_dia e sa_trial_sem_acesso. Sem ela a tela abre
-  com erro.
+    rm -f fix-uso-dia-tipo.zip
 
 
 COMO CONFERIR
 ─────────────
-Entre como super-admin e clique em "📅 Uso do dia". Deve listar os
-acessos de hoje. Troque a data para ontem e confira se muda.
-
-Se aparecer "function sa_uso_dia does not exist", a migration não
-rodou.
+Abra "📅 Uso do dia" no painel do super-admin. Deve listar os
+acessos de hoje, e trocar a data deve funcionar.
