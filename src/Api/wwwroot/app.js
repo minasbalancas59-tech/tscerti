@@ -5324,6 +5324,9 @@ async function renderUsoDiaSA(dia) {
   // A coluna jsonb chega como STRING pelo Dapper, não como array —
   // sem esta conversão o .map() abaixo estoura e a tela fica travada
   // em "Carregando…". João, 05/09/2026.
+  // Plural com as duas formas escritas: concatenar sufixo dava
+  // "calibraçãoões" (João, 05/09/2026)
+  const plural = (n, um, muitos) => n === 1 ? um : muitos;
   const usuariosDe = x => {
     const v = x.usuarios;
     if (Array.isArray(v)) return v;
@@ -5332,23 +5335,24 @@ async function renderUsoDiaSA(dia) {
   };
   const hora = t => t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
   const dataBr = t => t ? new Date(t).toLocaleDateString('pt-BR') : 'nunca';
-  const trial = lista.filter(x => x.plano === 'trial');
+  // em_trial vem do CONTRATO, não do campo plano (que fica desatualizado)
+  const trial = lista.filter(x => x.em_trial);
   const totUsuarios = lista.reduce((a, x) => a + (x.usuarios_ativos || 0), 0);
   const totCerts = lista.reduce((a, x) => a + (x.certificados_dia || 0), 0);
 
   const cartao = x => `
-    <div class="item-cert" style="align-items:flex-start;${x.plano === 'trial' ? 'border-left:3px solid #d68910' : ''}">
+    <div class="item-cert" style="align-items:flex-start;${x.em_trial ? 'border-left:3px solid #d68910' : ''}">
       <span style="flex:1">
         <b>${esc(x.empresa)}</b>
-        ${x.plano === 'trial' ? '<span class="st st-rascunho">trial</span>' : ''}
+        ${x.em_trial ? '<span class="st st-rascunho">em avaliação</span>' : ''}
         ${x.empresa_status !== 'ativa' ? `<span class="st st-cancelado">${esc(x.empresa_status)}</span>` : ''}
         <br>
         <span class="dica">
-          ${x.usuarios_ativos} usuário${x.usuarios_ativos === 1 ? '' : 's'} ·
-          ${x.total_logins} acesso${x.total_logins === 1 ? '' : 's'}
-          ${x.falhas > 0 ? ` · <span style="color:#b02a37">${x.falhas} falha${x.falhas === 1 ? '' : 's'}</span>` : ''}
+          ${x.usuarios_ativos} ${plural(x.usuarios_ativos, 'usuário', 'usuários')} ·
+          ${x.total_logins} ${plural(x.total_logins, 'acesso', 'acessos')}
+          ${x.falhas > 0 ? ` · <span style="color:#b02a37">${x.falhas} ${plural(x.falhas, 'falha', 'falhas')}</span>` : ''}
           · das ${hora(x.primeiro_acesso)} às ${hora(x.ultimo_acesso)}
-          ${x.certificados_dia > 0 ? ` · <b>${x.certificados_dia} calibração${x.certificados_dia === 1 ? '' : 'ões'}</b>` : ' · nenhuma calibração'}
+          ${x.certificados_dia > 0 ? ` · <b>${x.certificados_dia} ${plural(x.certificados_dia, 'calibração', 'calibrações')}</b>` : ' · nenhuma calibração'}
         </span><br>
         <span class="dica">${usuariosDe(x).map(u =>
           `${esc(u.nome)}${u.acessos > 1 ? ` (${u.acessos}×)` : ''}`).join(' · ') || '—'}</span>
@@ -5369,16 +5373,16 @@ async function renderUsoDiaSA(dia) {
 
     <div class="kpis">
       <div class="kpi"><span class="kpi-num">${lista.length}</span><span class="kpi-rotulo">Empresas ativas no dia</span></div>
-      <div class="kpi"><span class="kpi-num kpi-atencao">${trial.length}</span><span class="kpi-rotulo">Delas em trial</span></div>
+      <div class="kpi"><span class="kpi-num kpi-atencao">${trial.length}</span><span class="kpi-rotulo">Delas em avaliação</span></div>
       <div class="kpi"><span class="kpi-num">${totUsuarios}</span><span class="kpi-rotulo">Usuários distintos</span></div>
       <div class="kpi"><span class="kpi-num">${totCerts}</span><span class="kpi-rotulo">Calibrações criadas</span></div>
     </div>
 
-    ${trial.length ? `<h4 style="margin-top:16px">Em trial — acessaram</h4>${trial.map(cartao).join('')}` : ''}
+    ${trial.length ? `<h4 style="margin-top:16px">Em avaliação — acessaram</h4>${trial.map(cartao).join('')}` : ''}
 
-    ${lista.filter(x => x.plano !== 'trial').length
-      ? `<h4 style="margin-top:16px">Demais empresas</h4>
-         ${lista.filter(x => x.plano !== 'trial').map(cartao).join('')}`
+    ${lista.filter(x => !x.em_trial).length
+      ? `<h4 style="margin-top:16px">Com contrato</h4>
+         ${lista.filter(x => !x.em_trial).map(cartao).join('')}`
       : ''}
 
     ${lista.length === 0 ? '<p class="dica">Nenhum acesso registrado neste dia.</p>' : ''}
@@ -5387,13 +5391,13 @@ async function renderUsoDiaSA(dia) {
     ${sumidas.length === 0
       ? '<p class="dica">Todas as empresas ativas acessaram na última semana.</p>'
       : sumidas.map(x => `
-        <div class="item-cert" style="${x.plano === 'trial' ? 'border-left:3px solid #b02a37' : ''}">
+        <div class="item-cert" style="${x.em_trial ? 'border-left:3px solid #b02a37' : ''}">
           <span>
             <b>${esc(x.empresa)}</b>
-            ${x.plano === 'trial' ? '<span class="st st-rascunho">trial</span>' : ''}<br>
+            ${x.em_trial ? '<span class="st st-rascunho">em avaliação</span>' : ''}<br>
             <span class="dica">Último acesso: ${dataBr(x.ultimo_acesso)}
               ${x.dias_sem_acesso != null ? ` (há ${x.dias_sem_acesso} dias)` : ''}
-              · ${x.certificados} calibração${x.certificados === 1 ? '' : 'ões'} no total
+              · ${x.certificados} ${plural(x.certificados, 'calibração', 'calibrações')} no total
               · cadastrada em ${dataBr(x.criada_em)}</span>
           </span>
         </div>`).join('')}`;

@@ -1,47 +1,61 @@
 ════════════════════════════════════════════════════════════════
- CORRIGE "USO DO DIA" TRAVADO EM "CARREGANDO…"
+ USO DO DIA — TRIAL PELO CONTRATO, SEM SISTEMA, PLURAL CORRETO
  05/09/2026
 ════════════════════════════════════════════════════════════════
 
-O PROBLEMA
-──────────
-A tela abria e ficava parada em "Carregando…", sem erro na tela.
+TRÊS CORREÇÕES
+──────────────
 
-CAUSA
-─────
-A coluna jsonb com a lista de usuários chega como STRING pelo
-Dapper, não como array. O .map() sobre ela estourava — e como isso
-acontecia DEPOIS do try/catch que cobria só a busca na API, a
-exceção ia para o console e a tela ficava congelada.
+1. IMPERIUM aparecia como trial tendo contrato
+   A tela usava o campo empresa.plano. Esse campo só é atualizado
+   quando alguém edita o contrato na tela do super-admin — então
+   fica desatualizado. É exatamente a mesma divergência que já
+   tinha sido corrigida em 12/08 na lista de empresas.
 
-Esse é o pior tipo de falha: não dá nenhuma pista de onde olhar.
+   Agora usa contrato.ativo, o mesmo critério da migração 147.
+   Sem contrato ativo = em avaliação.
 
-O QUE MUDA
-──────────
-1. Converte a string para array antes de usar (aceitando também
-   array puro, caso o mapeamento mude um dia).
-2. Envolve a montagem da tela inteira em try/catch, para que
-   qualquer falha futura apareça escrita na tela em vez de deixar
-   o "Carregando…" eterno.
+2. A empresa SISTEMA saiu das listas
+   É a empresa do super-admin, não é cliente. Fora das duas
+   listas (acessos do dia e sem-acesso).
 
-Só o app.js muda — nada de migration nem de backend.
+3. "8 calibraçãoões"
+   O código concatenava o sufixo "ões" na palavra inteira. Agora
+   um helper recebe as duas formas escritas por extenso. Aplicado
+   também a usuário/usuários e acesso/acessos.
+
+O rótulo passa de "trial" para "em avaliação", que é o termo já
+usado no aviso que as próprias empresas veem no painel.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-uso-dia-carregando.zip
-    git apply --check fix-uso-dia-carregando.patch
-    git apply fix-uso-dia-carregando.patch
+    unzip -o uso-dia-ajustes.zip
+    git apply --check uso-dia-ajustes.patch
+    git apply uso-dia-ajustes.patch
+
+    docker compose exec -T db psql -U certsaas -d certsaas \
+        < db/seed/154_uso_diario_ajustes.sql
+
     git add -A
-    git commit -m "Corrige tela de uso do dia travada em Carregando"
+    git commit -m "Uso do dia: trial pelo contrato, sem SISTEMA e plural correto"
     git push
     ./atualizar.sh --build
-    rm -f fix-uso-dia-carregando.zip
+    rm -f uso-dia-ajustes.zip
+
+⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build: ela recria as
+  duas funções com o campo em_trial. Sem ela a tela mostra todas
+  as empresas como "com contrato".
 
 
 COMO CONFERIR
 ─────────────
-Abra "📅 Uso do dia". Deve listar as empresas com os nomes dos
-usuários que acessaram. Ctrl+Shift+R antes, para o navegador pegar
-o app.js novo.
+Ctrl+Shift+R e abra "📅 Uso do dia":
+  · IMPERIUM deve aparecer em "Com contrato", não em avaliação;
+  · SISTEMA não deve aparecer em lugar nenhum;
+  · "8 calibrações", não "8 calibraçãoões".
+
+Se alguma empresa com contrato ainda aparecer como em avaliação,
+verifique se o contrato dela está marcado como ativo na tela do
+super-admin — agora a tela reflete o contrato de verdade.
