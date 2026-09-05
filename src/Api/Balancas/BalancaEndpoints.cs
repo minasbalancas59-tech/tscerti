@@ -298,6 +298,8 @@ public static class BalancaEndpoints
             if (erro is not null) return Results.BadRequest(new { erro });
 
             await using var conn = await Tenant.AbrirConexao(ds, user);
+            try
+            {
             var n = await conn.ExecuteAsync("""
                 UPDATE balanca SET identificacao = @Identificacao, tipo = @Tipo,
                        marca = @Marca, modelo = @Modelo, num_serie = @NumSerie,
@@ -322,6 +324,18 @@ public static class BalancaEndpoints
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user),
                 Tenant.UsuarioId(user), "balanca", id, "update", req, Auditoria.Ip(ctx));
             return Results.Ok(new { id });
+            }
+            // Mesmo tratamento do cadastro novo: sem isto, editar uma balança
+            // para um número de série que já existe no cliente estourava o erro
+            // cru do Postgres na tela (IMPERIUM, 04/09/2026 — 8 ocorrências).
+            catch (PostgresException e) when (e.SqlState == "23505")
+            {
+                var porSerie = e.ConstraintName is "uq_balanca_cliente_num_serie";
+                return Results.Conflict(new { erro = porSerie
+                    ? $"Já existe outra balança deste cliente com o número de série {req.NumSerie}. "
+                      + "Verifique se o equipamento não está cadastrado em duplicidade."
+                    : "Já existe outra balança com essa identificação nesse cliente." });
+            }
         });
 
         g.MapPut("/{id:guid}/ativo", async (Guid id, AtivoRequest req,

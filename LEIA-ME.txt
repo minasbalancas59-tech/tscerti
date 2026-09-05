@@ -1,40 +1,61 @@
 ════════════════════════════════════════════════════════════════
- MODELO 4 — UNIDADE NA REPETIBILIDADE E REFERÊNCIA CENTRALIZADA
- 02/09/2026
+ DOIS ERROS DE BANCO QUE APARECIAM NA TELA DO USUÁRIO
+ 05/09/2026
 ════════════════════════════════════════════════════════════════
 
-O QUE MUDA
-──────────
-1. REPETIBILIDADE (kg)
-   A caixa ficou sem unidade quando removemos a legenda
-   "Carga aplicada: X kg · indicações em kg". A unidade volta no
-   próprio título da caixa, como já acontece nas outras.
+ERRO 1 — 8 ocorrências · IMPERIUM SOLUÇÕES EM PESAGEM
+──────────────────────────────────────────────────────
+  PUT /api/balancas/...
+  23505: duplicate key value violates unique constraint
+         "uq_balanca_cliente_num_serie"
 
-2. "Referência (pos. 1): 40,00 kg" centralizada
-   Desde que a excentricidade passou a ocupar a faixa inteira, o
-   texto ficava colado na borda esquerda, com um vão grande até os
-   diagramas. Agora fica centralizado no espaço à esquerda deles.
+O cadastro NOVO de balança já capturava esse erro e devolvia
+"Já existe uma balança deste cliente com o número de série X".
+A EDIÇÃO não capturava — o erro cru do Postgres chegava à tela.
 
-Nenhum outro modelo é afetado.
+As 8 tentativas seguidas em 10 minutos sugerem que o usuário
+tentou várias vezes sem entender o que estava errado.
+
+Agora a edição devolve:
+  "Já existe outra balança deste cliente com o número de série X.
+   Verifique se o equipamento não está cadastrado em duplicidade."
+
+
+ERRO 2 — 1 ocorrência · BALANCAS NOVA GOIAS
+────────────────────────────────────────────
+  PUT /api/certificados/.../edicao-manual
+  23502: null value in column "adicao" of relation
+         "ensaio_sensibilidade" violates not-null constraint
+
+Já existia validação para carga_referencia, criada em 16/08 após
+ocorrência parecida na mesma empresa — mas só para aquele campo.
+Os outros dois NOT NULL da tabela ficaram de fora.
+
+Agora valida também:
+  · adicao            → "Informe a adição de uma divisão (e)..."
+  · resultado_display → "Informe o resultado indicado no display..."
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o modelo4-unidade-referencia.zip
-    git apply --check modelo4-unidade-referencia.patch
-    git apply modelo4-unidade-referencia.patch
+    unzip -o fix-erros-banco.zip
+    git apply --check fix-erros-banco.patch
+    git apply fix-erros-banco.patch
     git add -A
-    git commit -m "Modelo 4: unidade na repetibilidade e referencia centralizada"
+    git commit -m "Trata dois erros de banco que estouravam na tela"
     git push
     ./atualizar.sh --build
-    rm -f modelo4-unidade-referencia.zip
+    rm -f fix-erros-banco.zip
 
-Não há migration.
+Não há migration. Só a API precisa recompilar, mas o atualizar.sh
+já refaz as duas imagens.
 
 
 COMO CONFERIR
 ─────────────
-Regere um certificado no Modelo 4:
-  · título da caixa mostra "REPETIBILIDADE (kg)";
-  · "Referência (pos. 1)" centralizada, não colada à esquerda.
+· Edite uma balança colocando um número de série que já existe em
+  outra balança do MESMO cliente: deve aparecer a mensagem, não um
+  erro técnico.
+· Na edição manual de um certificado, apague a adição da
+  sensibilidade e salve: deve pedir o preenchimento.

@@ -177,6 +177,14 @@ public static class EdicaoManualEndpoints
                 if (Num(sj, "carga_referencia") is null)
                     return Results.BadRequest(new { erro =
                         "Informe a carga de referência da sensibilidade (ou deixe o ensaio como estava)." });
+                // adicao e resultado_display também são NOT NULL — a validação
+                // anterior cobria só a carga (BALANCAS NOVA GOIAS, 04/09/2026).
+                if (Num(sj, "adicao") is null)
+                    return Results.BadRequest(new { erro =
+                        "Informe a adição de uma divisão (e) da sensibilidade." });
+                if (Num(sj, "resultado_display") is null)
+                    return Results.BadRequest(new { erro =
+                        "Informe o resultado indicado no display na sensibilidade." });
                 await conn.ExecuteAsync("""
                     UPDATE ensaio_sensibilidade SET carga_referencia=@cr, adicao=@ad, resultado_display=@rd
                      WHERE id=@sid AND certificado_id=@id
