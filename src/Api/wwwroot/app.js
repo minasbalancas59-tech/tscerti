@@ -5367,7 +5367,7 @@ async function renderUsoDiaSA(dia) {
         <input type="date" id="uso-dia" value="${dia}" max="${hoje}"
                onchange="renderUsoDiaSA(this.value)">
         <button onclick="renderUsoDiaSA('${hoje}')">Hoje</button>
-        <button onclick="renderSA()">← Voltar</button>
+        <button onclick="renderPainelSA()">← Empresas</button>
       </div>
     </div>
 
@@ -5404,7 +5404,7 @@ async function renderUsoDiaSA(dia) {
   } catch (e) {
     // Sem isto, uma falha aqui deixaria a tela parada em "Carregando…"
     $('#sa-conteudo').innerHTML = `<p class="erro">Erro ao montar a tela: ${esc(e.message)}</p>
-      <button onclick="renderSA()">← Voltar</button>`;
+      <button onclick="renderPainelSA()">← Empresas</button>`;
     console.error(e);
   }
 }

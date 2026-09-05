@@ -1,61 +1,42 @@
 ════════════════════════════════════════════════════════════════
- USO DO DIA — TRIAL PELO CONTRATO, SEM SISTEMA, PLURAL CORRETO
+ CORRIGE O BOTÃO VOLTAR DA TELA "USO DO DIA"
  05/09/2026
 ════════════════════════════════════════════════════════════════
 
-TRÊS CORREÇÕES
-──────────────
+O PROBLEMA
+──────────
+O botão não fazia nada. Sem outra saída, só recarregando a página.
 
-1. IMPERIUM aparecia como trial tendo contrato
-   A tela usava o campo empresa.plano. Esse campo só é atualizado
-   quando alguém edita o contrato na tela do super-admin — então
-   fica desatualizado. É exatamente a mesma divergência que já
-   tinha sido corrigida em 12/08 na lista de empresas.
+CAUSA
+─────
+Eu escrevi renderSA(), função que não existe. A tela principal do
+painel do super-admin é renderPainelSA() — usada pelas outras 20+
+telas, todas com o rótulo "← Empresas", não "← Voltar".
 
-   Agora usa contrato.ativo, o mesmo critério da migração 147.
-   Sem contrato ativo = em avaliação.
+Erro em duas linhas: o botão da barra e o da mensagem de erro.
 
-2. A empresa SISTEMA saiu das listas
-   É a empresa do super-admin, não é cliente. Fora das duas
-   listas (acessos do dia e sem-acesso).
+O QUE MUDA
+──────────
+Os dois botões passam a chamar renderPainelSA() e usam o rótulo
+"← Empresas", igual ao resto do painel.
 
-3. "8 calibraçãoões"
-   O código concatenava o sufixo "ões" na palavra inteira. Agora
-   um helper recebe as duas formas escritas por extenso. Aplicado
-   também a usuário/usuários e acesso/acessos.
-
-O rótulo passa de "trial" para "em avaliação", que é o termo já
-usado no aviso que as próprias empresas veem no painel.
+Só o app.js. Sem migration, sem backend.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o uso-dia-ajustes.zip
-    git apply --check uso-dia-ajustes.patch
-    git apply uso-dia-ajustes.patch
-
-    docker compose exec -T db psql -U certsaas -d certsaas \
-        < db/seed/154_uso_diario_ajustes.sql
-
+    unzip -o fix-botao-voltar.zip
+    git apply --check fix-botao-voltar.patch
+    git apply fix-botao-voltar.patch
     git add -A
-    git commit -m "Uso do dia: trial pelo contrato, sem SISTEMA e plural correto"
+    git commit -m "Corrige botao voltar da tela de uso do dia"
     git push
     ./atualizar.sh --build
-    rm -f uso-dia-ajustes.zip
-
-⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build: ela recria as
-  duas funções com o campo em_trial. Sem ela a tela mostra todas
-  as empresas como "com contrato".
+    rm -f fix-botao-voltar.zip
 
 
 COMO CONFERIR
 ─────────────
-Ctrl+Shift+R e abra "📅 Uso do dia":
-  · IMPERIUM deve aparecer em "Com contrato", não em avaliação;
-  · SISTEMA não deve aparecer em lugar nenhum;
-  · "8 calibrações", não "8 calibraçãoões".
-
-Se alguma empresa com contrato ainda aparecer como em avaliação,
-verifique se o contrato dela está marcado como ativo na tela do
-super-admin — agora a tela reflete o contrato de verdade.
+Ctrl+Shift+R, abra "📅 Uso do dia" e clique em "← Empresas":
+deve voltar para a lista de empresas.
