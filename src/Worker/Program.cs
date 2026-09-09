@@ -1195,6 +1195,27 @@ public sealed class FilaWorker(
         catch (Exception ex) { log.LogWarning(ex, "aviso diário de pendências falhou"); }
     }
 
+    // Dados de recebimento nos e-mails de cobrança. Ficam aqui, juntos, para
+    // não se perderem espalhados pelos textos — se mudar a chave, muda só
+    // neste ponto. João, 09/09/2026.
+    const string PixChave    = "11.144.198/0001-01";
+    const string PixFavorec  = "Minas Balanças Ltda";
+    const string FoneSuporte = "(31) 97160-7105";
+
+    /// <summary>
+    /// Bloco de pagamento dos e-mails de cobrança: chave PIX, favorecido e
+    /// contato. Um HTML só, usado no lembrete e no aviso de atraso.
+    /// </summary>
+    static string BlocoPix(decimal valor) =>
+        "<div style=\"border:1px solid #dde5ec;border-radius:8px;padding:14px;margin:16px 0;background:#f7f9fb\">"
+      + "<p style=\"margin:0 0 8px;font-weight:600\">Pagamento por PIX</p>"
+      + $"<p style=\"margin:0 0 4px\">Chave (CNPJ): <b>{PixChave}</b></p>"
+      + $"<p style=\"margin:0 0 4px\">Favorecido: <b>{PixFavorec}</b></p>"
+      + $"<p style=\"margin:0\">Valor: <b>R$ {valor:N2}</b></p>"
+      + "</div>"
+      + "<p style=\"font-size:13px;color:#5b6b7d\">Depois de pagar, envie o comprovante "
+      + $"pelo WhatsApp <b>{FoneSuporte}</b> para darmos baixa.</p>";
+
     async Task ProcessarDiario()
     {
         await using var conn = await db.OpenConnectionAsync();
@@ -1268,7 +1289,7 @@ public sealed class FilaWorker(
                 var corpoL =
                     $"<p>Olá,</p><p>A mensalidade do TSCert da <b>{cb.empresa}</b> no valor de " +
                     $"<b>R$ {((decimal)cb.valor):N2}</b> vence em <b>{((DateTime)cb.vencimento):dd/MM/yyyy}</b>.</p>" +
-                    "<p>Para pagar ou tirar dúvidas, fale com a Total Scale: (31) 3357-4000.</p>";
+                    BlocoPix((decimal)cb.valor);
                 foreach (var gs in gest)
                     await EnfileirarEmail(rEmailCb, (string)gs.email, (string)gs.nome,
                         "Mensalidade TSCert — lembrete de vencimento", corpoL,
@@ -1292,9 +1313,9 @@ public sealed class FilaWorker(
                 var corpoA =
                     $"<p>Olá,</p><p>A mensalidade do TSCert da <b>{cb.empresa}</b> no valor de " +
                     $"<b>R$ {((decimal)cb.valor):N2}</b> venceu em <b>{((DateTime)cb.vencimento):dd/MM/yyyy}</b> " +
-                    "e consta em aberto.</p><p>Se o pagamento já foi feito, desconsidere. " +
-                    "Caso contrário, regularize para evitar a suspensão automática do acesso. " +
-                    "Dúvidas: (31) 3357-4000.</p>";
+                    "e consta em aberto.</p><p>Se o pagamento já foi feito, desconsidere este aviso. " +
+                    "Caso contrário, regularize para evitar a suspensão automática do acesso.</p>" +
+                    BlocoPix((decimal)cb.valor);
                 foreach (var gs in gest)
                     await EnfileirarEmail(rEmailCb, (string)gs.email, (string)gs.nome,
                         "Mensalidade TSCert em aberto", corpoA,
@@ -2244,7 +2265,7 @@ public sealed class FilaWorker(
             string assunto, corpo;
             var ajuda =
                 "<p style=\"margin-top:20px\">Se preferir, a gente faz junto: " +
-                "responda este e-mail ou chame no WhatsApp <b>(31) 3357-4000</b> " +
+                "responda este e-mail ou chame no WhatsApp <b>(31) 97160-7105</b> " +
                 "que marcamos 15 minutos para configurar a sua primeira balança.</p>";
             var link = "<p style=\"margin:22px 0\"><a href=\"https://certificados.totalscale.com.br\" " +
                 "style=\"background:#12263f;color:#fff;padding:12px 22px;border-radius:8px;" +

@@ -1,64 +1,81 @@
 ════════════════════════════════════════════════════════════════
- VOLTA OS LINKS DE PLANOS PARA A VITRINE DO SISTEMA
+ COBRANÇA — PIX NO E-MAIL E TELEFONE NOVO
  09/09/2026
 ════════════════════════════════════════════════════════════════
 
-POR QUÊ
-───────
-O endereço tscerti.totalscale.com.br ainda não serve a página de
-planos. Os três pontos que passaram a apontá-lo estavam levando o
-visitante a lugar nenhum.
+Abra o previa-email.html no navegador para ver como os dois
+e-mails chegam ao cliente.
 
-O QUE VOLTA
-───────────
-  index.html   os dois links da TELA DE LOGIN
-               → /tscert.html
+O QUE MUDA
+──────────
 
-  portal.html  link no PORTAL DO CLIENTE
-               → certificados.totalscale.com.br/tscert.html?origem=portal
+1. PIX NO CORPO DO E-MAIL
 
-  validar.html link na página do QR DO CERTIFICADO
-               → certificados.totalscale.com.br/tscert.html?origem=qr
+   Antes os avisos diziam só "fale com a Total Scale" — o cliente
+   recebia a cobrança sem saber como pagar.
 
-Os parâmetros de origem foram preservados, então continua dando
-para saber de onde veio a visita.
+   Agora vai um bloco com:
+     · Chave (CNPJ): 11.144.198/0001-01
+     · Favorecido: Minas Balanças Ltda
+     · Valor da mensalidade
+     · Pedido do comprovante pelo WhatsApp
 
-O QUE NÃO VOLTA
-───────────────
-O TELEFONE novo — (31) 97160-7105 — fica como está. Este patch mexe
-só nos links de planos.
+   Vale para os dois e-mails: lembrete de vencimento (5 dias antes)
+   e aviso de atraso.
+
+   O CNPJ foi conferido pelos dígitos verificadores: é válido.
+
+2. TELEFONE — (31) 3357-4000 → (31) 97160-7105
+
+   Seis lugares no backend:
+     · e-mail de lembrete de cobrança
+     · e-mail de aviso de atraso
+     · aviso de fim do período de avaliação
+     · mensagem de trial encerrado, na tela de login
+     · duas mensagens do portal do cliente
+
+ONDE FICAM OS DADOS
+───────────────────
+Em constantes no topo do trecho de cobrança do Worker:
+
+    PixChave    = "11.144.198/0001-01"
+    PixFavorec  = "Minas Balanças Ltda"
+    FoneSuporte = "(31) 97160-7105"
+
+Se mudar a chave, muda só ali — não fica espalhado pelos textos.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o volta-links-planos.zip
-    git apply --check volta-links-planos.patch
-    git apply volta-links-planos.patch
+    unzip -o cobranca-pix.zip
+    git apply --check cobranca-pix.patch
+    git apply cobranca-pix.patch
     git add -A
-    git commit -m "Volta os links de planos para a vitrine do sistema"
+    git commit -m "E-mails de cobranca: PIX no corpo e telefone novo"
     git push
     ./atualizar.sh --build
-    rm -f volta-links-planos.zip
+    rm -f cobranca-pix.zip previa-email.html
 
 Não há migration.
-
-⚠ Se você já aplicou o volta-link-validar.zip que mandei antes, o
-  "git apply --check" vai reclamar (aquele já reverteu o validar).
-  Nesse caso pare e me avise — eu gero uma versão sem essa parte.
 
 
 COMO CONFERIR
 ─────────────
-Ctrl+Shift+R e clique em "conheça os planos" em três lugares:
-  · tela de login (sem estar logado)
-  · portal do cliente
-  · página de validação de um certificado (rodapé do PDF)
+Os e-mails só saem quando há cobrança vencendo em até 5 dias ou já
+vencida — pode não haver nenhuma hoje.
 
-Todos devem abrir a vitrine, com os planos.
+Para ver sem esperar, use o Mailpit (a caixa de teste do sistema):
+    http://127.0.0.1:8025
+
+Ou confira no painel do super-admin, em Cobranças, se há alguma
+pendente com vencimento próximo.
 
 
-QUANDO O SITE NOVO ESTIVER PRONTO
-──────────────────────────────────
-Me avise que eu refaço o patch apontando os três para o endereço
-novo — dessa vez depois de confirmar que a página está no ar.
+PENSAR DEPOIS
+─────────────
+· QR Code do PIX ("copia e cola") reduziria ainda mais o atrito —
+  hoje o cliente digita a chave à mão. Dá para gerar o payload
+  EMV e embutir a imagem no e-mail.
+· Baixa automática do pagamento continua manual: alguém precisa
+  marcar como pago no painel.

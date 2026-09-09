@@ -173,7 +173,7 @@ public static class AuthEndpoints
                 var msg = u.MotivoSuspensao == "contrato_vencido"
                     ? "O acesso da sua empresa está suspenso por contrato vencido. Entre em contato para regularizar."
                     : u.MotivoSuspensao == "avaliacao_encerrada"
-                    ? "O período de avaliação de 30 dias terminou. Contrate um plano com a Total Scale — (31) 3357-4000 — para reativar o acesso. Seus dados estão preservados."
+                    ? "O período de avaliação de 30 dias terminou. Contrate um plano com a Total Scale — (31) 97160-7105 — para reativar o acesso. Seus dados estão preservados."
                     : u.EmpresaStatus == "cancelada"
                         ? "O acesso da sua empresa foi encerrado. Entre em contato para mais informações."
                         : "O acesso da sua empresa está suspenso. Entre em contato para regularizar.";

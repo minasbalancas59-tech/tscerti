@@ -389,7 +389,7 @@ public static class ClientePortalEndpoints
                 return Results.Json(new
                 {
                     erro = "O Portal do Cliente está disponível a partir do plano Profissional. " +
-                           "Fale com a Total Scale — (31) 3357-4000."
+                           "Fale com a Total Scale — (31) 97160-7105."
                 }, statusCode: 403);
 
             var enviados = new List<object>();
@@ -473,7 +473,7 @@ public static class ClientePortalEndpoints
                 {
                     erro = "O Portal do Cliente está disponível a partir do plano Profissional. " +
                            "Com ele, seus clientes baixam os certificados quando quiserem, com a " +
-                           "sua marca. Fale com a Total Scale — (31) 3357-4000."
+                           "sua marca. Fale com a Total Scale — (31) 97160-7105."
                 }, statusCode: 403);
 
             dynamic c;
