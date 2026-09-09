@@ -1,81 +1,86 @@
 ════════════════════════════════════════════════════════════════
- COBRANÇA — PIX NO E-MAIL E TELEFONE NOVO
+ COBRANÇA — AVISO NA GERAÇÃO + INADIMPLENTES SOB DEMANDA
  09/09/2026
 ════════════════════════════════════════════════════════════════
 
-Abra o previa-email.html no navegador para ver como os dois
-e-mails chegam ao cliente.
+DUAS MUDANÇAS, A SEU PEDIDO
+────────────────────────────
 
-O QUE MUDA
-──────────
+1. O AVISO DE ATRASO NÃO SAI MAIS SOZINHO
 
-1. PIX NO CORPO DO E-MAIL
+   Antes, toda cobrança vencida e em aberto disparava e-mail
+   automático. Como a baixa do pagamento é manual, isso cobraria
+   quem já pagou e a baixa ainda não foi lançada.
 
-   Antes os avisos diziam só "fale com a Total Scale" — o cliente
-   recebia a cobrança sem saber como pagar.
+   Agora: nova aba "💰 Inadimplentes" no painel do super-admin.
+   Lista as mensalidades vencidas, com dias de atraso, total geral
+   e um botão "Enviar aviso" em cada linha — você decide quando.
 
-   Agora vai um bloco com:
-     · Chave (CNPJ): 11.144.198/0001-01
-     · Favorecido: Minas Balanças Ltda
-     · Valor da mensalidade
-     · Pedido do comprovante pelo WhatsApp
+   Empresas sem gestor com e-mail cadastrado aparecem destacadas
+   (o botão fica desabilitado: não teria para quem mandar).
 
-   Vale para os dois e-mails: lembrete de vencimento (5 dias antes)
-   e aviso de atraso.
+2. NOVO E-MAIL — "MENSALIDADE DISPONÍVEL"
 
-   O CNPJ foi conferido pelos dígitos verificadores: é válido.
+   Antes, entre a cobrança nascer (dia 1º) e o lembrete de
+   vencimento (5 dias antes), o cliente não sabia de nada.
 
-2. TELEFONE — (31) 3357-4000 → (31) 97160-7105
+   Agora, no mesmo dia em que a cobrança é gerada, sai um e-mail:
+   "a mensalidade de setembro/2026 está disponível, vence em
+   10/09/2026", já com o bloco de PIX. Continua saindo também o
+   lembrete de 5 dias antes — são dois avisos, não substituem um
+   ao outro.
 
-   Seis lugares no backend:
-     · e-mail de lembrete de cobrança
-     · e-mail de aviso de atraso
-     · aviso de fim do período de avaliação
-     · mensagem de trial encerrado, na tela de login
-     · duas mensagens do portal do cliente
+   Cobranças de meses passados NÃO disparam esse aviso
+   retroativamente (a migration cuida disso).
 
-ONDE FICAM OS DADOS
-───────────────────
-Em constantes no topo do trecho de cobrança do Worker:
 
-    PixChave    = "11.144.198/0001-01"
-    PixFavorec  = "Minas Balanças Ltda"
-    FoneSuporte = "(31) 97160-7105"
-
-Se mudar a chave, muda só ali — não fica espalhado pelos textos.
+ENDPOINTS NOVOS
+────────────────
+  GET  /api/sa/inadimplentes
+  POST /api/sa/inadimplentes/{id}/avisar
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o cobranca-pix.zip
-    git apply --check cobranca-pix.patch
-    git apply cobranca-pix.patch
+    unzip -o cobranca-inadimplentes.zip
+    git apply --check cobranca-inadimplentes.patch
+    git apply cobranca-inadimplentes.patch
+
+    docker compose exec -T db psql -U certsaas -d certsaas \
+        < db/seed/155_aviso_cobranca_gerada.sql
+
     git add -A
-    git commit -m "E-mails de cobranca: PIX no corpo e telefone novo"
+    git commit -m "Cobranca: aviso na geracao, atraso so manual, tela Inadimplentes"
     git push
     ./atualizar.sh --build
-    rm -f cobranca-pix.zip previa-email.html
+    rm -f cobranca-inadimplentes.zip
 
-Não há migration.
+⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build. Ela cria a coluna
+  aviso_gerada_em e marca as cobranças antigas como já avisadas —
+  sem isso, a primeira execução do Worker mandaria o e-mail de
+  "disponível" para TODAS as cobranças pendentes já existentes,
+  inclusive as antigas.
 
 
 COMO CONFERIR
 ─────────────
-Os e-mails só saem quando há cobrança vencendo em até 5 dias ou já
-vencida — pode não haver nenhuma hoje.
+· Painel do super-admin → "💰 Inadimplentes": deve listar as
+  mensalidades vencidas, com o botão de envio.
 
-Para ver sem esperar, use o Mailpit (a caixa de teste do sistema):
-    http://127.0.0.1:8025
+· O e-mail de "disponível" só sai quando uma cobrança nova é
+  gerada (dia 1º do mês, ou quando você criar um contrato). Para
+  ver sem esperar o mês virar, confira no Mailpit:
+      http://127.0.0.1:8025
 
-Ou confira no painel do super-admin, em Cobranças, se há alguma
-pendente com vencimento próximo.
+· Confirme no banco que a coluna existe:
+      docker compose exec -T db psql -U certsaas -d certsaas \
+        -c "SELECT count(*) FROM cobranca WHERE aviso_gerada_em IS NOT NULL"
 
 
-PENSAR DEPOIS
-─────────────
-· QR Code do PIX ("copia e cola") reduziria ainda mais o atrito —
-  hoje o cliente digita a chave à mão. Dá para gerar o payload
-  EMV e embutir a imagem no e-mail.
-· Baixa automática do pagamento continua manual: alguém precisa
-  marcar como pago no painel.
+SE QUISER RELIGAR O AUTOMÁTICO NO FUTURO
+──────────────────────────────────────────
+O trecho que enviava o aviso de atraso sozinho foi removido do
+Worker, mas continua no histórico do Git (commit anterior a este).
+Quando a baixa de pagamento for automatizada, é só recuperar aquele
+trecho.
