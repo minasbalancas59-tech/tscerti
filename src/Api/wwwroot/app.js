@@ -725,7 +725,7 @@ async function cardPlano() {
     alvo.insertAdjacentHTML('beforebegin', `<div id="banner-cobranca"
       style="background:#f8d7da;color:#721c24;padding:10px 14px;border-radius:8px;margin:8px 0">
       💳 Há uma mensalidade em aberto. Regularize para evitar a suspensão automática do acesso.
-      Dúvidas: (31) 3357-4000.</div>`);
+      Dúvidas: (31) 97160-7105.</div>`);
   if (p.semContrato) {
     const dias = p.diasRestantes;
     const urgente = dias != null && dias <= 5;
@@ -734,7 +734,7 @@ async function cardPlano() {
              padding:10px 14px;border-radius:8px;margin:8px 0">
       ⏳ <b>Período de avaliação</b>${dias != null
         ? ` — ${dias > 0 ? `restam <b>${dias} dia(s)</b>` : '<b>encerrado</b>'}`
-        : ''}. Contrate um plano com a Total Scale — (31) 3357-4000 — para uso contínuo.
+        : ''}. Contrate um plano com a Total Scale — (31) 97160-7105 — para uso contínuo.
       ${usuario?.papel === 'admin' ? `<button class="btn-mini" style="margin-left:10px" onclick="telaPlanoCobrancas()">💳 Plano e cobranças</button>` : ''}</div>`);
     return;
   }
@@ -833,7 +833,7 @@ async function telaPlanoCobrancas() {
           </table>
         </div>` : '<p class="dica">Nenhuma cobrança registrada ainda.</p>'}
         <p class="dica" style="margin-top:8px">Dúvidas sobre valores ou pagamento?
-          Fale com a Total Scale: <b>(31) 3357-4000</b>.</p>
+          Fale com a Total Scale: <b>(31) 97160-7105</b>.</p>
         <div class="rodape-acoes" style="margin-top:10px">
           <button onclick="this.closest('.modal-fundo').remove()">Fechar</button>
         </div>

@@ -1,42 +1,64 @@
 ════════════════════════════════════════════════════════════════
- CORRIGE O BOTÃO VOLTAR DA TELA "USO DO DIA"
- 05/09/2026
+ TELEFONE NOVO E LINK DOS PLANOS PARA O SITE PRÓPRIO
+ 09/09/2026
 ════════════════════════════════════════════════════════════════
-
-O PROBLEMA
-──────────
-O botão não fazia nada. Sem outra saída, só recarregando a página.
-
-CAUSA
-─────
-Eu escrevi renderSA(), função que não existe. A tela principal do
-painel do super-admin é renderPainelSA() — usada pelas outras 20+
-telas, todas com o rótulo "← Empresas", não "← Voltar".
-
-Erro em duas linhas: o botão da barra e o da mensagem de erro.
 
 O QUE MUDA
 ──────────
-Os dois botões passam a chamar renderPainelSA() e usam o rótulo
-"← Empresas", igual ao resto do painel.
 
-Só o app.js. Sem migration, sem backend.
+1. TELEFONE — (31) 3357-4000 → (31) 97160-7105
+
+   Trocado em todos os lugares:
+   · aviso de período de avaliação no painel
+   · aviso de contrato vencido / suspensão
+   · rodapé da página de vitrine (tscert.html)
+   · modelo de contrato
+   · links wa.me dos botões "Pedir demonstração" e
+     "Falar com a equipe" (os três planos)
+
+2. "CONHEÇA OS PLANOS" → tscerti.totalscale.com.br
+
+   Antes apontava para /tscert.html, a vitrine servida pelo próprio
+   sistema. Agora vai para o site de divulgação.
+
+   Vale para:
+   · tela de login (dois links)
+   · portal do cliente
+   · página de validação do QR code
+
+   O parâmetro de origem foi mantido (?origem=portal e ?origem=qr),
+   então continua dando para saber de onde veio a visita.
+
+   A página tscert.html continua no servidor — quem tiver o link
+   antigo salvo não fica sem nada.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-botao-voltar.zip
-    git apply --check fix-botao-voltar.patch
-    git apply fix-botao-voltar.patch
+    unzip -o telefone-e-site.zip
+    git apply --check telefone-e-site.patch
+    git apply telefone-e-site.patch
     git add -A
-    git commit -m "Corrige botao voltar da tela de uso do dia"
+    git commit -m "Atualiza telefone e aponta planos para o site proprio"
     git push
     ./atualizar.sh --build
-    rm -f fix-botao-voltar.zip
+    rm -f telefone-e-site.zip
+
+Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-Ctrl+Shift+R, abra "📅 Uso do dia" e clique em "← Empresas":
-deve voltar para a lista de empresas.
+Ctrl+Shift+R e verifique:
+  · na tela de login, "conheça os planos" abre tscerti.totalscale.com.br
+  · no painel de uma empresa em avaliação, o aviso mostra o telefone novo
+  · no portal do cliente e na página de validação do QR, idem
+
+
+AINDA MANUAL
+────────────
+O telefone também aparece em textos gravados no banco de cada
+empresa (rodapé do certificado, texto de autorização). Se alguma
+empresa tiver o número antigo ali, corrija em Configurações — o
+patch não mexe em dados, só em código.
