@@ -1,64 +1,49 @@
 ════════════════════════════════════════════════════════════════
- TELEFONE NOVO E LINK DOS PLANOS PARA O SITE PRÓPRIO
+ VOLTA O LINK DA PÁGINA DE VALIDAÇÃO DO QR
  09/09/2026
 ════════════════════════════════════════════════════════════════
 
 O QUE MUDA
 ──────────
+Na página que abre quando alguém escaneia o QR do certificado, o
+link "conheça os planos" volta a apontar para a vitrine do próprio
+sistema:
 
-1. TELEFONE — (31) 3357-4000 → (31) 97160-7105
+  agora no servidor   https://tscerti.totalscale.com.br?origem=qr
+  volta para          https://certificados.totalscale.com.br/tscert.html?origem=qr
 
-   Trocado em todos os lugares:
-   · aviso de período de avaliação no painel
-   · aviso de contrato vencido / suspensão
-   · rodapé da página de vitrine (tscert.html)
-   · modelo de contrato
-   · links wa.me dos botões "Pedir demonstração" e
-     "Falar com a equipe" (os três planos)
+Um arquivo só: src/Api/wwwroot/validar.html
 
-2. "CONHEÇA OS PLANOS" → tscerti.totalscale.com.br
 
-   Antes apontava para /tscert.html, a vitrine servida pelo próprio
-   sistema. Agora vai para o site de divulgação.
+⚠ ATENÇÃO — OS OUTROS DOIS LINKS
+─────────────────────────────────
+O mesmo endereço tscerti.totalscale.com.br também foi colocado em:
 
-   Vale para:
-   · tela de login (dois links)
-   · portal do cliente
-   · página de validação do QR code
+  · index.html   — os dois links da TELA DE LOGIN
+  · portal.html  — o link no PORTAL DO CLIENTE
 
-   O parâmetro de origem foi mantido (?origem=portal e ?origem=qr),
-   então continua dando para saber de onde veio a visita.
-
-   A página tscert.html continua no servidor — quem tiver o link
-   antigo salvo não fica sem nada.
+Se o endereço ainda não serve a página de planos, esses dois também
+estão levando a lugar nenhum. Este patch NÃO mexe neles — me avise
+se quiser que voltem também.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o telefone-e-site.zip
-    git apply --check telefone-e-site.patch
-    git apply telefone-e-site.patch
+    unzip -o volta-link-validar.zip
+    git apply --check volta-link-validar.patch
+    git apply volta-link-validar.patch
     git add -A
-    git commit -m "Atualiza telefone e aponta planos para o site proprio"
+    git commit -m "Pagina de validacao do QR: volta a apontar para a vitrine"
     git push
     ./atualizar.sh --build
-    rm -f telefone-e-site.zip
+    rm -f volta-link-validar.zip
 
 Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-Ctrl+Shift+R e verifique:
-  · na tela de login, "conheça os planos" abre tscerti.totalscale.com.br
-  · no painel de uma empresa em avaliação, o aviso mostra o telefone novo
-  · no portal do cliente e na página de validação do QR, idem
-
-
-AINDA MANUAL
-────────────
-O telefone também aparece em textos gravados no banco de cada
-empresa (rodapé do certificado, texto de autorização). Se alguma
-empresa tiver o número antigo ali, corrija em Configurações — o
-patch não mexe em dados, só em código.
+Abra a página de validação de qualquer certificado emitido
+(está no rodapé do PDF, ou escaneie o QR) e clique em
+"conheça os planos": deve abrir a vitrine do sistema.
