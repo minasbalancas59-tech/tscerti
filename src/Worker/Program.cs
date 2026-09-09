@@ -159,6 +159,8 @@ public sealed class FilaWorker(
                     await EmailRevisaoEmitida(Guid.Parse(t.GetProperty("certificado_id").GetString()!));
                 else if (tipo == "exportar_empresa")
                     await ExportarEmpresa(Guid.Parse(t.GetProperty("exportacao_id").GetString()!));
+                else if (tipo == "cobranca_aviso_manual")
+                    await CobrancaAvisoManual(Guid.Parse(t.GetProperty("cobranca_id").GetString()!));
                 else if (tipo == "psaas_enviar")
                     await PsaasEnviar(t);
                 else if (tipo == "psaas_alerta_detrator")
@@ -705,6 +707,11 @@ public sealed class FilaWorker(
     // ── Rotina diária: gera cobranças do mês e alerta contratos vencendo ──
     // Dia útil no Brasil: exclui sábado/domingo e feriados nacionais
     // (fixos + móveis calculados pela Páscoa: Carnaval, Sexta Santa, Corpus Christi)
+    static readonly string[] MesesPt =
+        { "janeiro","fevereiro","março","abril","maio","junho",
+          "julho","agosto","setembro","outubro","novembro","dezembro" };
+    static string NomeMesPt(int mes) => MesesPt[mes - 1];
+
     static bool EhDiaUtilBr(DateTime d)
     {
         if (d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) return false;
@@ -1216,6 +1223,98 @@ public sealed class FilaWorker(
       + "<p style=\"font-size:13px;color:#5b6b7d\">Depois de pagar, envie o comprovante "
       + $"pelo WhatsApp <b>{FoneSuporte}</b> para darmos baixa.</p>";
 
+    /// <summary>
+    /// Aviso de mensalidade em aberto, disparado pelo super-admin na tela de
+    /// Inadimplentes — não sai sozinho, ver nota acima sobre a baixa manual.
+    /// </summary>
+    async Task CobrancaAvisoManual(Guid cobrancaId)
+    {
+        await using var conn = await db.OpenConnectionAsync();
+        var cb = await conn.QuerySingleOrDefaultAsync("""
+            SELECT cb.id, cb.valor, cb.vencimento, cb.empresa_id, cb.status,
+                   e.razao_social AS empresa
+              FROM cobranca cb JOIN empresa e ON e.id = cb.empresa_id
+             WHERE cb.id = @id
+            """, new { id = cobrancaId });
+        if (cb is null) { log.LogWarning("Cobrança {Id} não encontrada", cobrancaId); return; }
+        if ((string)cb.status is "pago" or "cancelado")
+        {
+            log.LogInformation("Cobrança {Id} está {St}: aviso não enviado", cobrancaId, (string)cb.status);
+            return;
+        }
+
+        var gest = await conn.QueryAsync(
+            "SELECT * FROM gestores_da_empresa(@id)", new { id = (Guid)cb.empresa_id });
+        var corpo =
+            $"<p>Olá,</p><p>A mensalidade do TSCert da <b>{cb.empresa}</b> no valor de " +
+            $"<b>R$ {((decimal)cb.valor):N2}</b> venceu em <b>{((DateTime)cb.vencimento):dd/MM/yyyy}</b> " +
+            "e consta em aberto.</p><p>Se o pagamento já foi feito, desconsidere este aviso. " +
+            "Caso contrário, regularize para evitar a suspensão automática do acesso.</p>" +
+            BlocoPix((decimal)cb.valor);
+
+        var rEmail = redis.GetDatabase();
+        foreach (var gs in gest)
+            await EnfileirarEmail(rEmail, (string)gs.email, (string)gs.nome,
+                "Mensalidade TSCert em aberto", corpo,
+                "cobranca_atraso", (Guid)cb.empresa_id, null, null);
+
+        await conn.ExecuteAsync(
+            "UPDATE cobranca SET aviso_atraso_em = now() WHERE id = @id", new { id = cobrancaId });
+        log.LogInformation("Aviso de atraso enviado para {Emp} ({Qtd} gestores)",
+            (string)cb.empresa, gest.Count());
+    }
+
+    /// <summary>
+    /// Resumo diário de inadimplência para os super-admins (você). Roda uma
+    /// vez por dia, só em dia útil, e só manda e-mail quando há algo vencido
+    /// — dia sem pendência não gera e-mail. Pedido do João, 09/09/2026.
+    /// </summary>
+    async Task DigestInadimplentesDiario()
+    {
+        if (!EhDiaUtilBr(DateTime.Now)) return;
+        if (!await PodeRodarIntervalo("digest_inadimplentes", TimeSpan.FromHours(20))) return;
+
+        await using var conn = await db.OpenConnectionAsync();
+        var lista = await conn.QueryAsync("""
+            SELECT COALESCE(NULLIF(e.nome_fantasia,''), e.razao_social) AS empresa,
+                   cb.valor, cb.vencimento,
+                   (current_date - cb.vencimento)::int AS dias_atraso
+              FROM cobranca cb JOIN empresa e ON e.id = cb.empresa_id
+             WHERE cb.status IN ('pendente','vencido') AND cb.vencimento < current_date
+             ORDER BY cb.vencimento
+            """);
+        var itens = lista.ToList();
+        if (itens.Count == 0) return;   // nada vencido: sem e-mail hoje
+
+        var total = itens.Sum(x => (decimal)x.valor);
+        var linhas = string.Join("", itens.Select(x =>
+        {
+            var destaque = (int)x.dias_atraso > 15 ? " style=\"color:#b02a37;font-weight:bold\"" : "";
+            return $"<tr><td style=\"padding:4px 12px 4px 0\">{x.empresa}</td>" +
+                   $"<td style=\"padding:4px 12px 4px 0\">R$ {((decimal)x.valor):N2}</td>" +
+                   $"<td style=\"padding:4px 12px 4px 0\">{((DateTime)x.vencimento):dd/MM/yyyy}</td>" +
+                   $"<td style=\"padding:4px 0\"{destaque}>{(int)x.dias_atraso} dia(s)</td></tr>";
+        }));
+        var corpo =
+            $"<p>Olá,</p><p><b>{itens.Count}</b> mensalidade(s) em atraso, somando " +
+            $"<b>R$ {total:N2}</b>:</p>" +
+            "<table style=\"border-collapse:collapse;font-size:14px\">" +
+            "<tr><th align=\"left\" style=\"padding:4px 12px 4px 0\">Empresa</th>" +
+            "<th align=\"left\" style=\"padding:4px 12px 4px 0\">Valor</th>" +
+            "<th align=\"left\" style=\"padding:4px 12px 4px 0\">Venceu em</th>" +
+            "<th align=\"left\" style=\"padding:4px 0\">Atraso</th></tr>" +
+            linhas + "</table>" +
+            "<p>Para enviar o aviso ao cliente: painel do super-admin → 💰 Inadimplentes.</p>";
+
+        var rEmail = redis.GetDatabase();
+        foreach (var (nome, email) in await SuperAdmins(conn))
+            await EnfileirarEmail(rEmail, email, nome,
+                $"TSCert — {itens.Count} mensalidade(s) em atraso (R$ {total:N2})", corpo,
+                "digest_inadimplentes", null, null, null);
+        log.LogInformation("Digest de inadimplentes enviado: {Qtd} cobrança(s), R$ {Total}.",
+            itens.Count, total);
+    }
+
     async Task ProcessarDiario()
     {
         await using var conn = await db.OpenConnectionAsync();
@@ -1265,16 +1364,42 @@ public sealed class FilaWorker(
         }
         catch (Exception ex) { log.LogWarning(ex, "suspensão por avaliação encerrada falhou"); }
 
-        // 2b) Lembretes de cobrança aos gestores: vencendo em 5 dias e em atraso
+        // 2b) Avisos de cobrança aos gestores: recém-gerada, vencendo em 5 dias
         try
         {
             var rEmailCb = redis.GetDatabase();
             if (!EhDiaUtilBr(DateTime.Now))
             {
-                log.LogInformation("Fim de semana/feriado: lembretes de cobrança adiados para o próximo dia útil.");
+                log.LogInformation("Fim de semana/feriado: avisos de cobrança adiados para o próximo dia útil.");
             }
             else
             {
+            // recém-gerada, ainda sem aviso de disponível — cobre o intervalo
+            // entre a cobrança nascer (dia 1º) e o lembrete de vencimento (5
+            // dias antes). João, 09/09/2026.
+            var novas = await conn.QueryAsync("""
+                SELECT cb.id, cb.valor, cb.vencimento, cb.competencia, cb.empresa_id, e.razao_social AS empresa
+                  FROM cobranca cb JOIN empresa e ON e.id = cb.empresa_id
+                 WHERE cb.status = 'pendente' AND cb.aviso_gerada_em IS NULL
+                """);
+            foreach (var cb in novas)
+            {
+                var gest = await conn.QueryAsync(
+                    "SELECT * FROM gestores_da_empresa(@id)", new { id = (Guid)cb.empresa_id });
+                var comp = (DateTime)cb.competencia;
+                var corpoG =
+                    $"<p>Olá,</p><p>A mensalidade do TSCert da <b>{cb.empresa}</b> referente a " +
+                    $"<b>{NomeMesPt(comp.Month)}/{comp.Year}</b>, no valor de <b>R$ {((decimal)cb.valor):N2}</b>, " +
+                    $"já está disponível e vence em <b>{((DateTime)cb.vencimento):dd/MM/yyyy}</b>.</p>" +
+                    BlocoPix((decimal)cb.valor);
+                foreach (var gs in gest)
+                    await EnfileirarEmail(rEmailCb, (string)gs.email, (string)gs.nome,
+                        "Mensalidade TSCert disponível", corpoG,
+                        "cobranca_gerada", (Guid)cb.empresa_id, null, null);
+                await conn.ExecuteAsync(
+                    "UPDATE cobranca SET aviso_gerada_em = now() WHERE id = @id", new { id = (Guid)cb.id });
+            }
+
             // vencendo em até 5 dias, ainda sem lembrete
             var aVencer = await conn.QueryAsync("""
                 SELECT cb.id, cb.valor, cb.vencimento, cb.empresa_id, e.razao_social AS empresa
@@ -1298,34 +1423,17 @@ public sealed class FilaWorker(
                     "UPDATE cobranca SET lembrete_em = now() WHERE id = @id", new { id = (Guid)cb.id });
             }
 
-            // vencidas, ainda sem aviso de atraso
-            var atrasadas = await conn.QueryAsync("""
-                SELECT cb.id, cb.valor, cb.vencimento, cb.empresa_id, e.razao_social AS empresa
-                  FROM cobranca cb JOIN empresa e ON e.id = cb.empresa_id
-                 WHERE cb.aviso_atraso_em IS NULL
-                   AND (cb.status = 'vencido'
-                        OR (cb.status = 'pendente' AND cb.vencimento < current_date))
-                """);
-            foreach (var cb in atrasadas)
-            {
-                var gest = await conn.QueryAsync(
-                    "SELECT * FROM gestores_da_empresa(@id)", new { id = (Guid)cb.empresa_id });
-                var corpoA =
-                    $"<p>Olá,</p><p>A mensalidade do TSCert da <b>{cb.empresa}</b> no valor de " +
-                    $"<b>R$ {((decimal)cb.valor):N2}</b> venceu em <b>{((DateTime)cb.vencimento):dd/MM/yyyy}</b> " +
-                    "e consta em aberto.</p><p>Se o pagamento já foi feito, desconsidere este aviso. " +
-                    "Caso contrário, regularize para evitar a suspensão automática do acesso.</p>" +
-                    BlocoPix((decimal)cb.valor);
-                foreach (var gs in gest)
-                    await EnfileirarEmail(rEmailCb, (string)gs.email, (string)gs.nome,
-                        "Mensalidade TSCert em aberto", corpoA,
-                        "cobranca_atraso", (Guid)cb.empresa_id, null, null);
-                await conn.ExecuteAsync(
-                    "UPDATE cobranca SET aviso_atraso_em = now() WHERE id = @id", new { id = (Guid)cb.id });
-            }
+            // AVISO DE ATRASO AO CLIENTE: DESLIGADO NO AUTOMÁTICO.
+            // A baixa do pagamento é manual — cobrar sozinho atingiria quem já
+            // pagou e ainda não teve a baixa lançada. O super-admin dispara na
+            // tela de Inadimplentes, linha por linha. João, 09/09/2026.
             }
         }
         catch (Exception ex) { log.LogWarning(ex, "lembretes de cobrança falharam"); }
+
+        // 2c) Resumo diário de inadimplência para você (super-admin)
+        try { await DigestInadimplentesDiario(); }
+        catch (Exception ex) { log.LogWarning(ex, "digest de inadimplentes falhou"); }
 
         // 3) Alerta de contratos vencendo (30 dias), 1 e-mail por gestor — só dias úteis
         var vencendo = EhDiaUtilBr(DateTime.Now)

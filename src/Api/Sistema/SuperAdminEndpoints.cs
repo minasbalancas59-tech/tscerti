@@ -61,6 +61,50 @@ public static class SuperAdminEndpoints
         static bool Ok(ClaimsPrincipal u) => Tenant.EhSuperAdmin(u);
 
         // ── Resumo global (topo do painel) ──────────────────────
+        // ── Inadimplentes ───────────────────────────────────────
+        // Mensalidades vencidas e em aberto. O aviso por e-mail ao CLIENTE
+        // não sai sozinho (baixa manual) — o super-admin dispara aqui quando
+        // quiser. João, 09/09/2026.
+        g.MapGet("/inadimplentes", async (ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            if (!Ok(user)) return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            return Results.Ok(await conn.QueryAsync("""
+                SELECT cb.id, cb.valor, cb.vencimento, cb.competencia, cb.status,
+                       cb.aviso_atraso_em, cb.empresa_id,
+                       COALESCE(NULLIF(e.nome_fantasia,''), e.razao_social) AS empresa,
+                       e.status AS empresa_status,
+                       (current_date - cb.vencimento)::int AS dias_atraso,
+                       (SELECT count(*)::int FROM usuario u
+                         WHERE u.empresa_id = e.id AND u.ativo
+                           AND u.papel IN ('admin','gestor')) AS gestores
+                  FROM cobranca cb
+                  JOIN empresa e ON e.id = cb.empresa_id
+                 WHERE cb.status IN ('pendente','vencido')
+                   AND cb.vencimento < current_date
+                 ORDER BY cb.vencimento
+                """));
+        });
+
+        g.MapPost("/inadimplentes/{id:guid}/avisar", async (Guid id, ClaimsPrincipal user,
+            NpgsqlDataSource ds, IConnectionMultiplexer redis, HttpContext ctx) =>
+        {
+            if (!Ok(user)) return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            var cb = await conn.QuerySingleOrDefaultAsync(
+                "SELECT status, empresa_id FROM cobranca WHERE id = @id", new { id });
+            if (cb is null) return Results.NotFound();
+            if ((string)cb.status is "pago" or "cancelado")
+                return Results.BadRequest(new { erro =
+                    $"Esta cobrança está como {(string)cb.status}. O aviso não foi enviado." });
+
+            await redis.GetDatabase().ListLeftPushAsync("fila:tarefas",
+                "{\"tipo\":\"cobranca_aviso_manual\",\"cobranca_id\":\"" + id + "\"}");
+            await Auditoria.Registrar(conn, (Guid)cb.empresa_id, Tenant.UsuarioId(user),
+                "cobranca", id, "aviso_manual", null, Auditoria.Ip(ctx));
+            return Results.Ok(new { enviado = true });
+        });
+
         g.MapGet("/resumo", async (ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
             if (!Ok(user)) return Results.Forbid();

@@ -1,86 +1,88 @@
 ════════════════════════════════════════════════════════════════
- COBRANÇA — AVISO NA GERAÇÃO + INADIMPLENTES SOB DEMANDA
+ COBRANÇA — REFEITO DO ZERO, VERIFICADO CONTRA O SERVIDOR REAL
  09/09/2026
 ════════════════════════════════════════════════════════════════
 
-DUAS MUDANÇAS, A SEU PEDIDO
-────────────────────────────
+⚠ SOBRE A TENTATIVA ANTERIOR
+──────────────────────────────
+O commit "3e23647" que apareceu no seu histórico NÃO tinha o código
+de verdade — o "git apply" daquela vez tinha falhado, e o que foi
+comitado por engano foram só os arquivos .zip/LEIA-ME que sobraram
+na pasta. O atraso automático continuou ativo até agora.
 
-1. O AVISO DE ATRASO NÃO SAI MAIS SOZINHO
-
-   Antes, toda cobrança vencida e em aberto disparava e-mail
-   automático. Como a baixa do pagamento é manual, isso cobraria
-   quem já pagou e a baixa ainda não foi lançada.
-
-   Agora: nova aba "💰 Inadimplentes" no painel do super-admin.
-   Lista as mensalidades vencidas, com dias de atraso, total geral
-   e um botão "Enviar aviso" em cada linha — você decide quando.
-
-   Empresas sem gestor com e-mail cadastrado aparecem destacadas
-   (o botão fica desabilitado: não teria para quem mandar).
-
-2. NOVO E-MAIL — "MENSALIDADE DISPONÍVEL"
-
-   Antes, entre a cobrança nascer (dia 1º) e o lembrete de
-   vencimento (5 dias antes), o cliente não sabia de nada.
-
-   Agora, no mesmo dia em que a cobrança é gerada, sai um e-mail:
-   "a mensalidade de setembro/2026 está disponível, vence em
-   10/09/2026", já com o bloco de PIX. Continua saindo também o
-   lembrete de 5 dias antes — são dois avisos, não substituem um
-   ao outro.
-
-   Cobranças de meses passados NÃO disparam esse aviso
-   retroativamente (a migration cuida disso).
+Desta vez eu reclonei o GitHub, confirmei exatamente o que está no
+servidor de verdade, e reconstruí tudo em cima disso — testado com
+um verificador de sintaxe antes de gerar o patch.
 
 
-ENDPOINTS NOVOS
-────────────────
-  GET  /api/sa/inadimplentes
-  POST /api/sa/inadimplentes/{id}/avisar
+O QUE ESTE PATCH FAZ
+──────────────────────
+
+1. DESLIGA o e-mail automático de "mensalidade em aberto".
+   Continua existindo o e-mail de LEMBRETE (5 dias antes de vencer)
+   — só o de ATRASO (depois de vencido) deixou de ser automático.
+
+2. TELA "💰 Inadimplentes" no painel do super-admin.
+   Lista vencidas, com dias de atraso, total, e um botão
+   "Enviar aviso" por linha (confirmação antes de disparar).
+   Empresa sem gestor com e-mail aparece destacada, botão desabilitado.
+
+3. CARD NA TELA INICIAL do painel — o que você pediu.
+   Aparece automaticamente quando há alguma pendência, mostrando até
+   5 empresas e o total. Clique leva para a tela cheia. Se a busca
+   falhar por qualquer motivo, o card simplesmente não aparece — a
+   tela principal não quebra por isso.
+
+4. E-MAIL DIÁRIO PARA VOCÊ (super-admin) — o que você pediu.
+   Todo dia útil, SE houver alguma cobrança vencida, você recebe um
+   resumo por e-mail: quantas, total, e a lista com dias de atraso.
+   Dia sem pendência = sem e-mail (não enche a caixa por nada).
+
+5. Aviso de "mensalidade disponível" no dia em que a cobrança nasce
+   (dia 1º do mês), com o PIX — isso já tinha sido pedido antes e
+   está incluído de novo aqui, garantido.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o cobranca-inadimplentes.zip
-    git apply --check cobranca-inadimplentes.patch
-    git apply cobranca-inadimplentes.patch
+    unzip -o cobranca-completo.zip
+    git apply --check cobranca-completo.patch
+
+Se o "--check" reclamar de algo, PARE AQUI e me mande a mensagem
+exata — não continue.
+
+Se passar limpo:
+
+    git apply cobranca-completo.patch
 
     docker compose exec -T db psql -U certsaas -d certsaas \
         < db/seed/155_aviso_cobranca_gerada.sql
 
     git add -A
-    git commit -m "Cobranca: aviso na geracao, atraso so manual, tela Inadimplentes"
+    git commit -m "Cobranca: desliga atraso automatico, aviso na geracao, tela e digest"
     git push
     ./atualizar.sh --build
-    rm -f cobranca-inadimplentes.zip
+    rm -f cobranca-completo.zip
 
-⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build. Ela cria a coluna
-  aviso_gerada_em e marca as cobranças antigas como já avisadas —
-  sem isso, a primeira execução do Worker mandaria o e-mail de
-  "disponível" para TODAS as cobranças pendentes já existentes,
-  inclusive as antigas.
+⚠ A MIGRATION VEM ANTES DO BUILD, sem exceção — evita disparar o
+  aviso de "disponível" para cobranças antigas de uma vez só.
 
 
 COMO CONFERIR
 ─────────────
-· Painel do super-admin → "💰 Inadimplentes": deve listar as
-  mensalidades vencidas, com o botão de envio.
+· Ctrl+Shift+R e olhe a tela inicial do painel: se houver
+  mensalidade vencida, o card "💰 X mensalidade(s) em atraso" deve
+  aparecer no topo.
 
-· O e-mail de "disponível" só sai quando uma cobrança nova é
-  gerada (dia 1º do mês, ou quando você criar um contrato). Para
-  ver sem esperar o mês virar, confira no Mailpit:
-      http://127.0.0.1:8025
+· Clique nele (ou no botão "💰 Inadimplentes" no menu): abre a
+  lista completa com o botão de envio.
 
-· Confirme no banco que a coluna existe:
-      docker compose exec -T db psql -U certsaas -d certsaas \
-        -c "SELECT count(*) FROM cobranca WHERE aviso_gerada_em IS NOT NULL"
+· O e-mail diário só sai quando há pendência — confira no Mailpit
+  (via túnel SSH na porta 8025) no dia seguinte, ou force um teste
+  manual rodando a consulta da tela e vendo se há dados.
 
-
-SE QUISER RELIGAR O AUTOMÁTICO NO FUTURO
-──────────────────────────────────────────
-O trecho que enviava o aviso de atraso sozinho foi removido do
-Worker, mas continua no histórico do Git (commit anterior a este).
-Quando a baixa de pagamento for automatizada, é só recuperar aquele
-trecho.
+· Confirme que o atraso automático parou de fato:
+      grep -n "AVISO DE ATRASO AO CLIENTE" src/Worker/Program.cs
+  Deve mostrar o comentário explicando que está desligado, sem o
+  código de envio automático abaixo dele.

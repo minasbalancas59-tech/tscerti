@@ -4573,6 +4573,29 @@ async function renderPainelSA() {
       </table></div>
     </div>`;
 
+  // Alerta de inadimplência na tela inicial. Busca separada — se falhar,
+  // a tela principal continua funcionando normalmente (fail-safe).
+  let inad = [];
+  try { inad = await saApi('/inadimplentes'); } catch { /* card some, resto segue */ }
+  const totalInad = inad.reduce((a, x) => a + Number(x.valor), 0);
+  const inadHtml = inad.length === 0 ? '' : `
+    <div class="card" style="margin-bottom:16px;border-left:4px solid #d68910;cursor:pointer"
+         onclick="renderInadimplentesSA()">
+      <h3 style="margin-top:0">💰 ${inad.length} mensalidade${inad.length === 1 ? '' : 's'} em atraso
+        <span class="dica" style="font-weight:400">— R$ ${totalInad.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} no total</span></h3>
+      <div class="tabela-scroll"><table>
+        <thead><tr><th>Empresa</th><th>Valor</th><th>Venceu em</th><th>Atraso</th></tr></thead>
+        <tbody>${inad.slice(0, 5).map(x => `
+          <tr>
+            <td><b>${esc(x.empresa)}</b></td>
+            <td>R$ ${Number(x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+            <td>${new Date(x.vencimento).toLocaleDateString('pt-BR')}</td>
+            <td style="color:${x.dias_atraso > 15 ? '#b02a37' : '#d68910'}"><b>${x.dias_atraso} dia${x.dias_atraso === 1 ? '' : 's'}</b></td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      ${inad.length > 5 ? `<p class="dica">e mais ${inad.length - 5}… clique para ver todas</p>` : ''}
+    </div>`;
+
   // Lista completa em memória para busca/filtro instantâneos
   window._saEmpresas = empresas;
   window._saFiltro = window._saFiltro || 'ativa';   // padrão: só as ativas
@@ -4582,6 +4605,7 @@ async function renderPainelSA() {
   window._saResumo = resumo;
 
   $('#sa-conteudo').innerHTML = `
+    ${inadHtml}
     <div class="barra">
       <h2>Empresas</h2>
       <div class="barra-btns">
@@ -4591,6 +4615,7 @@ async function renderPainelSA() {
         <button onclick="renderErrosSA()">🐞 Erros${erros.abertos > 0
           ? ` <span style="background:#b02a37;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${erros.abertos}</span>` : ''}</button>
         <button onclick="renderUsoDiaSA()">📅 Uso do dia</button>
+        <button onclick="renderInadimplentesSA()">💰 Inadimplentes</button>
         <button onclick="renderLoginsSA()">🔑 Logins</button>
         <button onclick="renderUsuariosLogSA()">👥 Usuários</button>
         <button onclick="renderPainelEmailSA()">📊 Painel de e-mails</button>
@@ -5406,6 +5431,86 @@ async function renderUsoDiaSA(dia) {
     $('#sa-conteudo').innerHTML = `<p class="erro">Erro ao montar a tela: ${esc(e.message)}</p>
       <button onclick="renderPainelSA()">← Empresas</button>`;
     console.error(e);
+  }
+}
+
+// ── Inadimplentes (tela dedicada) ────────────────────────────
+async function renderInadimplentesSA() {
+  $('#sa-conteudo').innerHTML = '<p class="dica">Carregando…</p>';
+  let lista;
+  try { lista = await saApi('/inadimplentes'); }
+  catch (e) { $('#sa-conteudo').innerHTML = `<p class="erro">${esc(e.message)}</p>`; return; }
+
+  try {
+  const dataBr = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+  const totalAberto = lista.reduce((a, x) => a + Number(x.valor), 0);
+  const semGestor = lista.filter(x => !x.gestores);
+
+  const linha = x => `
+    <div class="item-cert" style="align-items:flex-start;${x.dias_atraso > 15 ? 'border-left:3px solid #b02a37' : 'border-left:3px solid #d68910'}">
+      <span style="flex:1">
+        <b>${esc(x.empresa)}</b>
+        ${x.empresa_status !== 'ativa' ? `<span class="st st-cancelado">${esc(x.empresa_status)}</span>` : ''}
+        <br>
+        <span class="dica">
+          R$ ${Number(x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
+          venceu em ${dataBr(x.vencimento)} ·
+          <b style="color:${x.dias_atraso > 15 ? '#b02a37' : '#d68910'}">${x.dias_atraso} dia${x.dias_atraso === 1 ? '' : 's'} de atraso</b>
+          ${!x.gestores ? ' · <span style="color:#b02a37">sem gestor cadastrado — aviso não tem para quem ir</span>' : ''}
+        </span><br>
+        <span class="dica">${x.aviso_atraso_em
+          ? 'Último aviso enviado em ' + new Date(x.aviso_atraso_em).toLocaleString('pt-BR')
+          : 'Nenhum aviso enviado ainda'}</span>
+      </span>
+      <span class="acoes">
+        <button class="btn-mini" ${!x.gestores ? 'disabled title="Cadastre um gestor com e-mail nesta empresa"' : ''}
+          onclick="avisarInadimplenteSA('${x.id}', this)">📧 Enviar aviso</button>
+      </span>
+    </div>`;
+
+  $('#sa-conteudo').innerHTML = `
+    <div class="barra">
+      <h2>Inadimplentes</h2>
+      <div class="barra-btns">
+        <button onclick="renderInadimplentesSA()">↻ Atualizar</button>
+        <button onclick="renderPainelSA()">← Empresas</button>
+      </div>
+    </div>
+
+    <p class="dica" style="margin-bottom:14px">O aviso por e-mail ao cliente não é automático — a
+      baixa do pagamento é manual, então cobrar sozinho atingiria quem já pagou. Envie linha a
+      linha, quando quiser. Você também recebe um resumo diário por e-mail enquanto houver
+      pendência.</p>
+
+    <div class="kpis">
+      <div class="kpi"><span class="kpi-num kpi-atencao">${lista.length}</span><span class="kpi-rotulo">Cobranças em aberto</span></div>
+      <div class="kpi"><span class="kpi-num">R$ ${totalAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span><span class="kpi-rotulo">Total em atraso</span></div>
+      ${semGestor.length ? `<div class="kpi"><span class="kpi-num" style="color:#b02a37">${semGestor.length}</span><span class="kpi-rotulo">Sem gestor cadastrado</span></div>` : ''}
+    </div>
+
+    ${lista.length === 0
+      ? '<p class="dica">Nenhuma mensalidade em atraso. 🎉</p>'
+      : lista.map(linha).join('')}
+  `;
+  } catch (e) {
+    $('#sa-conteudo').innerHTML = `<p class="erro">Erro ao montar a tela: ${esc(e.message)}</p>
+      <button onclick="renderPainelSA()">← Empresas</button>`;
+    console.error(e);
+  }
+}
+
+async function avisarInadimplenteSA(id, btn) {
+  if (!confirm('Enviar o aviso de mensalidade em aberto por e-mail aos gestores desta empresa?')) return;
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try {
+    await saApi(`/inadimplentes/${id}/avisar`, { method: 'POST' });
+    toast('Aviso enfileirado ✓', 'ok');
+    renderInadimplentesSA();
+  } catch (e) {
+    toast(e.message || 'Falha ao enviar', 'erro');
+    btn.disabled = false;
+    btn.textContent = '📧 Enviar aviso';
   }
 }
 
