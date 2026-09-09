@@ -1,49 +1,64 @@
 ════════════════════════════════════════════════════════════════
- VOLTA O LINK DA PÁGINA DE VALIDAÇÃO DO QR
+ VOLTA OS LINKS DE PLANOS PARA A VITRINE DO SISTEMA
  09/09/2026
 ════════════════════════════════════════════════════════════════
 
-O QUE MUDA
-──────────
-Na página que abre quando alguém escaneia o QR do certificado, o
-link "conheça os planos" volta a apontar para a vitrine do próprio
-sistema:
+POR QUÊ
+───────
+O endereço tscerti.totalscale.com.br ainda não serve a página de
+planos. Os três pontos que passaram a apontá-lo estavam levando o
+visitante a lugar nenhum.
 
-  agora no servidor   https://tscerti.totalscale.com.br?origem=qr
-  volta para          https://certificados.totalscale.com.br/tscert.html?origem=qr
+O QUE VOLTA
+───────────
+  index.html   os dois links da TELA DE LOGIN
+               → /tscert.html
 
-Um arquivo só: src/Api/wwwroot/validar.html
+  portal.html  link no PORTAL DO CLIENTE
+               → certificados.totalscale.com.br/tscert.html?origem=portal
 
+  validar.html link na página do QR DO CERTIFICADO
+               → certificados.totalscale.com.br/tscert.html?origem=qr
 
-⚠ ATENÇÃO — OS OUTROS DOIS LINKS
-─────────────────────────────────
-O mesmo endereço tscerti.totalscale.com.br também foi colocado em:
+Os parâmetros de origem foram preservados, então continua dando
+para saber de onde veio a visita.
 
-  · index.html   — os dois links da TELA DE LOGIN
-  · portal.html  — o link no PORTAL DO CLIENTE
-
-Se o endereço ainda não serve a página de planos, esses dois também
-estão levando a lugar nenhum. Este patch NÃO mexe neles — me avise
-se quiser que voltem também.
+O QUE NÃO VOLTA
+───────────────
+O TELEFONE novo — (31) 97160-7105 — fica como está. Este patch mexe
+só nos links de planos.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o volta-link-validar.zip
-    git apply --check volta-link-validar.patch
-    git apply volta-link-validar.patch
+    unzip -o volta-links-planos.zip
+    git apply --check volta-links-planos.patch
+    git apply volta-links-planos.patch
     git add -A
-    git commit -m "Pagina de validacao do QR: volta a apontar para a vitrine"
+    git commit -m "Volta os links de planos para a vitrine do sistema"
     git push
     ./atualizar.sh --build
-    rm -f volta-link-validar.zip
+    rm -f volta-links-planos.zip
 
 Não há migration.
+
+⚠ Se você já aplicou o volta-link-validar.zip que mandei antes, o
+  "git apply --check" vai reclamar (aquele já reverteu o validar).
+  Nesse caso pare e me avise — eu gero uma versão sem essa parte.
 
 
 COMO CONFERIR
 ─────────────
-Abra a página de validação de qualquer certificado emitido
-(está no rodapé do PDF, ou escaneie o QR) e clique em
-"conheça os planos": deve abrir a vitrine do sistema.
+Ctrl+Shift+R e clique em "conheça os planos" em três lugares:
+  · tela de login (sem estar logado)
+  · portal do cliente
+  · página de validação de um certificado (rodapé do PDF)
+
+Todos devem abrir a vitrine, com os planos.
+
+
+QUANDO O SITE NOVO ESTIVER PRONTO
+──────────────────────────────────
+Me avise que eu refaço o patch apontando os três para o endereço
+novo — dessa vez depois de confirmar que a página está no ar.
