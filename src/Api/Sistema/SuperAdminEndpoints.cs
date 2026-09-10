@@ -282,7 +282,16 @@ public static class SuperAdminEndpoints
             ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
             if (!Ok(user)) return Results.Forbid();
+            // Valida ANTES de escrever qualquer coisa — evita o cenário que
+            // deixou a BALANCAS MS com contrato criado mas sem reativar:
+            // a checagem rodava DEPOIS do INSERT do contrato, então uma
+            // falha aqui abortava a requisição no meio do caminho, sem
+            // desfazer o que já tinha sido gravado. João, 09/09/2026.
+            if (req.DescontoTipo == "percentual" && req.DescontoValor is > 100 or < 0)
+                return Results.BadRequest(new { erro = "Desconto percentual deve estar entre 0 e 100." });
+
             await using var conn = await ds.OpenConnectionAsync();
+            await using var tx = await conn.BeginTransactionAsync();
             var cid = await conn.ExecuteScalarAsync<Guid>("""
                 SELECT sa_criar_contrato(@id, @Descricao, @Valor, @Periodicidade,
                     @Inicio, @Fim, @Observacao, @DiaVencimento, @GerarAutomatico)
@@ -291,8 +300,6 @@ public static class SuperAdminEndpoints
                     DiaVencimento = req.DiaVencimento ?? 10,
                     GerarAutomatico = req.GerarAutomatico ?? true });
             // Plano, limites e desconto (contrato não tem RLS; update direto)
-            if (req.DescontoTipo == "percentual" && req.DescontoValor is > 100 or < 0)
-                return Results.BadRequest(new { erro = "Desconto percentual deve estar entre 0 e 100." });
             await conn.ExecuteAsync("""
                 UPDATE contrato SET plano = @Plano,
                        max_usuarios = @MaxUsuarios, max_certs_mes = @MaxCertsMes,
@@ -331,8 +338,11 @@ public static class SuperAdminEndpoints
                             GREATEST(current_date, @Inicio::date) + 7,
                             @ValorImplantacao, 'pendente', 'Implantação e treinamento')
                     """, new { id, cid, req.Inicio, req.ValorImplantacao });
+            await tx.CommitAsync();
             // Gera na hora a cobrança da competência atual (idempotente — o worker
-            // continua cuidando dos meses seguintes no ciclo diário)
+            // continua cuidando dos meses seguintes no ciclo diário). Fora da
+            // transação de propósito: se isso falhar, o contrato já foi
+            // commitado corretamente — o worker gera no ciclo diário de qualquer jeito.
             try { await conn.ExecuteAsync("SELECT gerar_cobrancas_do_mes()"); } catch { }
             return Results.Ok(new { id = cid });
         });

@@ -1,88 +1,84 @@
 ════════════════════════════════════════════════════════════════
- COBRANÇA — REFEITO DO ZERO, VERIFICADO CONTRA O SERVIDOR REAL
+ TRÊS BUGS — BALANCAS MS ASSISTENCIA TECNICA LTDA
  09/09/2026
 ════════════════════════════════════════════════════════════════
 
-⚠ SOBRE A TENTATIVA ANTERIOR
-──────────────────────────────
-O commit "3e23647" que apareceu no seu histórico NÃO tinha o código
-de verdade — o "git apply" daquela vez tinha falhado, e o que foi
-comitado por engano foram só os arquivos .zip/LEIA-ME que sobraram
-na pasta. O atraso automático continuou ativo até agora.
+DIAGNÓSTICO
+───────────
 
-Desta vez eu reclonei o GitHub, confirmei exatamente o que está no
-servidor de verdade, e reconstruí tudo em cima disso — testado com
-um verificador de sintaxe antes de gerar o patch.
+1. NOME FANTASIA "não salva" — bug real, confirmado.
+   A função sa_empresa() (usada para carregar a tela de edição do
+   super-admin) nunca incluía a coluna nome_fantasia na resposta.
+   O campo sempre aparecia vazio ao reabrir a tela, mesmo com o
+   valor salvo corretamente no banco — a gravação sempre funcionou,
+   só a LEITURA de volta estava quebrada. Valia para toda empresa,
+   não só esta.
+
+2. COBRANÇAS não apareciam — consequência direta do item 3.
+   A geração de cobrança só considera empresa com status='ativa'.
+   Enquanto ficasse suspensa, nenhuma cobrança nasce, mesmo com
+   contrato ativo cadastrado.
+
+3. CONTINUA SUSPENSA — lacuna real no código, causa exata incerta.
+   Existe lógica para reativar automaticamente ao criar contrato,
+   mas ela rodava sem transação: se a validação do desconto
+   percentual falhasse (ela verifica DEPOIS de o contrato já ter
+   sido inserido no banco), a requisição abortava no meio do
+   caminho — contrato criado, mas plano/portal/reativação nunca
+   aplicados. Não tenho como confirmar pelo banco se foi
+   exatamente isso que aconteceu com esta empresa, mas é uma
+   falha real, fechada agora.
 
 
 O QUE ESTE PATCH FAZ
 ──────────────────────
 
-1. DESLIGA o e-mail automático de "mensalidade em aberto".
-   Continua existindo o e-mail de LEMBRETE (5 dias antes de vencer)
-   — só o de ATRASO (depois de vencido) deixou de ser automático.
+· sa_empresa() passa a devolver nome_fantasia — corrigido para
+  todas as empresas, não só esta.
 
-2. TELA "💰 Inadimplentes" no painel do super-admin.
-   Lista vencidas, com dias de atraso, total, e um botão
-   "Enviar aviso" por linha (confirmação antes de disparar).
-   Empresa sem gestor com e-mail aparece destacada, botão desabilitado.
+· Criação de contrato agora valida ANTES de escrever qualquer
+  coisa, e tudo roda dentro de uma transação — ou aplica tudo
+  (contrato, plano, portal, reativação), ou não aplica nada.
 
-3. CARD NA TELA INICIAL do painel — o que você pediu.
-   Aparece automaticamente quando há alguma pendência, mostrando até
-   5 empresas e o total. Clique leva para a tela cheia. Se a busca
-   falhar por qualquer motivo, o card simplesmente não aparece — a
-   tela principal não quebra por isso.
-
-4. E-MAIL DIÁRIO PARA VOCÊ (super-admin) — o que você pediu.
-   Todo dia útil, SE houver alguma cobrança vencida, você recebe um
-   resumo por e-mail: quantas, total, e a lista com dias de atraso.
-   Dia sem pendência = sem e-mail (não enche a caixa por nada).
-
-5. Aviso de "mensalidade disponível" no dia em que a cobrança nasce
-   (dia 1º do mês), com o PIX — isso já tinha sido pedido antes e
-   está incluído de novo aqui, garantido.
+· Conserto pontual: a BALANCAS MS (CNPJ 11.950.499/0001-14) é
+  reativada direto pela migration, já que tem contrato ativo. Você
+  não precisa mexer no Status pela tela — a migration já resolve.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o cobranca-completo.zip
-    git apply --check cobranca-completo.patch
+    unzip -o fix-empresa-ms.zip
+    git apply --check fix-empresa-ms.patch
 
-Se o "--check" reclamar de algo, PARE AQUI e me mande a mensagem
-exata — não continue.
+Se o "--check" reclamar de algo, PARE e me mande a mensagem exata.
 
 Se passar limpo:
 
-    git apply cobranca-completo.patch
+    git apply fix-empresa-ms.patch
 
     docker compose exec -T db psql -U certsaas -d certsaas \
-        < db/seed/155_aviso_cobranca_gerada.sql
+        < db/seed/156_fix_empresa_ms.sql
 
     git add -A
-    git commit -m "Cobranca: desliga atraso automatico, aviso na geracao, tela e digest"
+    git commit -m "Corrige tres bugs achados na BALANCAS MS"
     git push
     ./atualizar.sh --build
-    rm -f cobranca-completo.zip
+    rm -f fix-empresa-ms.zip
 
-⚠ A MIGRATION VEM ANTES DO BUILD, sem exceção — evita disparar o
-  aviso de "disponível" para cobranças antigas de uma vez só.
+A migration reativa a empresa direto no banco — não precisa fazer
+nada manual na tela depois.
 
 
 COMO CONFERIR
 ─────────────
-· Ctrl+Shift+R e olhe a tela inicial do painel: se houver
-  mensalidade vencida, o card "💰 X mensalidade(s) em atraso" deve
-  aparecer no topo.
+· Abra a BALANCAS MS no painel do super-admin (Ctrl+Shift+R antes):
+  Status deve mostrar "ativa".
 
-· Clique nele (ou no botão "💰 Inadimplentes" no menu): abre a
-  lista completa com o botão de envio.
+· Se o nome fantasia dela estiver vazio, preencha e salve — ao
+  reabrir a tela, o valor deve continuar aparecendo (antes sumia).
 
-· O e-mail diário só sai quando há pendência — confira no Mailpit
-  (via túnel SSH na porta 8025) no dia seguinte, ou force um teste
-  manual rodando a consulta da tela e vendo se há dados.
-
-· Confirme que o atraso automático parou de fato:
-      grep -n "AVISO DE ATRASO AO CLIENTE" src/Worker/Program.cs
-  Deve mostrar o comentário explicando que está desligado, sem o
-  código de envio automático abaixo dele.
+· A cobrança do mês deve aparecer no próximo ciclo diário do
+  Worker — não precisa esperar o dia 1º, a checagem roda todo dia.
+  Se quiser confirmar na hora, veja em "💰 Inadimplentes" ou na
+  aba Cobranças da própria empresa no dia seguinte.
