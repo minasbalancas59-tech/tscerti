@@ -1,84 +1,40 @@
 ════════════════════════════════════════════════════════════════
- TRÊS BUGS — BALANCAS MS ASSISTENCIA TECNICA LTDA
- 09/09/2026
+ LISTA DE CALIBRAÇÕES — NÚMERO DO CERTIFICADO JUNTO DO CLIENTE
+ 10/09/2026
 ════════════════════════════════════════════════════════════════
 
-DIAGNÓSTICO
-───────────
+O QUE MUDA
+──────────
+O número do certificado (ex: MB-2026/0103) ficava na terceira linha
+do item, misturado com técnico e datas de calibração/emissão.
 
-1. NOME FANTASIA "não salva" — bug real, confirmado.
-   A função sa_empresa() (usada para carregar a tela de edição do
-   super-admin) nunca incluía a coluna nome_fantasia na resposta.
-   O campo sempre aparecia vazio ao reabrir a tela, mesmo com o
-   valor salvo corretamente no banco — a gravação sempre funcionou,
-   só a LEITURA de volta estava quebrada. Valia para toda empresa,
-   não só esta.
+Agora aparece logo na primeira linha, ao lado do cliente e da
+identificação da balança, em azul e destacado:
 
-2. COBRANÇAS não apareciam — consequência direta do item 3.
-   A geração de cobrança só considera empresa com status='ativa'.
-   Enquanto ficasse suspensa, nenhuma cobrança nasce, mesmo com
-   contrato ativo cadastrado.
+    MIXPAN INDUSTRIA E COMERCIO LTDA · BA 05 · MB-2026/0103
 
-3. CONTINUA SUSPENSA — lacuna real no código, causa exata incerta.
-   Existe lógica para reativar automaticamente ao criar contrato,
-   mas ela rodava sem transação: se a validação do desconto
-   percentual falhasse (ela verifica DEPOIS de o contrato já ter
-   sido inserido no banco), a requisição abortava no meio do
-   caminho — contrato criado, mas plano/portal/reativação nunca
-   aplicados. Não tenho como confirmar pelo banco se foi
-   exatamente isso que aconteceu com esta empresa, mas é uma
-   falha real, fechada agora.
+Só aparece quando o certificado já tem número — rascunho e
+aguardando aprovação continuam sem, como já era.
 
-
-O QUE ESTE PATCH FAZ
-──────────────────────
-
-· sa_empresa() passa a devolver nome_fantasia — corrigido para
-  todas as empresas, não só esta.
-
-· Criação de contrato agora valida ANTES de escrever qualquer
-  coisa, e tudo roda dentro de uma transação — ou aplica tudo
-  (contrato, plano, portal, reativação), ou não aplica nada.
-
-· Conserto pontual: a BALANCAS MS (CNPJ 11.950.499/0001-14) é
-  reativada direto pela migration, já que tem contrato ativo. Você
-  não precisa mexer no Status pela tela — a migration já resolve.
+Um arquivo só: src/Api/wwwroot/app.js
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-empresa-ms.zip
-    git apply --check fix-empresa-ms.patch
-
-Se o "--check" reclamar de algo, PARE e me mande a mensagem exata.
-
-Se passar limpo:
-
-    git apply fix-empresa-ms.patch
-
-    docker compose exec -T db psql -U certsaas -d certsaas \
-        < db/seed/156_fix_empresa_ms.sql
-
+    unzip -o numero-na-lista.zip
+    git apply --check numero-na-lista.patch
+    git apply numero-na-lista.patch
     git add -A
-    git commit -m "Corrige tres bugs achados na BALANCAS MS"
+    git commit -m "Lista de calibracoes: numero do certificado junto do cliente"
     git push
     ./atualizar.sh --build
-    rm -f fix-empresa-ms.zip
+    rm -f numero-na-lista.zip
 
-A migration reativa a empresa direto no banco — não precisa fazer
-nada manual na tela depois.
+Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-· Abra a BALANCAS MS no painel do super-admin (Ctrl+Shift+R antes):
-  Status deve mostrar "ativa".
-
-· Se o nome fantasia dela estiver vazio, preencha e salve — ao
-  reabrir a tela, o valor deve continuar aparecendo (antes sumia).
-
-· A cobrança do mês deve aparecer no próximo ciclo diário do
-  Worker — não precisa esperar o dia 1º, a checagem roda todo dia.
-  Se quiser confirmar na hora, veja em "💰 Inadimplentes" ou na
-  aba Cobranças da própria empresa no dia seguinte.
+Ctrl+Shift+R no painel: a lista de calibrações deve mostrar o número
+do certificado logo na primeira linha, ao lado do cliente.

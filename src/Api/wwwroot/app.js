@@ -1211,9 +1211,10 @@ function htmlListaGestor(certs) {
     return `
       <div class="item-cert${c.emitir_rbc ? ' item-rbc' : ''}" onclick="abrirCert('${c.id}','${c.status}')"
         style="align-items:center">
-        ${selEmail}<span style="flex:1"><b>${esc(c.cliente)}</b> · ${esc(c.balanca)}
+        ${selEmail}<span style="flex:1"><b>${esc(c.cliente)}</b> · ${esc(c.balanca)}${
+            c.numero ? ` · <span style="color:#2a527a;font-weight:600">${esc(c.numero)}</span>` : ''}
           ${detalhes ? `<br><span class="dica">${esc(detalhes)}</span>` : ''}
-          <br><span class="dica">Téc.: ${esc(c.tecnico)}${c.numero ? ' · ' + c.numero : ''}${
+          <br><span class="dica">Téc.: ${esc(c.tecnico)}${
             c.data_calibracao ? ' · 📅 Calibrado: ' + new Date(c.data_calibracao).toLocaleDateString('pt-BR') : ''}${
             c.data_emissao ? ' · Emitido: ' + new Date(c.data_emissao).toLocaleDateString('pt-BR') : ''}</span>
           ${c.ordem_servico || c.endereco_calibracao ? `<br><span class="dica">${
