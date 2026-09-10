@@ -246,6 +246,82 @@ public static class Metrologia
         return Math.Round((decimal)(2 * u), 6);   // k = 2 (~95%)
     }
 
+    /// <summary>
+    /// Componente de incerteza dos pesos-padrão (u_pesos), em kg.
+    ///
+    /// Usa a incerteza REAL declarada no certificado do peso quando ela
+    /// existe (fixa, não escala com a carga — o cadastro de peso já
+    /// representa o CONJUNTO inteiro usado no ensaio, com uma incerteza
+    /// válida para toda a faixa que ele cobre). Sem valor declarado, cai
+    /// exatamente na aproximação por classe de sempre (escala com a carga).
+    ///
+    /// Pedido do João, 10/09/2026: "muitas empresas estão pedindo" a
+    /// incerteza real do peso no certificado — antes só existia a
+    /// aproximação genérica por classe (OIML R111).
+    /// </summary>
+    public static (decimal UPesos, string Fonte) ResolverUPesos(
+        decimal carga, string classePesos, decimal? incertezaDeclaradaKg)
+    {
+        if (incertezaDeclaradaKg is > 0)
+            return (incertezaDeclaradaKg.Value, "declarada");
+        var mpeRel = MpeRelativo.GetValueOrDefault(classePesos, 50e-6);
+        var uPesos = (decimal)((double)carga * mpeRel / Math.Sqrt(3));
+        return (uPesos, "classe");
+    }
+
+    /// <summary>
+    /// Componente de incerteza do EMPUXO DO AR, em kg — quarto termo do
+    /// cálculo (GUM/EURAMET cg-18, App. E), com a fórmula CORRETA
+    /// (referenciada à densidade convencional de 8000 kg/m³, não à
+    /// densidade do peso sozinha — ver nota completa em
+    /// IncertezaRbc.IncertezaEmpuxo, cuja fórmula era usada errada até
+    /// hoje só ali; aqui já nasce certa).
+    ///
+    /// Devolve zero sem tentar calcular nada quando faltar qualquer
+    /// dado ambiental (temperatura/pressão/umidade) — prefere DESPREZAR
+    /// o componente a travar o certificado por falta de um dado que,
+    /// de qualquer forma, quase nunca muda o resultado (ver análise no
+    /// LEIA-ME desta migration: efeito da ordem de 0,001% mesmo em
+    /// cargas grandes). João, 10/09/2026.
+    /// </summary>
+    public static decimal ResolverUEmpuxo(decimal carga,
+        decimal? tempC, decimal? pressaoHpa, decimal? umidadePct, decimal? densidadePesoKgm3)
+    {
+        if (tempC is null || pressaoHpa is null || umidadePct is null) return 0m;
+        var densidade = densidadePesoKgm3 is > 0 ? densidadePesoKgm3.Value : 8000m;
+        var rhoAr = IncertezaRbc.DensidadeAr((double)tempC, (double)pressaoHpa, (double)umidadePct);
+        var u = IncertezaRbc.IncertezaEmpuxo((double)carga, rhoAr, (double)densidade);
+        return (decimal)u;
+    }
+
+    /// <summary>
+    /// Igual a IncertezaExpandida, mas devolve também os QUATRO componentes
+    /// (u_pesos, u_leitura, u_repet, u_empuxo) para serem CONGELADOS no
+    /// banco junto com o resultado. É o que garante que o memorial de
+    /// cálculo de um certificado nunca mude depois de emitido, mesmo que
+    /// o cadastro do peso seja editado no futuro, ou a configuração da
+    /// empresa mude (ver migration 157 para o raciocínio completo).
+    /// João, 10/09/2026.
+    /// </summary>
+    public static (decimal Incerteza, decimal UPesos, decimal ULeitura, decimal URepet,
+        decimal UEmpuxo, string FontePesos, decimal DensidadeUsada)
+        IncertezaExpandidaDetalhada(decimal carga, decimal d, decimal desvioRepetibilidade,
+            string classePesos, decimal? incertezaDeclaradaKg,
+            decimal? tempC = null, decimal? pressaoHpa = null, decimal? umidadePct = null,
+            decimal? densidadePesoKgm3 = null)
+    {
+        var (uPesos, fonte) = ResolverUPesos(carga, classePesos, incertezaDeclaradaKg);
+        var uLeituraD = (double)d / Math.Sqrt(12) * Math.Sqrt(2);
+        var uLeitura = (decimal)uLeituraD;
+        var uRepet = desvioRepetibilidade;
+        var uEmpuxo = ResolverUEmpuxo(carga, tempC, pressaoHpa, umidadePct, densidadePesoKgm3);
+        var densidadeUsada = densidadePesoKgm3 is > 0 ? densidadePesoKgm3.Value : 8000m;
+        var u = Math.Sqrt((double)uPesos * (double)uPesos + uLeituraD * uLeituraD
+                         + (double)uRepet * (double)uRepet + (double)uEmpuxo * (double)uEmpuxo);
+        var incerteza = Math.Round((decimal)(2 * u), 6);   // k = 2 (~95%)
+        return (incerteza, uPesos, uLeitura, uRepet, uEmpuxo, fonte, densidadeUsada);
+    }
+
     public static decimal DesvioPadrao(IReadOnlyList<decimal> valores)
     {
         if (valores.Count < 2) return 0;

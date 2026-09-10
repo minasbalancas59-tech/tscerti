@@ -43,7 +43,8 @@ public record LinhaExc(string Posicao, decimal Carga, decimal Indicacao, decimal
     decimal? Ema = null, bool? Aprovado = null, decimal? IndicacaoAntes = null);
 public record LinhaRep(int Medicao, decimal Carga, decimal Indicacao);
 public record LinhaPeso(string Identificacao, string? ValorNominal, string Classe,
-    string? Unidade, string? NumCertificado, DateTime? DataCalibracao, DateTime? Validade, string? Laboratorio);
+    string? Unidade, string? NumCertificado, DateTime? DataCalibracao, DateTime? Validade, string? Laboratorio,
+    decimal? IncertezaCertificado = null, decimal? KCertificado = null);
 public record FaixaPdf(int Ordem, decimal LimiteSup, decimal DivisaoE);
 
 
@@ -73,6 +74,25 @@ public static class GeradorPdf
     // Formata na quantidade de casas da divisão da balança
     static string Val(decimal? v, int casas) => v is null ? "—" :
         v.Value.ToString("N" + casas, Pt);
+
+    /// <summary>
+    /// Texto da incerteza declarada no certificado do peso-padrão, para a
+    /// coluna nova da tabela de rastreabilidade. "—" quando o campo não foi
+    /// preenchido (a grande maioria hoje) — puramente informativo aqui; o
+    /// que efetivamente entra no cálculo do certificado é decidido e
+    /// congelado na submissão (ver Metrologia.ResolverUPesos).
+    /// João, 10/09/2026.
+    /// </summary>
+    static string TextoIncertezaPeso(LinhaPeso p)
+    {
+        if (p.IncertezaCertificado is not { } u || u <= 0) return "—";
+        var k = p.KCertificado is > 0 ? p.KCertificado.Value : 2m;
+        // Mesma regra de 2 algarismos significativos das demais incertezas do
+        // certificado (ver ValU) — aqui é só exibição, não precisa de casas
+        // fixas por resolução de balança.
+        var casas = u < 1 ? 4 : 2;
+        return $"± {u.ToString("N" + casas, Pt)} (k={k:0.#})";
+    }
 
     /// <summary>
     /// Arredonda a incerteza expandida U conforme GUM/JCGM 100:2008 cl. 7.2.6,
@@ -655,16 +675,18 @@ public static class GeradorPdf
                     col.Item().Table(t =>
                     {
                         // Padrão é a coluna dominante (nomes longos numa linha só);
-                        // Classe e Certificado ficam justas
-                        t.ColumnsDefinition(c => { c.RelativeColumn(3.2f); c.RelativeColumn(0.7f);
-                            c.RelativeColumn(1.3f); c.RelativeColumn(); c.RelativeColumn(); });
+                        // Classe, Certificado e Incerteza ficam justas
+                        t.ColumnsDefinition(c => { c.RelativeColumn(2.9f); c.RelativeColumn(0.6f);
+                            c.RelativeColumn(1.2f); c.RelativeColumn(1.1f);
+                            c.RelativeColumn(); c.RelativeColumn(); });
                         void H(string s) => t.Cell().Background("#eef3f1").Padding(2f).Text(s).FontSize(7).Bold();
-                        H("Padrão"); H("Classe"); H("Certificado"); H("Calibrado"); H("Válido até");
+                        H("Padrão"); H("Classe"); H("Certificado"); H("Incerteza"); H("Calibrado"); H("Válido até");
                         foreach (var p in d.Pesos)
                         {
                             void C(string s) => t.Cell().BorderBottom(0.5f).BorderColor("#e6e6e6").Padding(2f).Text(s).FontSize(7);
                             C($"{p.Identificacao} ({p.ValorNominal})"); C(p.Classe);
                             C(p.NumCertificado ?? "—");
+                            C(TextoIncertezaPeso(p));
                             C(p.DataCalibracao?.ToString("dd/MM/yyyy") ?? "—");
                             C(p.Validade?.ToString("dd/MM/yyyy") ?? "—");
                         }
@@ -1060,15 +1082,18 @@ public static class GeradorPdf
                     Barra("8 · RASTREABILIDADE DOS PADRÕES");
                     col.Item().Table(t =>
                     {
-                        t.ColumnsDefinition(c => { c.RelativeColumn(4.5f); c.RelativeColumn(0.8f); c.RelativeColumn(1.5f); c.RelativeColumn(1.6f); c.RelativeColumn(1.6f); });
+                        t.ColumnsDefinition(c => { c.RelativeColumn(4.0f); c.RelativeColumn(0.7f);
+                            c.RelativeColumn(1.3f); c.RelativeColumn(1.4f);
+                            c.RelativeColumn(1.4f); c.RelativeColumn(1.4f); });
                         void H(string s) => t.Cell().Background(cinzaCab).Border(0.4f).BorderColor(borda)
                             .Padding(2).AlignCenter().Text(s).FontSize(6.5f).Bold();
                         void C(string s) => t.Cell().Border(0.4f).BorderColor(borda).Padding(2).AlignCenter().Text(s).FontSize(6.5f);
-                        H("Padrão"); H("Classe"); H("Certificado"); H("Calibrado"); H("Válido até");
+                        H("Padrão"); H("Classe"); H("Certificado"); H("Incerteza"); H("Calibrado"); H("Válido até");
                         foreach (var p in d.Pesos)
                         {
                             C($"{p.Identificacao} ({p.ValorNominal})");
                             C(p.Classe); C(p.NumCertificado ?? "—");
+                            C(TextoIncertezaPeso(p));
                             C(p.DataCalibracao?.ToString("dd/MM/yyyy") ?? "—");
                             C(p.Validade?.ToString("dd/MM/yyyy") ?? "—");
                         }
@@ -1835,11 +1860,12 @@ public static class GeradorPdf
                     Titulo("PADRÕES DE TRABALHO UTILIZADOS");
                     col.Item().Table(t =>
                     {
-                        t.ColumnsDefinition(c => { c.RelativeColumn(2.6f); c.RelativeColumn(0.7f);
-                            c.RelativeColumn(1.3f); c.RelativeColumn(); c.RelativeColumn(); });
+                        t.ColumnsDefinition(c => { c.RelativeColumn(2.3f); c.RelativeColumn(0.6f);
+                            c.RelativeColumn(1.1f); c.RelativeColumn(1.2f);
+                            c.RelativeColumn(); c.RelativeColumn(); });
                         void H(string s) => t.Cell().Background(cinza).Border(0.4f).BorderColor(borda)
                             .Padding(1.5f).AlignCenter().Text(s).FontSize(5.5f).Bold();
-                        H("PADRÃO"); H("CLASSE"); H("CERTIFICADO"); H("CALIBRADO"); H("VÁLIDO ATÉ");
+                        H("PADRÃO"); H("CLASSE"); H("CERTIFICADO"); H("INCERTEZA"); H("CALIBRADO"); H("VÁLIDO ATÉ");
                         foreach (var p in d.Pesos)
                         {
                             void C(string s, bool esq = false) { var cel = t.Cell().Border(0.4f)
@@ -1847,6 +1873,7 @@ public static class GeradorPdf
                                 .Text(s).FontSize(8); }
                             C($"{p.Identificacao} ({p.ValorNominal})", true); C(p.Classe);
                             C(p.NumCertificado ?? "—");
+                            C(TextoIncertezaPeso(p));
                             C(p.DataCalibracao?.ToString("dd/MM/yyyy") ?? "—");
                             C(p.Validade?.ToString("dd/MM/yyyy") ?? "—");
                         }

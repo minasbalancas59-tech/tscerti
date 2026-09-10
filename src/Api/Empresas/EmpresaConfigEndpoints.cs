@@ -29,7 +29,8 @@ public record ConfigEmpresaRequest(
     string? NomeFantasia = null,
     string? ClausulaSubstituicao = null, bool? EnviaEmailAutomatico = null,
     // Instrução de calibração (IT + revisão) — fixa por empresa, usada no Modelo 4
-    string? InstrucaoIt = null, string? InstrucaoRev = null);
+    string? InstrucaoIt = null, string? InstrucaoRev = null,
+    bool? UsarIncertezaDeclaradaPesos = null);
 
 public static class EmpresaConfigEndpoints
 {
@@ -127,7 +128,7 @@ public static class EmpresaConfigEndpoints
                        envia_email_automatico AS "EnviaEmailAutomatico",
                          acreditada, num_acreditacao, selo_rbc_url,
                          rbc_num_leituras, rbc_num_posicoes_exc,
-                         instrucao_it, instrucao_rev
+                         instrucao_it, instrucao_rev, usar_incerteza_declarada_pesos
                   FROM empresa WHERE id = @id
                 """, new { id = Tenant.EmpresaId(user) });
             return cfg is null ? Results.NotFound() : Results.Ok(cfg);
@@ -179,6 +180,7 @@ public static class EmpresaConfigEndpoints
                     acreditada = @Acreditada,
                     instrucao_it = @InstrucaoIt,
                     instrucao_rev = @InstrucaoRev,
+                    usar_incerteza_declarada_pesos = COALESCE(@UsarIncertezaDeclaradaPesos, usar_incerteza_declarada_pesos),
                     num_acreditacao = @NumAcreditacao
                  WHERE id = @id
                 """, new
@@ -193,7 +195,7 @@ public static class EmpresaConfigEndpoints
                     req.EtiquetaTamanho, req.ValidarPermiteDownload, req.ModeloCertificado,
                     req.Acreditada, req.NumAcreditacao, req.MarcaSistemaPdf,
                     req.LogoLargura, req.LogoAltura, req.LogoAlinhamento,
-                    req.InstrucaoIt, req.InstrucaoRev
+                    req.InstrucaoIt, req.InstrucaoRev, req.UsarIncertezaDeclaradaPesos
                 });
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "empresa", Tenant.EmpresaId(user), "config", req, Auditoria.Ip(ctx));

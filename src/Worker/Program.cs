@@ -385,7 +385,8 @@ public sealed class FilaWorker(
             SELECT pp.identificacao AS Identificacao, pp.valor_nominal AS ValorNominal,
                    pp.classe AS Classe, pp.unidade AS Unidade, cp.num_cert_peso AS NumCertificado,
                    pp.data_calibracao AS DataCalibracao, cp.validade_na_data AS Validade,
-                   pp.laboratorio AS Laboratorio
+                   pp.laboratorio AS Laboratorio,
+                   pp.incerteza_certificado AS IncertezaCertificado, pp.k_certificado AS KCertificado
               FROM certificado_peso cp JOIN peso_padrao pp ON pp.id = cp.peso_padrao_id
              WHERE cp.certificado_id=@id
             """, new { id })).ToList();

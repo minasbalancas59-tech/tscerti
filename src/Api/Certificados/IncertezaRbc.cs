@@ -47,22 +47,36 @@ public static class IncertezaRbc
     /// <summary>
     /// Incerteza devida ao empuxo do ar (EURAMET cg-18, App. E).
     /// ATENÇÃO: é a INCERTEZA da correção de empuxo, não o valor da
-    /// correção. Vem da incerteza da densidade do ar u(ρa) e da
-    /// densidade do material do peso:
+    /// correção. Vem da incerteza da densidade do ar u(ρa) e de QUÃO
+    /// DIFERENTE a densidade do peso é da densidade de REFERÊNCIA da
+    /// massa convencional (8000 kg/m³ — é contra ela que todo peso-
+    /// padrão já é calibrado, não contra zero):
+    ///   u_buoy = carga · u(ρa) · |1/ρpeso − 1/ρref|
+    ///
+    /// CORRIGIDO em 10/09/2026 (João): a fórmula anterior era
     ///   u_buoy ≈ carga · u(ρa) / ρpeso
+    /// que OMITE a densidade de referência — superestimava o
+    /// componente em 20 a 160× dependendo do material do peso (para um
+    /// peso EXATAMENTE na densidade de referência, a fórmula antiga
+    /// nunca dava zero, quando fisicamente deveria: peso calibrado
+    /// contra a própria referência não tem erro de empuxo a corrigir).
+    /// Afeta só ensaios RBC submetidos a partir de agora — resultados
+    /// já congelados em incerteza_ponto_rbc não são recalculados.
+    ///
     /// u(ρa) é estimada como ~0,12% de ρa (fórmula CIPM-2007 + sensores
     /// comuns de T/p/UR). Para balanças classe III o resultado é
     /// desprezível (ordem de µg), como esperado; torna-se relevante só
-    /// em analíticas de alta precisão.
+    /// em analíticas de alta precisão com material bem diferente do aço.
     /// </summary>
     public static double IncertezaEmpuxo(double carga, double densidadeAr,
-        double densidadePeso)
+        double densidadePeso, double densidadeReferencia = 8000)
     {
-        if (densidadePeso <= 0) densidadePeso = 8000;
+        if (densidadePeso <= 0) densidadePeso = densidadeReferencia;
+        if (densidadeReferencia <= 0) densidadeReferencia = 8000;
         // incerteza da densidade do ar: ~0,12% de ρa (CIPM-2007 + sensores)
         double uRhoAr = 0.0012 * densidadeAr;
-        // u_buoy = carga · u(ρa) / ρpeso
-        return carga * uRhoAr / densidadePeso;
+        // u_buoy = carga · u(ρa) · |1/ρpeso − 1/ρref|
+        return carga * uRhoAr * Math.Abs(1.0 / densidadePeso - 1.0 / densidadeReferencia);
     }
 
     /// <summary>

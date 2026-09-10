@@ -1082,6 +1082,60 @@ public static class CertificadoEndpoints
                  ORDER BY classe DESC LIMIT 1
                 """, new { pesosIds }) ?? "M1";
 
+            // Incerteza REAL declarada no certificado do peso — só entra no
+            // cálculo se a EMPRESA tiver ligado essa preferência (padrão:
+            // desligada, mantém o comportamento de sempre). Quando ligada,
+            // usa o pior caso entre os pesos selecionados (mesma filosofia
+            // de "pior classe vence" acima) e também traz a referência do
+            // peso vencedor, para o Memorial poder dizer "veio do peso X,
+            // certificado Y" em vez de só mostrar um número solto.
+            // João, 10/09/2026.
+            var usarIncertezaDeclarada = await conn.ExecuteScalarAsync<bool>(
+                "SELECT usar_incerteza_declarada_pesos FROM empresa WHERE id = @empresaId",
+                new { empresaId = Tenant.EmpresaId(user) });
+            decimal? incertezaDeclaradaKg = null;
+            string? incertezaDeclaradaRef = null;
+            if (usarIncertezaDeclarada)
+            {
+                var vencedor = await conn.QuerySingleOrDefaultAsync("""
+                    SELECT identificacao, num_certificado,
+                           (incerteza_certificado / NULLIF(k_certificado, 0)) AS u
+                      FROM peso_padrao
+                     WHERE id = ANY(@pesosIds) AND incerteza_certificado IS NOT NULL
+                     ORDER BY (incerteza_certificado / NULLIF(k_certificado, 0)) DESC
+                     LIMIT 1
+                    """, new { pesosIds });
+                if (vencedor is not null)
+                {
+                    incertezaDeclaradaKg = (decimal)vencedor.u;
+                    incertezaDeclaradaRef = (string)vencedor.identificacao
+                        + (vencedor.num_certificado is not null ? $" (cert. {vencedor.num_certificado})" : "");
+                }
+            }
+
+            // Densidade de PIOR CASO entre os pesos selecionados — a que mais
+            // se afasta da densidade de referência (8000 kg/m³), porque é
+            // essa diferença que gera o componente de empuxo do ar. Peso sem
+            // densidade cadastrada assume 8000 (mesmo valor da referência:
+            // contribui zero, é o comportamento anterior a este recurso).
+            var densidadePesoKgm3 = await conn.ExecuteScalarAsync<decimal?>("""
+                SELECT densidade_material FROM peso_padrao
+                 WHERE id = ANY(@pesosIds)
+                 ORDER BY abs(1.0/NULLIF(COALESCE(densidade_material, 8000), 0) - 1.0/8000) DESC
+                 LIMIT 1
+                """, new { pesosIds }) ?? 8000m;
+
+            // Condições ambientais do ensaio — já digitadas pelo técnico e
+            // gravadas no certificado; usadas aqui também para o componente
+            // de empuxo do ar. Extraídas cedo para servir ao loop de pontos
+            // logo abaixo E à atualização do certificado mais adiante.
+            var tempAmbiente = d.TryGetProperty("temperatura", out var tAmb) &&
+                tAmb.ValueKind == JsonValueKind.Number ? tAmb.GetDecimal() : (decimal?)null;
+            var umidAmbiente = d.TryGetProperty("umidade", out var uAmb) &&
+                uAmb.ValueKind == JsonValueKind.Number ? uAmb.GetDecimal() : (decimal?)null;
+            var pressAmbiente = d.TryGetProperty("pressao", out var pAmb) &&
+                pAmb.ValueKind == JsonValueKind.Number ? pAmb.GetDecimal() : (decimal?)null;
+
             // Repetibilidade (precisa vir antes: alimenta a incerteza)
             var repet = new List<(decimal carga, decimal ind)>();
             if (d.TryGetProperty("repetibilidade", out var rj))
@@ -1161,19 +1215,38 @@ public static class CertificadoEndpoints
                 var resParaIncerteza = temFaixas ? eUsado : dRes;
                 // SEM LEITURA: não há indicação — erro e incerteza não existem;
                 // o ponto é reprovado e reprova o certificado (João, 22/08/2026).
-                decimal? inc = semLeitura ? null
-                    : Metrologia.IncertezaExpandida(carga, resParaIncerteza, desvio, classePesos);
+                decimal? inc = null, uPesosKg = null, uLeituraKg = null, uRepetKg = null, uEmpuxoKg = null;
+                string? fontePesos = null, refPesos = null;
+                decimal? densidadeUsadaPonto = null;
+                if (!semLeitura)
+                {
+                    var det = Metrologia.IncertezaExpandidaDetalhada(
+                        carga, resParaIncerteza, desvio, classePesos, incertezaDeclaradaKg,
+                        tempAmbiente, pressAmbiente, umidAmbiente, densidadePesoKgm3);
+                    inc = det.Incerteza; uPesosKg = det.UPesos;
+                    uLeituraKg = det.ULeitura; uRepetKg = det.URepet; uEmpuxoKg = det.UEmpuxo;
+                    fontePesos = det.FontePesos; densidadeUsadaPonto = det.DensidadeUsada;
+                    // A referência só faz sentido quando a fonte é "declarada"
+                    // — evita gravar um texto órfão quando caiu na classe.
+                    if (fontePesos == "declarada") refPesos = incertezaDeclaradaRef;
+                }
                 decimal? erro = semLeitura ? null : ind!.Value - carga;
                 bool? aprovado = semLeitura ? false
                     : (ema is null ? (bool?)null : Math.Abs(erro!.Value) <= ema.Value);
                 await conn.ExecuteAsync("""
                     INSERT INTO ensaio_indicacao (empresa_id, certificado_id, ordem,
                         carga_aplicada, indicacao, erro, incerteza, ema, aprovado, indicacao_antes,
-                        divisao_e_ponto, sem_leitura, sem_leitura_antes)
+                        divisao_e_ponto, sem_leitura, sem_leitura_antes,
+                        u_pesos_kg, u_leitura_kg, u_repet_kg, u_empuxo_kg, u_pesos_fonte,
+                        u_pesos_ref, densidade_peso_kgm3)
                     VALUES (@empresaId, @id, @ordem, @carga, @ind, @erro, @inc, @ema,
-                            @aprovado, @antes, @eUsado, @semLeitura, @semLeituraAntes)
+                            @aprovado, @antes, @eUsado, @semLeitura, @semLeituraAntes,
+                            @uPesosKg, @uLeituraKg, @uRepetKg, @uEmpuxoKg, @fontePesos,
+                            @refPesos, @densidadeUsadaPonto)
                     """, new { empresaId, id, ordem = ++ordem, carga, ind, erro, inc, ema,
-                               aprovado, antes, eUsado, semLeitura, semLeituraAntes });
+                               aprovado, antes, eUsado, semLeitura, semLeituraAntes,
+                               uPesosKg, uLeituraKg, uRepetKg, uEmpuxoKg, fontePesos,
+                               refPesos, densidadeUsadaPonto });
             }
 
             if (d.TryGetProperty("excentricidade", out var ej))
@@ -1267,12 +1340,10 @@ public static class CertificadoEndpoints
                        houve_ajuste = @houveAjuste
                  WHERE id = @id
                 """, new { id, dataCal,
-                    temp = d.TryGetProperty("temperatura", out var t) &&
-                           t.ValueKind == JsonValueKind.Number ? t.GetDecimal() : (decimal?)null,
-                    umid = d.TryGetProperty("umidade", out var um) &&
-                           um.ValueKind == JsonValueKind.Number ? um.GetDecimal() : (decimal?)null,
-                    press = d.TryGetProperty("pressao", out var pr) &&
-                            pr.ValueKind == JsonValueKind.Number ? pr.GetDecimal() : (decimal?)null,
+                    // Reaproveita o que já foi extraído antes do loop de
+                    // pontos (usado também no cálculo do empuxo do ar) —
+                    // evita reanalisar o mesmo JSON duas vezes.
+                    temp = tempAmbiente, umid = umidAmbiente, press = pressAmbiente,
                     contexto,
                     lacre = d.TryGetProperty("numeroLacre", out var lc) ? lc.GetString() : null,
                     selo = d.TryGetProperty("seloInmetro", out var sl) ? sl.GetString() : null,

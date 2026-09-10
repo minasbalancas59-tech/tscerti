@@ -6014,13 +6014,21 @@ async function verMemorialIncerteza(id) {
     Number(v).toLocaleString('pt-BR', { minimumFractionDigits: casas ?? 4, maximumFractionDigits: casas ?? 4 });
   const mpePpm = (Number(c.mpe_relativo) * 1e6).toFixed(1);
 
-  const pontos = d.map(p => `
-    <div class="ponto-mem" style="border:1px solid #e8edf2;border-radius:9px;padding:10px 12px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
-        <b style="font-size:13px">Ponto ${p.ordem} · carga ${f(p.carga, 3)} ${un}</b>
-        <span class="dica">indicação ${f(p.indicacao, 3)} · erro ${f(p.erro, 3)}</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
+  const pontos = d.map(p => {
+    const declarada = p.fonte_pesos === 'declarada';
+    const dens = Number(p.densidade_peso ?? 8000);
+    const temEmpuxo = Number(p.u_empuxo) > 0;
+
+    // ── 1. Pesos-padrão: texto e conta mudam conforme a fonte ──
+    const blocoPesos = declarada ? `
+        <tr><td style="padding:5px 0;color:#5a7183;vertical-align:top">
+              <b style="color:#16202c">1. Pesos-padrão</b> — u_pesos = incerteza declarada no certificado
+              <br><span style="font-size:11.5px">Valor real do certificado de calibração do peso
+              ${esc(p.ref_pesos || '')}, não a aproximação genérica pela classe — é um número fixo,
+              que não escala com a carga: o cadastro do peso já representa o conjunto inteiro usado
+              no ensaio.</span></td>
+            <td style="text-align:right;font-family:monospace;vertical-align:top;white-space:nowrap">
+              <b>= ${f(p.u_pesos, 6)}</b></td></tr>` : `
         <tr><td style="padding:5px 0;color:#5a7183;vertical-align:top">
               <b style="color:#16202c">1. Pesos-padrão</b> — u_pesos = carga × mpe_rel ÷ √3
               <br><span style="font-size:11.5px">Quanto os pesos usados podem estar afastados do valor
@@ -6028,7 +6036,43 @@ async function verMemorialIncerteza(id) {
               ${f(Number(p.carga) * Number(c.mpe_relativo), 4)} ${un} de tolerância — dividida por √3
               porque o erro pode estar em qualquer ponto dessa faixa.</span></td>
             <td style="text-align:right;font-family:monospace;vertical-align:top;white-space:nowrap">
-              ${f(p.carga, 3)} × ${mpePpm}e-6 ÷ 1,732<br><b>= ${f(p.u_pesos, 6)}</b></td></tr>
+              ${f(p.carga, 3)} × ${mpePpm}e-6 ÷ 1,732<br><b>= ${f(p.u_pesos, 6)}</b></td></tr>`;
+
+    // ── 4. Empuxo do ar: sempre explicado, mesmo quando é zero ──
+    const blocoEmpuxo = `
+        <tr><td style="padding:5px 0;color:#5a7183;vertical-align:top;border-top:1px solid #f2f5f8">
+              <b style="color:#16202c">4. Empuxo do ar</b> — u_empuxo = carga × u(ρar) × |1/ρpeso − 1/8000|
+              <br><span style="font-size:11.5px">${dens === 8000
+                ? 'Densidade do peso cadastrada como 8000 kg/m³ (referência da massa convencional) — '
+                  + 'sem diferença, sem efeito de empuxo a corrigir.'
+                : `Densidade do peso: ${f(dens, 0)} kg/m³, diferente da referência (8000 kg/m³) contra `
+                  + 'a qual todo peso-padrão já é calibrado — a diferença gera esta contribuição.'}</span></td>
+            <td style="text-align:right;font-family:monospace;vertical-align:top;white-space:nowrap;border-top:1px solid #f2f5f8">
+              <b>= ${f(p.u_empuxo, 6)}</b></td></tr>`;
+
+    const comp = [
+      { n: 'pesos-padrão', v: Number(p.u_pesos) },
+      { n: 'resolução do indicador', v: Number(p.u_leitura) },
+      { n: 'repetibilidade', v: Number(p.u_repet) },
+      { n: 'empuxo do ar', v: Number(p.u_empuxo) }];
+    const soma = comp.reduce((s, x) => s + x.v * x.v, 0);
+    const quemManda = (() => {
+      if (!(soma > 0)) return '';
+      const maior = [...comp].sort((a, b) => b.v - a.v)[0];
+      const pct = Math.round(100 * maior.v * maior.v / soma);
+      return `<p style="font-size:11.5px;color:#8ba0b5;margin:7px 0 0;border-top:1px dashed #e8edf2;padding-top:6px">
+          <b>Quem manda neste ponto:</b> ${maior.n} responde por ${pct}% da incerteza.
+          ${pct >= 80 ? 'Reduzir as demais fontes não mudaria o resultado de forma perceptível.' : ''}</p>`;
+    })();
+
+    return `
+    <div class="ponto-mem" style="border:1px solid #e8edf2;border-radius:9px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        <b style="font-size:13px">Ponto ${p.ordem} · carga ${f(p.carga, 3)} ${un}</b>
+        <span class="dica">indicação ${f(p.indicacao, 3)} · erro ${f(p.erro, 3)}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        ${blocoPesos}
 
         <tr><td style="padding:5px 0;color:#5a7183;vertical-align:top;border-top:1px solid #f2f5f8">
               <b style="color:#16202c">2. Resolução do indicador</b> — u_leitura = √2 × d ÷ √12
@@ -6046,10 +6090,12 @@ async function verMemorialIncerteza(id) {
             <td style="text-align:right;font-family:monospace;vertical-align:top;border-top:1px solid #f2f5f8">
               <b>= ${f(p.u_repet, 6)}</b></td></tr>
 
+        ${blocoEmpuxo}
+
         <tr style="border-top:1px solid #dde5ec">
             <td style="padding:6px 0;color:#5a7183;vertical-align:top">
-              <b style="color:#16202c">Combinação</b> — u_c = raiz(u1² + u2² + u3²)
-              <br><span style="font-size:11.5px">As três fontes são independentes, então somam em
+              <b style="color:#16202c">Combinação</b> — u_c = raiz(u1² + u2² + u3² + u4²)
+              <br><span style="font-size:11.5px">As quatro fontes são independentes, então somam em
               quadratura (raiz da soma dos quadrados) — o maior componente domina o resultado.</span></td>
             <td style="text-align:right;font-family:monospace;vertical-align:top"><b>= ${f(p.u_combinada, 6)}</b></td></tr>
 
@@ -6062,20 +6108,9 @@ async function verMemorialIncerteza(id) {
                 ? `<br><span class="dica">EMA ± ${f(p.ema, 3)}</span>`
                 : '<br><span style="color:#b02a37;font-size:11px">EMA não calculado</span>'}</td></tr>
       </table>
-      ${(() => {
-        const comp = [
-          { n: 'pesos-padrão', v: Number(p.u_pesos) },
-          { n: 'resolução do indicador', v: Number(p.u_leitura) },
-          { n: 'repetibilidade', v: Number(p.u_repet) }];
-        const soma = comp.reduce((s, x) => s + x.v * x.v, 0);
-        if (!(soma > 0)) return '';
-        const maior = comp.sort((a, b) => b.v - a.v)[0];
-        const pct = Math.round(100 * maior.v * maior.v / soma);
-        return `<p style="font-size:11.5px;color:#8ba0b5;margin:7px 0 0;border-top:1px dashed #e8edf2;padding-top:6px">
-          <b>Quem manda neste ponto:</b> ${maior.n} responde por ${pct}% da incerteza.
-          ${pct >= 80 ? 'Reduzir as demais fontes não mudaria o resultado de forma perceptível.' : ''}</p>`;
-      })()}
-    </div>`).join('');
+      ${quemManda}
+    </div>`;
+  }).join('');
 
   m.innerHTML = `<style>
       @media print {
@@ -10772,23 +10807,31 @@ function formPeso(p = null) {
         ${campo('Validade do certificado *', 'p-val', 'date', p?.validade ? String(p.validade).slice(0,10) : '')}
         ${campo('Nº certificado do peso', 'p-cert', 'text', p?.num_certificado)}
         ${campo('Laboratório', 'p-lab', 'text', p?.laboratorio)}
+        ${campo('Incerteza declarada no certificado (kg)', 'p-incerteza', 'number',
+          p?.incerteza_certificado, 'step="any" min="0" placeholder="ex.: 0.0003"')}
+        ${campo('Fator k do certificado', 'p-k', 'number', p?.k_certificado ?? 2, 'step="any" min="1"')}
+        <p class="dica" style="grid-column:1/-1;margin-top:-6px">Usada no cálculo apenas quando a
+          empresa tiver essa preferência ligada (Configurações) — deixe em branco para manter o
+          cálculo como está hoje.</p>
+        <label>Material do peso (densidade)
+          <select id="p-densmat" onchange="ajustarDensidade()">
+            <option value="8000" ${(!p?.densidade_material || Number(p?.densidade_material)===8000)?'selected':''}>Aço inox — 8000 kg/m³ (padrão)</option>
+            <option value="7850" ${Number(p?.densidade_material)===7850?'selected':''}>Aço carbono — 7850 kg/m³</option>
+            <option value="7200" ${Number(p?.densidade_material)===7200?'selected':''}>Ferro fundido — 7200 kg/m³</option>
+            <option value="8400" ${Number(p?.densidade_material)===8400?'selected':''}>Latão — 8400 kg/m³</option>
+            <option value="outro">Outro (informar)</option>
+          </select></label>
+        <label id="p-densmanual-wrap" style="display:none">Densidade (kg/m³)
+          <input type="number" id="p-densmanual" step="any" value="${p?.densidade_material || ''}"></label>
+        <p class="dica" style="grid-column:1/-1;margin-top:-6px">Usada no componente de empuxo do
+          ar. Deixe em "Aço inox" se não souber — é a densidade de referência, e nesse caso o
+          empuxo não altera o resultado.</p>
         ${window._empresaAcreditada ? `
         <div style="grid-column:1/-1;margin-top:6px;padding-top:8px;border-top:2px solid #cdd7e5">
           <b style="color:#1e3a5f;font-size:13px">Dados RBC (acreditação ISO/IEC 17025)</b>
           <p class="dica" style="margin:2px 0 8px">Usados no cálculo de incerteza da calibração RBC.</p>
         </div>
         <div style="grid-column:1/-1">
-          <label>Material (densidade)
-            <select id="p-densmat" onchange="ajustarDensidade()">
-              <option value="8000" ${(!p?.densidade_material || Number(p?.densidade_material)===8000)?'selected':''}>Aço inox — 8000 kg/m³</option>
-              <option value="7850" ${Number(p?.densidade_material)===7850?'selected':''}>Aço carbono — 7850 kg/m³</option>
-              <option value="7200" ${Number(p?.densidade_material)===7200?'selected':''}>Ferro fundido — 7200 kg/m³</option>
-              <option value="8400" ${Number(p?.densidade_material)===8400?'selected':''}>Latão — 8400 kg/m³</option>
-              <option value="outro">Outro (informar)</option>
-            </select></label>
-          <label id="p-densmanual-wrap" style="display:none">Densidade (kg/m³)
-            <input type="number" id="p-densmanual" step="any" value="${p?.densidade_material || ''}"></label>
-
           <label style="margin-top:10px">Pontos do certificado</label>
           <p class="dica" style="margin:2px 0 6px">Peso simples? Deixe 1 linha. Conjunto (ex.: CP01-B, PE-20)? Adicione quantas precisar. Cada ponto tem seu valor convencional e incerteza.</p>
           <table class="tab-pontos" style="width:100%;border-collapse:collapse;font-size:12px">
@@ -10962,16 +11005,18 @@ async function salvarPeso(id) {
     dataCalibracao: $('#p-datacal').value || null,
     validade: $('#p-val').value,
     numCertificado: $('#p-cert').value || null,
-    laboratorio: $('#p-lab').value || null
+    laboratorio: $('#p-lab').value || null,
+    incertezaCertificado: $('#p-incerteza')?.value ? Number($('#p-incerteza').value) : null,
+    kCertificado: $('#p-k')?.value ? Number($('#p-k').value) : 2
   };
-  // RBC: material/densidade continua no peso (default do conjunto)
-  if (window._empresaAcreditada) {
-    const densSel = $('#p-densmat');
-    const densidade = densSel && densSel.value === 'outro'
-      ? Number($('#p-densmanual')?.value) || null
-      : Number(densSel?.value) || null;
-    corpo.densidadeMaterial = densidade;
-  }
+  // Material/densidade do peso: agora visível para todas as empresas (antes
+  // só era enviado quando a empresa era RBC, mas o componente de empuxo do
+  // ar no certificado de conformidade também usa esse dado). João, 10/09/2026.
+  const densSel = $('#p-densmat');
+  const densidade = densSel && densSel.value === 'outro'
+    ? Number($('#p-densmanual')?.value) || null
+    : Number(densSel?.value) || null;
+  corpo.densidadeMaterial = densidade;
   try {
     const r = await api('/pesos' + (id ? '/' + id : ''), {
       method: id ? 'PUT' : 'POST', body: JSON.stringify(corpo) });
@@ -11181,6 +11226,13 @@ async function renderConfig() {
           ${campo('Revisão', 'cf-rev', 'text', c.instrucao_rev ?? '', 'placeholder="Ex.: 1.0"')}
         </div>
       </div>
+      <label class="chk"><input type="checkbox" id="cf-incerteza-declarada"
+          ${sim(c.usar_incerteza_declarada_pesos)}>
+        Usar a incerteza REAL declarada no certificado dos pesos-padrão no cálculo (quando
+        cadastrada), em vez da aproximação genérica pela classe</label>
+      <p class="dica" style="margin-top:-4px">Vale só para o certificado de conformidade — o RBC
+        já usa sempre o valor real. Peso sem a incerteza cadastrada continua caindo na
+        aproximação por classe, mesmo com esta opção ligada.</p>
       <button type="button" class="btn-mini" onclick="verExemploModelo()">👁️ Ver exemplo em PDF</button>
       <p id="cf-preview-msg" class="dica"></p>
       <label>Tamanho da etiqueta de calibração
@@ -11381,7 +11433,8 @@ async function salvarConfig() {
     instrucaoIt: $('#cf-it')?.value.trim() || null,
     instrucaoRev: $('#cf-rev')?.value.trim() || null,
     acreditada: $('#cf-acreditada').checked,
-    numAcreditacao: $('#cf-numacred').value || null
+    numAcreditacao: $('#cf-numacred').value || null,
+    usarIncertezaDeclaradaPesos: $('#cf-incerteza-declarada')?.checked ?? false
   };
   try {
     await api('/empresa/config', { method: 'PUT', body: JSON.stringify(corpo) });
