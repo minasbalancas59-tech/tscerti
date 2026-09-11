@@ -1,48 +1,68 @@
 ════════════════════════════════════════════════════════════════
- CORRIGE "CPF DO REPRESENTANTE FALTANDO" JÁ PREENCHIDO
- 10/09/2026
+ NOME FANTASIA EM DESTAQUE + RESPONSÁVEL/TELEFONE
+ 11/09/2026
 ════════════════════════════════════════════════════════════════
 
-O PROBLEMA (visto na CALTECH, CNPJ 32.759.589/0001-00)
-─────────────────────────────────────────────────────
-A tela mostrava o CPF certinho no campo, mas ao tentar gerar o
-contrato o aviso dizia "dados faltando: CPF do representante".
+ONDE MUDA
+─────────
+1. Card de inadimplentes na tela inicial do painel (já existia,
+   agora com o reforço visual)
+2. Tela dedicada "💰 Inadimplentes"
+3. Tela "Financeiro"
 
-CAUSA
-─────
-A função que gera o contrato reaproveitava um CACHE (window.
-_saDadosContrato) preenchido só uma vez, quando a tela de edição
-abre. Se você editasse e salvasse o CPF (ou qualquer outro dado do
-contrato) sem RECARREGAR A PÁGINA, esse cache ficava com o retrato
-ANTIGO — a validação lia dali, não do que tinha acabado de ser
-salvo, e acusava "faltando" um campo que já estava no banco.
+O QUE APARECE EM CADA LINHA
+────────────────────────────
+· Nome fantasia em destaque, com a razão social como legenda menor
+  ao lado — só quando os dois existem e são diferentes.
+· Responsável (o representante legal cadastrado em "Dados e
+  plano") e telefone, quando cadastrados.
+· O telefone vira link clicável (liga direto, no celular).
 
-O QUE MUDA
-──────────
-Agora busca sempre os dados frescos do servidor antes de validar.
-Um arquivo só: src/Api/wwwroot/app.js.
-Testado contra um clone limpo do GitHub antes do envio.
+
+DECISÃO TÉCNICA — POR QUE NÃO MEXI NA TELA FINANCEIRO DIRETO
+────────────────────────────────────────────────────────────
+A tela Financeiro usa uma função chamada sa_cobrancas_global(),
+que existe SÓ no banco de produção — sem arquivo de migration
+correspondente no projeto. Não tenho como ver o que ela realmente
+retorna, então não vou editá-la às cegas (mesma cautela que já
+usamos com a memorial_incerteza antes).
+
+Em vez disso, criei um endpoint novo e simples — GET /sa/empresas-
+contato — com SQL direto no C#, sem função escondida nenhuma. No
+navegador, cruzo esse retorno com o empresa_id de cada linha de
+cobrança. Se esse campo por algum motivo não vier na resposta da
+função antiga, o cruzamento simplesmente não encontra
+correspondência — a linha mostra como já mostrava, sem erro e sem
+quebrar nada.
+
+CUIDADO TOMADO: existem duas OUTRAS telas no sistema com a mesma
+expressão de código (renderChamadosSA, carregarEntradasMes) — não
+foram tocadas, confirmado por busca depois da edição.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fix-cpf-cache.zip
-    git apply --check fix-cpf-cache.patch
-    git apply fix-cpf-cache.patch
+    unzip -o fantasia-contato.zip
+    git apply --check fantasia-contato.patch
+    git apply fantasia-contato.patch
     git add -A
-    git commit -m "Corrige contrato acusando CPF do representante faltando ja preenchido"
+    git commit -m "Nome fantasia em destaque + responsavel/telefone nas telas de cobranca"
     git push
     ./atualizar.sh --build
-    rm -f fix-cpf-cache.zip
+    rm -f fantasia-contato.zip
 
-Não há migration.
+Não há migration — nenhuma tabela nova, só um endpoint de leitura.
 
 
 COMO CONFERIR
 ─────────────
-Na CALTECH (ou qualquer empresa), gere o contrato de novo — o
-aviso de dados faltando não deve mais aparecer, já que o CPF está
-salvo. Também vale testar o caso que causava o bug: edite um campo
-do contrato, salve, e SEM recarregar a página, gere o contrato na
-sequência — não deve mais dar falso alarme.
+· Painel inicial: se houver empresa em atraso, o card deve mostrar
+  fantasia em destaque + responsável/telefone por linha.
+· "💰 Inadimplentes": mesma coisa, na tela cheia.
+· "Financeiro": confira se o nome da empresa aparece com destaque
+  e, embaixo, o responsável/telefone. SE NÃO APARECER o telefone/
+  responsável ali (mas aparecer nas outras duas telas), é sinal de
+  que sa_cobrancas_global() não inclui empresa_id na resposta — me
+  avise, que peço o pg_get_functiondef dela para resolver com
+  segurança.

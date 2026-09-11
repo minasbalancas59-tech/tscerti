@@ -65,6 +65,23 @@ public static class SuperAdminEndpoints
         // Mensalidades vencidas e em aberto. O aviso por e-mail ao CLIENTE
         // não sai sozinho (baixa manual) — o super-admin dispara aqui quando
         // quiser. João, 09/09/2026.
+        // Consulta simples e direta (sem função de banco escondida): nome
+        // fantasia + razão social + responsável + telefone de toda empresa.
+        // Usada para enriquecer telas que já têm o empresa_id da linha, sem
+        // precisar mexer em funções que não estão versionadas no projeto
+        // (ex.: sa_cobrancas_global, usada pela tela Financeiro).
+        // João, 11/09/2026.
+        g.MapGet("/empresas-contato", async (ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            if (!Ok(user)) return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            return Results.Ok(await conn.QueryAsync("""
+                SELECT id, NULLIF(nome_fantasia, '') AS nome_fantasia, razao_social,
+                       rep_legal_nome AS responsavel, telefone
+                  FROM empresa
+                """));
+        });
+
         g.MapGet("/inadimplentes", async (ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
             if (!Ok(user)) return Results.Forbid();
@@ -73,6 +90,13 @@ public static class SuperAdminEndpoints
                 SELECT cb.id, cb.valor, cb.vencimento, cb.competencia, cb.status,
                        cb.aviso_atraso_em, cb.empresa_id,
                        COALESCE(NULLIF(e.nome_fantasia,''), e.razao_social) AS empresa,
+                       -- nome_fantasia e razao_social separados: a tela destaca o
+                       -- fantasia quando existe, mantendo a razão social como
+                       -- legenda menor. João, 11/09/2026.
+                       NULLIF(e.nome_fantasia, '') AS nome_fantasia,
+                       e.razao_social,
+                       e.rep_legal_nome AS responsavel,
+                       e.telefone,
                        e.status AS empresa_status,
                        (current_date - cb.vencimento)::int AS dias_atraso,
                        (SELECT count(*)::int FROM usuario u

@@ -4338,6 +4338,33 @@ async function renderFinanceiroGlobalSA() {
     dados = await saApi('/financeiro-global?' + p.toString());
   } catch (e) { $('#sa-conteudo').innerHTML = `<p class="erro">${e.message}</p>`; return; }
   window._finDados = dados;
+
+  // Nome fantasia em destaque + responsável/telefone: busca uma vez e
+  // guarda em cache (a lista de empresas muda pouco). Se a linha de
+  // cobrança não trouxer empresa_id, a função abaixo simplesmente não
+  // encontra correspondência e mostra como já era — sem erro.
+  // João, 11/09/2026.
+  if (!window._saContatosPorEmpresa) {
+    try {
+      const lista = await saApi('/empresas-contato');
+      window._saContatosPorEmpresa = Object.fromEntries(lista.map(x => [x.id, x]));
+    } catch { window._saContatosPorEmpresa = {}; }
+  }
+  const nomeFinHtml = c => {
+    const ct = window._saContatosPorEmpresa?.[c.empresa_id];
+    if (!ct || !ct.nome_fantasia || ct.nome_fantasia === ct.razao_social)
+      return `<b>${esc(c.empresa)}</b>`;
+    return `<b>${esc(ct.nome_fantasia)}</b> <span class="dica">(${esc(ct.razao_social)})</span>`;
+  };
+  const contatoFinHtml = c => {
+    const ct = window._saContatosPorEmpresa?.[c.empresa_id];
+    if (!ct) return '';
+    const partes = [];
+    if (ct.responsavel) partes.push(esc(ct.responsavel));
+    if (ct.telefone) partes.push(`<a href="tel:${esc(ct.telefone.replace(/\D/g,''))}" style="color:inherit;text-decoration:underline">${esc(ct.telefone)}</a>`);
+    return partes.length ? `<br><span class="dica" style="font-size:11px">${partes.join(' · ')}</span>` : '';
+  };
+
   let cobr = dados.cobrancas || [];
   if (f.status) cobr = cobr.filter(c => finSituacao(c)[0] === f.status);
   if (f.forma) cobr = cobr.filter(c => (c.forma_pagamento || '') === f.forma);
@@ -4426,7 +4453,7 @@ async function renderFinanceiroGlobalSA() {
                <button class="btn-mini" title="Confirmar pagamento"
                  onclick="finPagar('${c.id}')">💰 Pagar</button>`;
           return `<tr>
-            <td><b>${esc(c.empresa)}</b></td>
+            <td>${nomeFinHtml(c)}${contatoFinHtml(c)}</td>
             <td class="dica">${esc(c.plano || c.contrato_descricao || '—')}</td>
             <td>${String(c.competencia).slice(0, 7).split('-').reverse().join('/')}</td>
             <td>${dbrSA(c.vencimento)}</td>
@@ -4579,16 +4606,34 @@ async function renderPainelSA() {
   let inad = [];
   try { inad = await saApi('/inadimplentes'); } catch { /* card some, resto segue */ }
   const totalInad = inad.reduce((a, x) => a + Number(x.valor), 0);
+  // Nome fantasia em destaque (com a razão social como legenda, quando os
+  // dois existem e são diferentes) + responsável e telefone, para poder
+  // ligar direto ao monitorar quem está em atraso. João, 11/09/2026.
+  const nomeEmpresaHtml = x => {
+    const fant = x.nome_fantasia;
+    const raz = x.razao_social || x.empresa;
+    return fant && fant !== raz
+      ? `<b style="font-size:14px">${esc(fant)}</b><br><span class="dica" style="font-size:11px">${esc(raz)}</span>`
+      : `<b style="font-size:14px">${esc(raz)}</b>`;
+  };
+  const contatoHtml = x => {
+    const partes = [];
+    if (x.responsavel) partes.push(esc(x.responsavel));
+    if (x.telefone) partes.push(`<a href="tel:${esc(x.telefone.replace(/\D/g,''))}" style="color:inherit">${esc(x.telefone)}</a>`);
+    return partes.length ? partes.join(' · ') : '<span class="dica">—</span>';
+  };
+
   const inadHtml = inad.length === 0 ? '' : `
     <div class="card" style="margin-bottom:16px;border-left:4px solid #d68910;cursor:pointer"
          onclick="renderInadimplentesSA()">
       <h3 style="margin-top:0">💰 ${inad.length} mensalidade${inad.length === 1 ? '' : 's'} em atraso
         <span class="dica" style="font-weight:400">— R$ ${totalInad.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} no total</span></h3>
       <div class="tabela-scroll"><table>
-        <thead><tr><th>Empresa</th><th>Valor</th><th>Venceu em</th><th>Atraso</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Responsável / telefone</th><th>Valor</th><th>Venceu em</th><th>Atraso</th></tr></thead>
         <tbody>${inad.slice(0, 5).map(x => `
-          <tr>
-            <td><b>${esc(x.empresa)}</b></td>
+          <tr onclick="event.stopPropagation()">
+            <td>${nomeEmpresaHtml(x)}</td>
+            <td>${contatoHtml(x)}</td>
             <td>R$ ${Number(x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
             <td>${new Date(x.vencimento).toLocaleDateString('pt-BR')}</td>
             <td style="color:${x.dias_atraso > 15 ? '#b02a37' : '#d68910'}"><b>${x.dias_atraso} dia${x.dias_atraso === 1 ? '' : 's'}</b></td>
@@ -5447,12 +5492,29 @@ async function renderInadimplentesSA() {
   const totalAberto = lista.reduce((a, x) => a + Number(x.valor), 0);
   const semGestor = lista.filter(x => !x.gestores);
 
+  // Fantasia em destaque (com a razão social como legenda) + responsável e
+  // telefone, para facilitar o contato direto ao monitorar. João, 11/09/2026.
+  const nomeEmpresaLinha = x => {
+    const fant = x.nome_fantasia;
+    const raz = x.razao_social || x.empresa;
+    return fant && fant !== raz
+      ? `<b style="font-size:15px">${esc(fant)}</b> <span class="dica">(${esc(raz)})</span>`
+      : `<b style="font-size:15px">${esc(raz)}</b>`;
+  };
+  const contatoLinha = x => {
+    const partes = [];
+    if (x.responsavel) partes.push(esc(x.responsavel));
+    if (x.telefone) partes.push(`<a href="tel:${esc(x.telefone.replace(/\D/g,''))}" style="color:inherit;text-decoration:underline">${esc(x.telefone)}</a>`);
+    return partes.length ? partes.join(' · ') : 'sem responsável/telefone cadastrado';
+  };
+
   const linha = x => `
     <div class="item-cert" style="align-items:flex-start;${x.dias_atraso > 15 ? 'border-left:3px solid #b02a37' : 'border-left:3px solid #d68910'}">
       <span style="flex:1">
-        <b>${esc(x.empresa)}</b>
+        ${nomeEmpresaLinha(x)}
         ${x.empresa_status !== 'ativa' ? `<span class="st st-cancelado">${esc(x.empresa_status)}</span>` : ''}
         <br>
+        <span class="dica">${contatoLinha(x)}</span><br>
         <span class="dica">
           R$ ${Number(x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ·
           venceu em ${dataBr(x.vencimento)} ·
