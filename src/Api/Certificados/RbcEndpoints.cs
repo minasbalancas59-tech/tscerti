@@ -42,16 +42,22 @@ public static class RbcEndpoints
             await conn.ExecuteAsync("DELETE FROM incerteza_ponto_rbc WHERE certificado_id = @id", new { id });
 
             // ═══ 1) EXCENTRICIDADE: grava e calcula o maior erro (u_exc) ═══
-            double erroExcMax = 0;
+            double erroExcMax = 0, cargaExcentricidade = 0;
             if (req.Excentricidade is { Count: > 0 })
             {
-                // média do centro (ordem_posicao = 1) como referência
+                // média do centro (ordem_posicao = 1) como referência, e a carga em
+                // que o ensaio de excentricidade foi feito — usada para tratar o erro
+                // como RELATIVO (escala por ponto) em vez de um valor fixo.
                 double refCentro = 0; bool temCentro = false;
                 foreach (var pos in req.Excentricidade)
                 {
                     var leiturasPos = (pos.Leituras ?? new()).Select(x => (double)x).ToList();
                     var mediaPos = leiturasPos.Count > 0 ? leiturasPos.Average() : 0;
-                    if (pos.OrdemPosicao == 1) { refCentro = mediaPos; temCentro = true; }
+                    if (pos.OrdemPosicao == 1)
+                    {
+                        refCentro = mediaPos; temCentro = true;
+                        cargaExcentricidade = (double)pos.Carga;
+                    }
                 }
                 int op = 0;
                 foreach (var pos in req.Excentricidade)
@@ -115,8 +121,19 @@ public static class RbcEndpoints
                             """, new { empresaId, id, op, ponto.Carga, ol, leit });
                     }
 
-                    // 3b) composição de pesos: soma convencionais + quadratura incertezas
-                    double convTotal = 0, somaU2 = 0;
+                    // 3b) composição de pesos: soma convencionais + combinação das incertezas
+                    //
+                    // Pesos do MESMO certificado de calibração são correlacionados —
+                    // calibrados juntos, contra os mesmos padrões de referência — e o
+                    // cg-18 7.1.2.1 manda somar suas incertezas ARITMETICAMENTE, não em
+                    // quadratura (que subestimaria o resultado). Entre CERTIFICADOS
+                    // diferentes (independentes entre si), a combinação continua em
+                    // quadratura. Agrupamos pelo número do certificado gravado em cada
+                    // peso; sem esse número preenchido, todos caem num grupo só — o
+                    // cenário mais conservador quando falta essa informação.
+                    // João, 11/09/2026.
+                    double convTotal = 0;
+                    var uPadPorCertificado = new Dictionary<string, double>();
                     if (ponto.Pesos is { Count: > 0 })
                     {
                         foreach (var pw in ponto.Pesos)
@@ -124,8 +141,10 @@ public static class RbcEndpoints
                             convTotal += (double)(pw.ValorConvencional ?? 0);
                             var u = (double)(pw.Incerteza ?? 0);
                             var k = (double)(pw.K ?? 2);
-                            var uPad = k > 0 ? u / k : u;   // incerteza-padrão do ponto
-                            somaU2 += uPad * uPad;
+                            var uPad = k > 0 ? u / k : u;   // incerteza-padrão do peso
+                            var chaveCert = pw.NumCertificado ?? "";
+                            uPadPorCertificado[chaveCert] =
+                                uPadPorCertificado.GetValueOrDefault(chaveCert) + uPad;
                             // grava a composição (snapshot para rastreabilidade)
                             await conn.ExecuteAsync("""
                                 INSERT INTO carga_peso_rbc (empresa_id, certificado_id, ordem_ponto,
@@ -141,7 +160,7 @@ public static class RbcEndpoints
                     }
                     // valor convencional da carga = soma dos pesos (ou a própria carga se sem composição)
                     double valorConv = convTotal > 0 ? convTotal : (double)ponto.Carga;
-                    double uPadrao = Math.Sqrt(somaU2);  // já em incerteza-padrão combinada
+                    double uPadrao = Math.Sqrt(uPadPorCertificado.Values.Sum(v => v * v));
 
                     // 3c) calcula o orçamento com o motor
                     if (leituras.Count > 0)
@@ -151,8 +170,18 @@ public static class RbcEndpoints
                         var fatorSub = await conn.ExecuteScalarAsync<decimal?>(
                             "SELECT rbc_fator_sub FROM empresa WHERE id=@e", new { e = empresaId }) ?? 1.0m;
 
+                        // Erro de excentricidade tratado como RELATIVO à carga em que
+                        // foi medido, e escalado para a carga DESTE ponto — mesma lógica
+                        // já usada para u_pesos escalar com a carga. Sem carga de
+                        // referência conhecida (ensaio de excentricidade não feito ou
+                        // sem posição central), cai no valor fixo de antes.
+                        // João, 11/09/2026.
+                        double erroExcPonto = cargaExcentricidade > 0
+                            ? erroExcMax / cargaExcentricidade * (double)ponto.Carga
+                            : erroExcMax;
+
                         var orc = IncertezaRbc.Calcular(
-                            leituras, valorConv, divisao, uPadrao, erroExcMax,
+                            leituras, valorConv, divisao, uPadrao, erroExcPonto,
                             temp, pressao, umid,
                             (double)(ponto.DensidadePeso ?? 8000),
                             degrausSub, (double)fatorSub);

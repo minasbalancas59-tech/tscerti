@@ -1,43 +1,90 @@
 ════════════════════════════════════════════════════════════════
- LISTA PRINCIPAL DE EMPRESAS — NOME FANTASIA EM DESTAQUE
+ RBC — SOMA ARITMÉTICA DE PESOS CORRELACIONADOS
+ + EXCENTRICIDADE ESCALANDO POR PONTO
  11/09/2026
 ════════════════════════════════════════════════════════════════
 
-O QUE FALTOU NA LEVA ANTERIOR
-──────────────────────────────
-O patch anterior (fantasia-contato) cobriu o card de inadimplentes
-e a tela Financeiro — mas não a lista PRINCIPAL de empresas do
-painel (a primeira tela que você vê ao abrir o sistema), onde a
-razão social continuava em destaque.
-
 O QUE MUDA
 ──────────
-Mesmo padrão das outras telas: nome fantasia em negrito quando
-existe, razão social + CNPJ como legenda menor embaixo. Sem
-fantasia cadastrada, continua mostrando a razão social em
-destaque, como sempre foi.
 
-Um arquivo só: src/Api/wwwroot/app.js. Testado contra clone limpo
-do GitHub antes do envio — aplica sem erro.
+1. PESOS DO MESMO CERTIFICADO — soma aritmética, não quadratura
+   (cg-18 7.1.2.1)
+
+   Antes, todo peso usado num ponto entrava em quadratura, como se
+   fossem fontes de incerteza independentes. Pesos calibrados no
+   MESMO certificado são correlacionados — mesma referência, mesmo
+   evento de calibração — e a norma manda somar aritmeticamente
+   nesse caso, porque a quadratura subestima o resultado.
+
+   Agrupamos pelo número do certificado de cada peso (campo que já
+   existia, usado até hoje só para a tabela de rastreabilidade).
+   Sem esse número preenchido em algum peso, ele entra no grupo
+   "sem certificado" junto dos demais sem número — o cenário mais
+   conservador quando falta a informação.
+
+2. EXCENTRICIDADE — escala com a carga de cada ponto
+
+   Antes, um único erro (o maior desvio medido no ensaio de
+   excentricidade, feito numa carga fixa) era aplicado IGUAL em
+   todos os pontos do certificado — o de 5% da capacidade e o de
+   95% recebiam a mesma contribuição.
+
+   Agora é tratado como erro RELATIVO: divide pelo valor da carga
+   em que a excentricidade foi testada, multiplica pela carga de
+   CADA ponto individualmente. No ponto que coincide com a carga
+   do próprio ensaio de excentricidade, o resultado é idêntico ao
+   de antes — só os demais pontos mudam.
+
+3. CONVECÇÃO TÉRMICA — documentada como desprezível
+
+   Uma frase a mais na declaração de incerteza do PDF RBC (junto
+   do texto que já explica o fator k), fechando a "omissão
+   silenciosa" que um auditor poderia apontar.
+
+
+TESTADO NUMERICAMENTE
+──────────────────────
+· Pesos todos do mesmo certificado → bate com soma aritmética pura.
+· Certificados todos diferentes → bate EXATO com a fórmula antiga
+  (quadratura) — comportamento preservado nesse caso.
+· Caso misto (2 pesos de um certificado + 1 de outro) → combina os
+  dois corretamente.
+· Excentricidade no ponto igual à carga do ensaio → devolve
+  exatamente o valor de antes.
+· Pontos menores reduzem a contribuição, maiores aumentam.
+· Sem carga de excentricidade conhecida → cai no valor fixo
+  anterior (não trava, não gera erro).
+
+
+GARANTIA PARA CERTIFICADOS JÁ EMITIDOS
+────────────────────────────────────────
+O RBC já congela o resultado por ponto (tabela
+incerteza_ponto_rbc), calculado uma vez na submissão. As mudanças
+1 e 2 só entram em vigor em ensaios RBC submetidos a partir de
+agora — nada do que já foi emitido muda.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o lista-empresas-fantasia.zip
-    git apply --check lista-empresas-fantasia.patch
-    git apply lista-empresas-fantasia.patch
+    unzip -o rbc-correlacao-excentricidade.zip
+    git apply --check rbc-correlacao-excentricidade.patch
+    git apply rbc-correlacao-excentricidade.patch
     git add -A
-    git commit -m "Lista principal de empresas: nome fantasia em destaque"
+    git commit -m "RBC: soma aritmetica de pesos correlacionados + excentricidade por ponto"
     git push
     ./atualizar.sh --build
-    rm -f lista-empresas-fantasia.zip
+    rm -f rbc-correlacao-excentricidade.zip
 
 Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-Ctrl+Shift+R na tela inicial do painel: a CALTECH (ou qualquer
-empresa com fantasia cadastrada) deve aparecer com o fantasia em
-negrito e a razão social como legenda.
+· Emita um certificado RBC de teste com dois pesos usando o MESMO
+  número de certificado: a incerteza dos pesos deve somar
+  aritmeticamente (maior que a quadratura de antes).
+· No PDF, a declaração de incerteza deve trazer a frase sobre a
+  convecção térmica ser desprezível.
+· Certificados RBC já emitidos continuam abrindo com os mesmos
+  números de sempre.

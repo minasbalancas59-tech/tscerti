@@ -1363,7 +1363,9 @@ public static class GeradorPdf
                     });
                     OrcamentoIncerteza();
                     col.Item().Text("A incerteza expandida U foi calculada com o fator de abrangência k indicado, " +
-                                    "correspondente a uma probabilidade de abrangência de aproximadamente 95,45 %.")
+                                    "correspondente a uma probabilidade de abrangência de aproximadamente 95,45 %. " +
+                                    "A contribuição da convecção térmica foi avaliada e considerada desprezível para " +
+                                    "a faixa de instrumentos abrangida por este laboratório.")
                        .FontSize(7).Italic().FontColor("#667");
 
                     // ── 2 · Excentricidade e 3 · Mobilidade ────
