@@ -1,115 +1,48 @@
 ════════════════════════════════════════════════════════════════
- INCERTEZA DOS PESOS-PADRÃO — VERSÃO COMPLETA (corrigido)
- Toggle por empresa + empuxo do ar + correção do bug no RBC
+ CORRIGE "CPF DO REPRESENTANTE FALTANDO" JÁ PREENCHIDO
  10/09/2026
 ════════════════════════════════════════════════════════════════
 
-⚠ O ZIP ANTERIOR (mesmo nome) TINHA UM PROBLEMA DE BASE
-  O patch enviado antes foi montado sobre uma versão minha
-  intermediária desta mesma funcionalidade, que nunca chegou ao
-  seu servidor — por isso o "git apply --check" falhou em 3
-  arquivos. Este pacote contém os DOIS commits juntos (a versão
-  intermediária + os ajustes finais) e foi TESTADO contra um clone
-  limpo do GitHub antes de enviar — aplica sem erro.
+O PROBLEMA (visto na CALTECH, CNPJ 32.759.589/0001-00)
+─────────────────────────────────────────────────────
+A tela mostrava o CPF certinho no campo, mas ao tentar gerar o
+contrato o aviso dizia "dados faltando: CPF do representante".
 
-  Se você já rodou "unzip -o" do zip anterior, pode sobrescrever
-  sem problema — os arquivos LEIA-ME.txt e incerteza-completo.patch
-  são substituídos pelo unzip -o normalmente.
+CAUSA
+─────
+A função que gera o contrato reaproveitava um CACHE (window.
+_saDadosContrato) preenchido só uma vez, quando a tela de edição
+abre. Se você editasse e salvasse o CPF (ou qualquer outro dado do
+contrato) sem RECARREGAR A PÁGINA, esse cache ficava com o retrato
+ANTIGO — a validação lia dali, não do que tinha acabado de ser
+salvo, e acusava "faltando" um campo que já estava no banco.
 
-
-O QUE ESTE PATCH FAZ
-──────────────────────
-
-1. TOGGLE POR EMPRESA (Configurações)
-   Novo checkbox: "Usar a incerteza REAL declarada no certificado
-   dos pesos-padrão no cálculo". PADRÃO: desligado.
-   Desligado = comportamento de hoje, sem nenhuma mudança.
-   Ligado = quando um peso tiver a incerteza cadastrada, ela é
-   usada em vez da aproximação genérica pela classe.
-
-2. EMPUXO DO AR — quarto componente do cálculo
-   Fórmula correta (referenciada à densidade de 8000 kg/m³, contra
-   a qual todo peso-padrão já é calibrado):
-       u_empuxo = carga × u(ρar) × |1/ρpeso − 1/8000|
-   Peso cadastrado com densidade 8000 (padrão de todo peso até
-   hoje) dá exatamente zero — não muda nada para ninguém, a menos
-   que você cadastre a densidade real de um material diferente
-   (aço carbono, ferro fundido, latão — opções já no formulário).
-
-3. BUG CORRIGIDO NO MOTOR RBC
-   A fórmula de empuxo usada até hoje no RBC (carga × u(ρar) /
-   ρpeso) esquecia a densidade de referência e superestimava o
-   componente em 20 a 160× dependendo do material do peso. RBC
-   também congela o resultado por ponto — a correção só vale para
-   ensaios RBC NOVOS, os já emitidos não mudam.
-
-4. CAMPO DE DENSIDADE, agora para todas as empresas
-   Antes só aparecia no cadastro de peso para quem é RBC. Agora
-   está visível para todo mundo, junto com a incerteza declarada.
-
-5. MEMORIAL DE CÁLCULO — explica tudo
-   · A seção "1. Pesos-padrão" muda de texto conforme a fonte:
-     pela classe (como sempre) ou pelo certificado real do peso.
-   · Nova seção "4. Empuxo do ar", sempre presente.
-   · Fórmula de combinação passa a somar os 4 componentes.
-
-
-GARANTIA PARA CERTIFICADOS JÁ EMITIDOS
-────────────────────────────────────────
-A migration 157 congela, por ponto, os 4 componentes do cálculo —
-não só o resultado final. Faz o backfill de TODOS os certificados
-já existentes com exatamente os mesmos números que já estavam
-sendo exibidos. O Memorial de um certificado antigo nunca muda de
-explicação depois disso.
-
-
-TESTADO
-────────
-· 5 cenários numéricos (comportamento de hoje idêntico ao antigo,
-  incerteza declarada, empuxo com densidade diferente, ausência de
-  dado ambiental sem travar, os dois recursos juntos).
-· Sintaxe e balanceamento de chaves em todos os arquivos.
-· Este patch, especificamente, testado contra um clone limpo do
-  GitHub antes do envio — aplica sem erro.
+O QUE MUDA
+──────────
+Agora busca sempre os dados frescos do servidor antes de validar.
+Um arquivo só: src/Api/wwwroot/app.js.
+Testado contra um clone limpo do GitHub antes do envio.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o incerteza-completo.zip
-    git apply --check incerteza-completo.patch
-
-Se o "--check" reclamar de algo, PARE e me mande a mensagem exata.
-
-Se passar limpo:
-
-    git apply incerteza-completo.patch
-
-    docker compose exec -T db psql -U certsaas -d certsaas \
-        < db/seed/157_incerteza_peso_congelada.sql
-
+    unzip -o fix-cpf-cache.zip
+    git apply --check fix-cpf-cache.patch
+    git apply fix-cpf-cache.patch
     git add -A
-    git commit -m "Incerteza dos pesos-padrao completo: toggle, empuxo, correcao RBC"
+    git commit -m "Corrige contrato acusando CPF do representante faltando ja preenchido"
     git push
     ./atualizar.sh --build
-    rm -f incerteza-completo.zip
+    rm -f fix-cpf-cache.zip
 
-⚠ A MIGRATION É OBRIGATÓRIA e vem ANTES do build, sem exceção.
+Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-· Abra o Memorial de cálculo de um certificado JÁ EMITIDO antes
-  desta atualização: números idênticos a antes, seção "4. Empuxo
-  do ar" mostrando zero.
-
-· Em Configurações, o checkbox novo deve nascer DESMARCADO.
-
-· Confira no banco:
-      docker compose exec -T db psql -U certsaas -d certsaas \
-        -c "SELECT count(*) FROM ensaio_indicacao WHERE u_pesos_fonte IS NULL"
-  Deve retornar 0.
-
-      docker compose exec -T db psql -U certsaas -d certsaas \
-        -c "SELECT count(*) FROM empresa WHERE usar_incerteza_declarada_pesos"
-  Deve retornar 0 (toggle desligado para todo mundo, por padrão).
+Na CALTECH (ou qualquer empresa), gere o contrato de novo — o
+aviso de dados faltando não deve mais aparecer, já que o CPF está
+salvo. Também vale testar o caso que causava o bug: edite um campo
+do contrato, salve, e SEM recarregar a página, gere o contrato na
+sequência — não deve mais dar falso alarme.

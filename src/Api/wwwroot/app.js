@@ -9245,11 +9245,15 @@ function valorPorExtenso(v) {
 async function gerarContratoPreenchido(cid) {
   const c = (window._saContratos || []).find(x => x.id === cid);
   const pl = window._saPlanos?.[cid] || {};
-  let dc = window._saDadosContrato;
-  if (!dc) {
-    try { dc = await saApi('/empresas/' + window._saEmpresaId + '/dados-contrato'); }
-    catch (e) { toast('Não foi possível carregar os dados da empresa.', 'erro'); return; }
-  }
+  // SEMPRE busca fresco do servidor, nunca reaproveita window._saDadosContrato:
+  // esse cache só é preenchido quando a tela abre, e ficava desatualizado se o
+  // usuário editasse e salvasse os dados (ex.: CPF do representante) sem
+  // recarregar a página — a validação abaixo lia o retrato antigo e acusava
+  // "faltando" um campo que já tinha sido salvo. João, 10/09/2026.
+  let dc;
+  try { dc = await saApi('/empresas/' + window._saEmpresaId + '/dados-contrato'); }
+  catch (e) { toast('Não foi possível carregar os dados da empresa.', 'erro'); return; }
+  window._saDadosContrato = dc;   // mantém o cache atualizado para outros usos
   if (!c) { toast('Contrato não encontrado. Recarregue a tela.', 'erro'); return; }
 
   // ── VALIDAÇÃO DURA: o contrato só sai com TODOS os dados do sistema ──
