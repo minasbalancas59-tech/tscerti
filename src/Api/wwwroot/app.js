@@ -4390,17 +4390,12 @@ async function renderFinanceiroGlobalSA() {
         <button class="btn-mini" onclick="finExportarCsv()">⬇️ CSV</button>
         <button onclick="renderPainelSA()">← Empresas</button></div></div>
 
-    <div style="background:${dados.gerarAuto ? '#e7f5ec' : '#fdf6e3'};
-      border:1px solid ${dados.gerarAuto ? '#bfe3cd' : '#e6d9a8'};border-radius:10px;
+    <div style="background:#e7f5ec;border:1px solid #bfe3cd;border-radius:10px;
       padding:9px 12px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:18px">${dados.gerarAuto ? '🔁' : '⏸️'}</span>
-      <span style="flex:1;font-size:13px;color:${dados.gerarAuto ? '#1e7d46' : '#8a6d1a'}">
-        <b>Geração automática de cobranças: ${dados.gerarAuto ? 'LIGADA' : 'DESLIGADA'}</b> —
-        ${dados.gerarAuto
-          ? 'todo mês o sistema cria a cobrança da competência para cada contrato ativo com geração automática.'
-          : 'nenhuma cobrança é criada sozinha; os lançamentos existentes seguem normalmente.'}</span>
-      <button class="btn-mini" onclick="finAlternarAuto(${dados.gerarAuto ? 'false' : 'true'})">
-        ${dados.gerarAuto ? 'Desligar' : 'Ligar'}</button>
+      <span style="font-size:18px">🔁</span>
+      <span style="flex:1;font-size:13px;color:#1e7d46">
+        <b>Geração automática de cobranças: sempre ativa</b> —
+        todo mês o sistema cria a cobrança da competência para cada contrato ativo com geração automática.</span>
     </div>
 
     <div class="kpis" style="margin-bottom:12px">
@@ -4464,35 +4459,6 @@ async function renderFinanceiroGlobalSA() {
         }).join('')}</tbody>
     </table></div></div>`;
 }
-// Interruptor geral da geração automática (João, 14/08/2026). Ao LIGAR,
-// mostra quantos contratos ficariam elegíveis na próxima madrugada.
-async function finAlternarAuto(ligar) {
-  if (ligar) {
-    const d = window._finDados || {};
-    const n = d.contratosElegiveis ?? '?';
-    const ok = await modalConfirmar('🔁 Ligar a geração automática',
-      `A partir de agora, na virada de cada mês o sistema criará a cobrança da ` +
-      `competência para cada contrato ativo com geração automática.\n\n` +
-      `Contratos que se enquadram hoje: <b>${n}</b>.\n\n` +
-      `Cobranças já existentes na competência não são duplicadas, e canceladas ` +
-      `bloqueiam a recriação.`,
-      { textoSim: 'Ligar', textoNao: 'Cancelar' });
-    if (!ok) return;
-  } else {
-    const ok = await modalConfirmar('⏸️ Desligar a geração automática',
-      'Nenhuma cobrança nova será criada pelo sistema até você ligar de novo. ' +
-      'Os lançamentos existentes continuam com lembretes e alertas de atraso normalmente.',
-      { textoSim: 'Desligar', textoNao: 'Cancelar' });
-    if (!ok) return;
-  }
-  try {
-    await saApi('/financeiro/gerar-auto', { method: 'PUT',
-      body: JSON.stringify({ ativo: ligar }) });
-    toast(ligar ? 'Geração automática LIGADA' : 'Geração automática DESLIGADA', 'ok', 5000);
-    renderFinanceiroGlobalSA();
-  } catch (e) { toast(e.message, 'erro'); }
-}
-
 function finEmitir(id) {
   const c = (window._finDados.cobrancas || []).find(x => x.id === id);
   document.getElementById('modal-fin')?.remove();
@@ -4656,29 +4622,36 @@ async function renderPainelSA() {
       <h2>Empresas</h2>
       <div class="barra-btns">
         <button onclick="renderFinanceiroGlobalSA()">💰 Financeiro</button>
+        <button onclick="renderFinanceiroSA()">📈 Faturamento</button>
+        <button onclick="renderInadimplentesSA()">💰 Inadimplentes</button>
+
+        <button onclick="renderEmailLogSA()">📧 E-mails</button>
+        <button onclick="renderPainelEmailSA()">📊 Painel de e-mails</button>
+        <button onclick="renderSupressoesSA()">🔇 E-mails suspensos</button>
+        <button onclick="abrirSmtpSA()">⚙️ Servidor de e-mail</button>
+
+        <button onclick="renderUsuariosLogSA()">👥 Usuários</button>
+        <button onclick="renderLoginsSA()">🔑 Logins</button>
+        <button onclick="renderTentativasLoginSA()">🔐 Tentativas de login</button>
+
+        <button onclick="renderClientesFinaisSA()">👁 Portal dos clientes</button>
+        <button onclick="renderPortalSA()">🌐 Acessos do portal</button>
+        <button onclick="renderDiagPortalSA()">🩺 Diagnóstico do portal</button>
+
         <button onclick="renderChamadosSA()">🎧 Chamados${chamados.abertos > 0
           ? ` <span style="background:#b02a37;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${chamados.abertos}</span>` : ''}</button>
         <button onclick="renderErrosSA()">🐞 Erros${erros.abertos > 0
           ? ` <span style="background:#b02a37;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px">${erros.abertos}</span>` : ''}</button>
-        <button onclick="renderUsoDiaSA()">📅 Uso do dia</button>
-        <button onclick="renderInadimplentesSA()">💰 Inadimplentes</button>
-        <button onclick="renderLoginsSA()">🔑 Logins</button>
-        <button onclick="renderUsuariosLogSA()">👥 Usuários</button>
-        <button onclick="renderPainelEmailSA()">📊 Painel de e-mails</button>
-        <button onclick="renderSupressoesSA()">🔇 E-mails suspensos</button>
-        <button onclick="renderEmailLogSA()">📧 E-mails</button>
-        <button onclick="renderConsultaLogSA()">🔍 Consultas QR</button>
+
         <button onclick="renderSaudeSA()">📊 Saúde</button>
         <button onclick="renderMetricasSA()">📈 Servidor</button>
-        <button onclick="renderPsaasSA()">⭐ Pesquisa TSCert</button>
-        <button onclick="renderFinanceiroSA()">📈 Faturamento</button>
-        <button onclick="renderMapaSA()">🗺️ Mapa</button>
+        <button onclick="renderUsoDiaSA()">📅 Uso do dia</button>
         <button onclick="renderAtividadeSA()">📊 Atividade</button>
-        <button onclick="renderTentativasLoginSA()">🔐 Tentativas de login</button>
-        <button onclick="renderPortalSA()">🌐 Acessos do portal</button>
-        <button onclick="renderClientesFinaisSA()">👁 Portal dos clientes</button>
-        <button onclick="renderDiagPortalSA()">🩺 Diagnóstico do portal</button>
-        <button onclick="abrirSmtpSA()">⚙️ Servidor de e-mail</button>
+
+        <button onclick="renderConsultaLogSA()">🔍 Consultas QR</button>
+        <button onclick="renderPsaasSA()">⭐ Pesquisa TSCert</button>
+        <button onclick="renderMapaSA()">🗺️ Mapa</button>
+
         <button class="btn-primario" onclick="formNovaEmpresa()">+ Nova empresa</button>
       </div>
     </div>

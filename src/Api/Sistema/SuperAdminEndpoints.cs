@@ -685,7 +685,6 @@ public static class SuperAdminEndpoints
                     ELSE 0 END), 0)
                   FROM contrato WHERE ativo AND (fim IS NULL OR fim >= CURRENT_DATE)
                 """);
-            var gerarAuto = await conn.ExecuteScalarAsync<bool>("SELECT financeiro_flag_ler()");
             var contratosElegiveis = await conn.ExecuteScalarAsync<int>("""
                 SELECT count(*)::int FROM contrato c JOIN empresa e ON e.id = c.empresa_id
                  WHERE c.ativo AND c.gerar_automatico AND c.periodicidade <> 'avulso'
@@ -693,19 +692,9 @@ public static class SuperAdminEndpoints
                    AND (c.fim IS NULL OR c.fim >= date_trunc('month', current_date)::date)
                    AND e.status = 'ativa'
                 """);
-            return Results.Ok(new { cobrancas, mrr, gerarAuto, contratosElegiveis });
-        });
-
-        // Interruptor geral da geração automática de cobranças
-        g.MapPut("/financeiro/gerar-auto", async (JsonElement body, ClaimsPrincipal user,
-            NpgsqlDataSource ds) =>
-        {
-            if (!Ok(user)) return Results.Forbid();
-            await using var conn = await ds.OpenConnectionAsync();
-            var ativo = body.GetProperty("ativo").GetBoolean();
-            var novo = await conn.ExecuteScalarAsync<bool>(
-                "SELECT financeiro_flag_gravar(@ativo)", new { ativo });
-            return Results.Ok(new { gerarAuto = novo });
+            // Geração automática é sempre ativa (sem interruptor) — ver
+            // gerar_cobrancas_do_mes() no banco, migração 158.
+            return Results.Ok(new { cobrancas, mrr, gerarAuto = true, contratosElegiveis });
         });
 
         g.MapPut("/cobrancas/{id:guid}/emitir", async (Guid id, JsonElement body,
