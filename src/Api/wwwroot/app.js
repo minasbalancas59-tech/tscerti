@@ -4794,8 +4794,9 @@ function filtrarEmpresasSA() {
 
   $('#sa-tbody').innerHTML = lista.map(e => `
     <tr onclick="abrirEmpresaSA('${e.id}')" style="cursor:pointer">
-      <td><b>${esc(e.razao_social)}</b><br><span class="dica">${esc(e.cnpj)}${
-        e.nome_fantasia ? ' · ' + esc(e.nome_fantasia) : ''}</span></td>
+      <td>${e.nome_fantasia
+        ? `<b>${esc(e.nome_fantasia)}</b><br><span class="dica">${esc(e.razao_social)} · ${esc(e.cnpj)}</span>`
+        : `<b>${esc(e.razao_social)}</b><br><span class="dica">${esc(e.cnpj)}</span>`}</td>
       <td>${esc(e.plano)}${(() => {
         if (e.tem_contrato) {
           const dCt2 = e.contrato_fim

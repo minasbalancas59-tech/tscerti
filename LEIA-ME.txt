@@ -1,68 +1,43 @@
 ════════════════════════════════════════════════════════════════
- NOME FANTASIA EM DESTAQUE + RESPONSÁVEL/TELEFONE
+ LISTA PRINCIPAL DE EMPRESAS — NOME FANTASIA EM DESTAQUE
  11/09/2026
 ════════════════════════════════════════════════════════════════
 
-ONDE MUDA
-─────────
-1. Card de inadimplentes na tela inicial do painel (já existia,
-   agora com o reforço visual)
-2. Tela dedicada "💰 Inadimplentes"
-3. Tela "Financeiro"
+O QUE FALTOU NA LEVA ANTERIOR
+──────────────────────────────
+O patch anterior (fantasia-contato) cobriu o card de inadimplentes
+e a tela Financeiro — mas não a lista PRINCIPAL de empresas do
+painel (a primeira tela que você vê ao abrir o sistema), onde a
+razão social continuava em destaque.
 
-O QUE APARECE EM CADA LINHA
-────────────────────────────
-· Nome fantasia em destaque, com a razão social como legenda menor
-  ao lado — só quando os dois existem e são diferentes.
-· Responsável (o representante legal cadastrado em "Dados e
-  plano") e telefone, quando cadastrados.
-· O telefone vira link clicável (liga direto, no celular).
+O QUE MUDA
+──────────
+Mesmo padrão das outras telas: nome fantasia em negrito quando
+existe, razão social + CNPJ como legenda menor embaixo. Sem
+fantasia cadastrada, continua mostrando a razão social em
+destaque, como sempre foi.
 
-
-DECISÃO TÉCNICA — POR QUE NÃO MEXI NA TELA FINANCEIRO DIRETO
-────────────────────────────────────────────────────────────
-A tela Financeiro usa uma função chamada sa_cobrancas_global(),
-que existe SÓ no banco de produção — sem arquivo de migration
-correspondente no projeto. Não tenho como ver o que ela realmente
-retorna, então não vou editá-la às cegas (mesma cautela que já
-usamos com a memorial_incerteza antes).
-
-Em vez disso, criei um endpoint novo e simples — GET /sa/empresas-
-contato — com SQL direto no C#, sem função escondida nenhuma. No
-navegador, cruzo esse retorno com o empresa_id de cada linha de
-cobrança. Se esse campo por algum motivo não vier na resposta da
-função antiga, o cruzamento simplesmente não encontra
-correspondência — a linha mostra como já mostrava, sem erro e sem
-quebrar nada.
-
-CUIDADO TOMADO: existem duas OUTRAS telas no sistema com a mesma
-expressão de código (renderChamadosSA, carregarEntradasMes) — não
-foram tocadas, confirmado por busca depois da edição.
+Um arquivo só: src/Api/wwwroot/app.js. Testado contra clone limpo
+do GitHub antes do envio — aplica sem erro.
 
 
 COMANDOS
 ────────
     cd /root/cert-saas
-    unzip -o fantasia-contato.zip
-    git apply --check fantasia-contato.patch
-    git apply fantasia-contato.patch
+    unzip -o lista-empresas-fantasia.zip
+    git apply --check lista-empresas-fantasia.patch
+    git apply lista-empresas-fantasia.patch
     git add -A
-    git commit -m "Nome fantasia em destaque + responsavel/telefone nas telas de cobranca"
+    git commit -m "Lista principal de empresas: nome fantasia em destaque"
     git push
     ./atualizar.sh --build
-    rm -f fantasia-contato.zip
+    rm -f lista-empresas-fantasia.zip
 
-Não há migration — nenhuma tabela nova, só um endpoint de leitura.
+Não há migration.
 
 
 COMO CONFERIR
 ─────────────
-· Painel inicial: se houver empresa em atraso, o card deve mostrar
-  fantasia em destaque + responsável/telefone por linha.
-· "💰 Inadimplentes": mesma coisa, na tela cheia.
-· "Financeiro": confira se o nome da empresa aparece com destaque
-  e, embaixo, o responsável/telefone. SE NÃO APARECER o telefone/
-  responsável ali (mas aparecer nas outras duas telas), é sinal de
-  que sa_cobrancas_global() não inclui empresa_id na resposta — me
-  avise, que peço o pg_get_functiondef dela para resolver com
-  segurança.
+Ctrl+Shift+R na tela inicial do painel: a CALTECH (ou qualquer
+empresa com fantasia cadastrada) deve aparecer com o fantasia em
+negrito e a razão social como legenda.
