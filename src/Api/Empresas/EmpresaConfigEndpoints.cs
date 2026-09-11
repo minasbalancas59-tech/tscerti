@@ -30,7 +30,10 @@ public record ConfigEmpresaRequest(
     string? ClausulaSubstituicao = null, bool? EnviaEmailAutomatico = null,
     // Instrução de calibração (IT + revisão) — fixa por empresa, usada no Modelo 4
     string? InstrucaoIt = null, string? InstrucaoRev = null,
-    bool? UsarIncertezaDeclaradaPesos = null);
+    bool? UsarIncertezaDeclaradaPesos = null,
+    // Parâmetros de coleta e cálculo RBC (ISO/IEC 17025)
+    int? RbcNumLeituras = null, int? RbcNumPosicoesExc = null,
+    decimal? RbcFatorSub = null);
 
 public static class EmpresaConfigEndpoints
 {
@@ -127,7 +130,7 @@ public static class EmpresaConfigEndpoints
                        clausula_substituicao AS "ClausulaSubstituicao",
                        envia_email_automatico AS "EnviaEmailAutomatico",
                          acreditada, num_acreditacao, selo_rbc_url,
-                         rbc_num_leituras, rbc_num_posicoes_exc,
+                         rbc_num_leituras, rbc_num_posicoes_exc, rbc_fator_sub,
                          instrucao_it, instrucao_rev, usar_incerteza_declarada_pesos
                   FROM empresa WHERE id = @id
                 """, new { id = Tenant.EmpresaId(user) });
@@ -149,6 +152,12 @@ public static class EmpresaConfigEndpoints
                 return Results.BadRequest(new { erro = "Logo: largura deve estar entre 30 e 200 e altura entre 20 e 120." });
             if (req.LogoAlinhamento is not (null or "" or "topo" or "centro" or "base"))
                 return Results.BadRequest(new { erro = "Alinhamento do logo inválido." });
+            if (req.RbcNumLeituras is < 1 or > 10)
+                return Results.BadRequest(new { erro = "RBC: nº de leituras deve estar entre 1 e 10." });
+            if (req.RbcNumPosicoesExc is < 1 or > 9)
+                return Results.BadRequest(new { erro = "RBC: nº de posições de excentricidade deve estar entre 1 e 9." });
+            if (req.RbcFatorSub is <= 0 or > 5)
+                return Results.BadRequest(new { erro = "RBC: fator de substituição inválido." });
 
             await using var conn = await Tenant.AbrirConexao(ds, user);
             await conn.ExecuteAsync("""
@@ -181,7 +190,10 @@ public static class EmpresaConfigEndpoints
                     instrucao_it = @InstrucaoIt,
                     instrucao_rev = @InstrucaoRev,
                     usar_incerteza_declarada_pesos = COALESCE(@UsarIncertezaDeclaradaPesos, usar_incerteza_declarada_pesos),
-                    num_acreditacao = @NumAcreditacao
+                    num_acreditacao = @NumAcreditacao,
+                    rbc_num_leituras = COALESCE(@RbcNumLeituras, rbc_num_leituras),
+                    rbc_num_posicoes_exc = COALESCE(@RbcNumPosicoesExc, rbc_num_posicoes_exc),
+                    rbc_fator_sub = COALESCE(@RbcFatorSub, rbc_fator_sub)
                  WHERE id = @id
                 """, new
                 {
@@ -195,7 +207,8 @@ public static class EmpresaConfigEndpoints
                     req.EtiquetaTamanho, req.ValidarPermiteDownload, req.ModeloCertificado,
                     req.Acreditada, req.NumAcreditacao, req.MarcaSistemaPdf,
                     req.LogoLargura, req.LogoAltura, req.LogoAlinhamento,
-                    req.InstrucaoIt, req.InstrucaoRev, req.UsarIncertezaDeclaradaPesos
+                    req.InstrucaoIt, req.InstrucaoRev, req.UsarIncertezaDeclaradaPesos,
+                    req.RbcNumLeituras, req.RbcNumPosicoesExc, req.RbcFatorSub
                 });
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "empresa", Tenant.EmpresaId(user), "config", req, Auditoria.Ip(ctx));

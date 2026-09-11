@@ -6268,6 +6268,16 @@ async function verMemorialIncerteza(id) {
             Interpretação: o erro verdadeiro da balança naquele ponto está, com ~95% de confiança, dentro de
             (erro medido ± U).</td></tr>
 
+        <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><b>Arredondamento</b></td>
+            <td style="color:#5a7183">O U calculado acima não vai direto pro certificado — antes é
+            arredondado <b>para cima</b>, com no máximo <b>2 algarismos significativos</b> (não casas
+            decimais fixas).
+            <br><i>Por quê:</i> arredondar para baixo reduziria a incerteza declarada — é tratado como
+            declaração falsa em auditoria. O GUM ilustra: 10,47 mΩ vira 11 mΩ, nunca 10 mΩ.
+            <br>Quando a tabela tem mais de um ponto, todas as linhas usam as casas decimais da
+            <b>maior</b> incerteza da tabela (NIT-DICLA-021) — para não misturar pontos com números de
+            casas diferentes na mesma coluna.</td></tr>
+
         <tr><td colspan="2" style="padding:10px 0 4px;font-weight:600;color:#164066">Como isso vira conformidade</td></tr>
 
         <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><b>EMA</b></td>
@@ -6281,7 +6291,8 @@ async function verMemorialIncerteza(id) {
       <p style="font-size:11.5px;color:#8ba0b5;margin:10px 0 0;border-top:1px solid #e8edf2;padding-top:8px">
         <b>Referências:</b> GUM — ISO/IEC Guide 98-3 (avaliação de incerteza) · OIML R111 (classes de
         pesos-padrão) · OIML R76 / Portaria Inmetro nº 157/2022 (erros máximos admissíveis e classes de
-        exatidão) · VIM — Vocabulário Internacional de Metrologia.</p>
+        exatidão) · NIT-DICLA-021 / ILAC-P14 (arredondamento e expressão da incerteza) · VIM —
+        Vocabulário Internacional de Metrologia.</p>
     </details>
 
     <div style="background:#eef3f7;border-radius:9px;padding:10px 12px;font-size:12px;color:#16202c">
@@ -9771,6 +9782,7 @@ function irCadastros() {
   const soAdmin = usuario.papel === 'admin' ? '' : 'none';
   $('#tab-usuarios').style.display = soAdmin;
   $('#tab-config').style.display = soAdmin;
+  $('#tab-backup').style.display = soAdmin;
   abrirTab('clientes');
 }
 
@@ -9779,6 +9791,7 @@ function abrirTab(tab) {
     t.classList.toggle('tab-ativo', t.dataset.tab === tab));
   ({ clientes: renderClientes, pesos: renderPesos, tipos: renderTipos,
      usuarios: renderUsuarios, config: renderConfig, avisos: renderAvisos,
+     backup: renderBackup,
      pesquisa: renderPesquisa }[tab])();
 }
 
@@ -11191,40 +11204,32 @@ async function renderConfig() {
   const selRep = [1, 3, 5, 10].map(n =>
     `<option value="${n}" ${n === c.num_repeticoes ? 'selected' : ''}>${n}</option>`).join('');
   $('#cad-conteudo').innerHTML = `
+    <div class="tabs-rel">
+      <button class="tab-rel ativa" data-subtab="gerais" onclick="mudarAbaConfig('gerais')">Gerais</button>
+      <button class="tab-rel" data-subtab="rbc" onclick="mudarAbaConfig('rbc')">RBC</button>
+      <button class="tab-rel" data-subtab="conformidade" onclick="mudarAbaConfig('conformidade')">Conformidade</button>
+    </div>
+
+    <div id="cfg-gerais" class="cfg-aba">
     <div class="card">
       <h3>Dados do emissor (aparecem no certificado)</h3>
       <div class="form-grid">
         ${campo('Razão social *', 'cf-razao', 'text', c.razao_social)}
         ${campo('Nome fantasia', 'cf-fantasia', 'text', c.nome_fantasia)}
-        ${campo('Cláusula da norma — método da substituição', 'cf-clausula-sub', 'text', c.clausula_substituicao)}
         ${campo('Endereço', 'cf-end', 'text', c.endereco)}
         ${campo('Cidade / UF', 'cf-ciduf', 'text', c.cidade_uf)}
         ${campo('Telefone', 'cf-fone', 'text', c.telefone)}
         ${campo('Email', 'cf-email', 'email', c.email)}
       </div>
-      <label class="chk" style="margin-top:6px"><input type="checkbox" id="cf-email-auto" ${sim(c.envia_email_automatico ?? true)}>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" id="cf-email-auto" ${sim(c.EnviaEmailAutomatico ?? true)}>
         📧 Enviar o certificado por e-mail automaticamente na emissão</label>
       <p class="dica" style="margin:0 0 8px 24px">Vai para o e-mail do cadastro do cliente
         e para os contatos marcados com "Recebe certificados".</p>
       <label>Texto de autorização (linha livre no cabeçalho, ex.: "Autorização Inmetro nº 20000077")
         <input type="text" id="cf-autoriz-txt" value="${esc(c.texto_autorizacao || '')}"></label>
       ${campo('Título do documento', 'cf-titulo', 'text', c.titulo_documento)}
-      <label>Método / procedimento (texto no certificado)
-        <textarea id="cf-metodo" rows="3">${esc(c.metodo_calibracao || '')}</textarea></label>
-      <label>Texto de periodicidade
-        <textarea id="cf-period" rows="3">${esc(c.texto_periodicidade || '')}</textarea></label>
       <label>Texto de rodapé
         <textarea id="cf-rodape" rows="6">${esc(c.texto_rodape || '')}</textarea></label>
-    </div>
-
-    <div class="card">
-      <h3>📦 Exportação de dados (backup da empresa)</h3>
-      <p class="dica">Gera um arquivo .zip com todos os dados da empresa em CSV (clientes,
-        balanças, ensaios, usuários) e os PDFs de todos os certificados emitidos.
-        O arquivo fica disponível por 7 dias. Fotos e anexos não são incluídos.</p>
-      <button class="btn-mini btn-primario" onclick="solicitarExportacao()">📦 Gerar exportação</button>
-      <button class="btn-mini" onclick="carregarExportacoes()">🔄 Atualizar lista</button>
-      <div id="cf-exports" style="margin-top:8px"></div>
     </div>
 
     <div class="card">
@@ -11255,7 +11260,58 @@ async function renderConfig() {
           </select></label>
       </div>
       <p class="dica">Ajusta o tamanho e a posição do logo no cabeçalho do certificado (padrão: 90 × 55, topo).
-        Gere o "exemplo em PDF" para conferir o resultado.</p>
+        Gere o "exemplo em PDF" na aba Conformidade para conferir o resultado.</p>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="cf-marca-sistema" ${sim(c.MarcaSistemaPdf ?? true)}>
+        Mostrar a marca "gerado no TSCert" no rodapé do PDF</label>
+      <label>Tamanho da etiqueta de calibração
+        <select id="cf-etiqueta">
+          <option value="40x60" ${(c.etiqueta_tamanho||'40x60')==='40x60'?'selected':''}>40×60 mm — completa (todos os dados escritos)</option>
+          <option value="50x30" ${c.etiqueta_tamanho==='50x30'?'selected':''}>50×30 mm — média (QR + dados principais)</option>
+          <option value="33x22" ${c.etiqueta_tamanho==='33x22'?'selected':''}>33×22 mm — pequena (QR + vencimento)</option>
+          <option value="25x15" ${c.etiqueta_tamanho==='25x15'?'selected':''}>25×15 mm — mínima, sem QR (só texto)</option>
+        </select></label>
+      <label class="chk"><input type="checkbox" id="cf-validade" ${sim(c.mostra_validade)}>
+        Mostrar periodicidade e data da próxima calibração no PDF</label>
+      <label class="chk"><input type="checkbox" id="cf-vdownload" ${sim(c.validar_permite_download)}>
+        Permitir que o cliente baixe os certificados na página de validação (QR)</label>
+    </div>
+    </div>
+
+    <div id="cfg-rbc" class="cfg-aba oculta">
+    <div class="card" style="border-left:4px solid #1e3a5f;background:#f7f9fb">
+      <div class="barra"><h3 style="color:#1e3a5f">Acreditação RBC (ISO/IEC 17025)</h3></div>
+      <p class="dica">Marque apenas se sua empresa é acreditada pela Cgcre/Inmetro. Isso habilita a emissão de certificados de calibração RBC (com selo de acreditação e cálculo de incerteza).</p>
+      <label class="chk"><input type="checkbox" id="cf-acreditada" ${c.acreditada ? 'checked' : ''}> Somos acreditados Cgcre/RBC</label>
+      ${campo('Nº de acreditação (ex.: CAL 0123)', 'cf-numacred', 'text', c.num_acreditacao)}
+      <label>Selo RBC (imagem PNG/JPG)
+        <input type="file" id="cf-selo" accept="image/png,image/jpeg"></label>
+      <div id="cf-selo-preview">${c.selo_rbc_url ? '<span class="dica">Selo enviado ✓</span>' : '<span class="dica">Nenhum selo enviado ainda.</span>'}</div>
+      <button class="btn-mini" onclick="enviarSeloRbc()">Enviar selo</button>
+      <p id="cf-selo-msg" class="dica"></p>
+    </div>
+
+    <div class="card">
+      <h3>Parâmetros de coleta e cálculo RBC</h3>
+      <p class="dica">Só valem para o certificado RBC (o de conformidade usa os parâmetros da aba Conformidade).</p>
+      <div class="form-grid">
+        ${campo('Nº de leituras', 'cf-rbc-leituras', 'number', c.rbc_num_leituras ?? 3, 'min="1" max="10"')}
+        ${campo('Nº de posições de excentricidade', 'cf-rbc-posexc', 'number', c.rbc_num_posicoes_exc ?? 5, 'min="1" max="9"')}
+        ${campo('Fator de substituição', 'cf-rbc-fatorsub', 'number', c.rbc_fator_sub ?? 1.0, 'step="0.1" min="0.1" max="5"')}
+      </div>
+      <p class="dica">Fator de substituição: multiplica a incerteza de repetibilidade em cada degrau
+        do método da substituição. Padrão 1,0 (conservador) — só altere com respaldo técnico da Cgcre.</p>
+    </div>
+    </div>
+
+    <div id="cfg-conformidade" class="cfg-aba oculta">
+    <div class="card">
+      <h3>Procedimento</h3>
+      <label>Método / procedimento (texto no certificado)
+        <textarea id="cf-metodo" rows="3">${esc(c.metodo_calibracao || '')}</textarea></label>
+      <label>Texto de periodicidade
+        <textarea id="cf-period" rows="3">${esc(c.texto_periodicidade || '')}</textarea></label>
+      ${campo('Cláusula da norma — método da substituição', 'cf-clausula-sub', 'text', c.ClausulaSubstituicao)}
+      ${campo('Nº de autorização Inmetro', 'cf-numautoriz', 'text', c.num_autorizacao)}
     </div>
 
     <div class="card">
@@ -11275,11 +11331,18 @@ async function renderConfig() {
         Registrar número de lacre e selo Inmetro</label>
       <label class="chk"><input type="checkbox" id="cf-ajuste" ${sim(c.usa_ajuste)}>
         Permitir registro de leitura antes/depois do ajuste</label>
-      <label class="chk"><input type="checkbox" id="cf-validade" ${sim(c.mostra_validade)}>
-        Mostrar periodicidade e data da próxima calibração no PDF</label>
-      <label class="chk"><input type="checkbox" id="cf-vdownload" ${sim(c.validar_permite_download)}>
-        Permitir que o cliente baixe os certificados na página de validação (QR)</label>
-      <label>Modelo do certificado (PDF)
+      <label class="chk"><input type="checkbox" id="cf-incerteza-declarada"
+          ${sim(c.usar_incerteza_declarada_pesos)}>
+        Usar a incerteza REAL declarada no certificado dos pesos-padrão no cálculo (quando
+        cadastrada), em vez da aproximação genérica pela classe</label>
+      <p class="dica" style="margin-top:-4px">Vale só para o certificado de conformidade — o RBC
+        já usa sempre o valor real. Peso sem a incerteza cadastrada continua caindo na
+        aproximação por classe, mesmo com esta opção ligada.</p>
+    </div>
+
+    <div class="card">
+      <h3>Modelo do certificado (PDF)</h3>
+      <label>Modelo
         <select id="cf-modelo" onchange="document.getElementById('cf-instrucao-wrap')?.classList.toggle('oculta', this.value !== 'formulario4')">
           <option value="classico" ${(c.modelo_certificado||'classico')==='classico'?'selected':''}>Modelo 1 — formato relatório</option>
           <option value="completo" ${c.modelo_certificado==='completo'?'selected':''}>Modelo 2 — com sensibilidade, TUR, k e veff</option>
@@ -11293,34 +11356,9 @@ async function renderConfig() {
           ${campo('Revisão', 'cf-rev', 'text', c.instrucao_rev ?? '', 'placeholder="Ex.: 1.0"')}
         </div>
       </div>
-      <label class="chk"><input type="checkbox" id="cf-incerteza-declarada"
-          ${sim(c.usar_incerteza_declarada_pesos)}>
-        Usar a incerteza REAL declarada no certificado dos pesos-padrão no cálculo (quando
-        cadastrada), em vez da aproximação genérica pela classe</label>
-      <p class="dica" style="margin-top:-4px">Vale só para o certificado de conformidade — o RBC
-        já usa sempre o valor real. Peso sem a incerteza cadastrada continua caindo na
-        aproximação por classe, mesmo com esta opção ligada.</p>
       <button type="button" class="btn-mini" onclick="verExemploModelo()">👁️ Ver exemplo em PDF</button>
       <p id="cf-preview-msg" class="dica"></p>
-      <label>Tamanho da etiqueta de calibração
-        <select id="cf-etiqueta">
-          <option value="40x60" ${(c.etiqueta_tamanho||'40x60')==='40x60'?'selected':''}>40×60 mm — completa (todos os dados escritos)</option>
-          <option value="50x30" ${c.etiqueta_tamanho==='50x30'?'selected':''}>50×30 mm — média (QR + dados principais)</option>
-          <option value="33x22" ${c.etiqueta_tamanho==='33x22'?'selected':''}>33×22 mm — pequena (QR + vencimento)</option>
-          <option value="25x15" ${c.etiqueta_tamanho==='25x15'?'selected':''}>25×15 mm — mínima, sem QR (só texto)</option>
-        </select></label>
     </div>
-
-    <div class="card" style="border-left:4px solid #1e3a5f;background:#f7f9fb">
-      <div class="barra"><h3 style="color:#1e3a5f">Acreditação RBC (ISO/IEC 17025)</h3></div>
-      <p class="dica">Marque apenas se sua empresa é acreditada pela Cgcre/Inmetro. Isso habilita a emissão de certificados de calibração RBC (com selo de acreditação e cálculo de incerteza).</p>
-      <label class="chk"><input type="checkbox" id="cf-acreditada" ${c.acreditada ? 'checked' : ''}> Somos acreditados Cgcre/RBC</label>
-      ${campo('Nº de acreditação (ex.: CAL 0123)', 'cf-numacred', 'text', c.num_acreditacao)}
-      <label>Selo RBC (imagem PNG/JPG)
-        <input type="file" id="cf-selo" accept="image/png,image/jpeg"></label>
-      <div id="cf-selo-preview">${c.selo_rbc_url ? '<span class="dica">Selo enviado ✓</span>' : '<span class="dica">Nenhum selo enviado ainda.</span>'}</div>
-      <button class="btn-mini" onclick="enviarSeloRbc()">Enviar selo</button>
-      <p id="cf-selo-msg" class="dica"></p>
     </div>
 
     <div class="rodape-acoes">
@@ -11328,6 +11366,28 @@ async function renderConfig() {
     </div>
     <p id="cf-msg" class="dica"></p>`;
   if (c.logo_url) carregarLogoPreview();
+}
+
+function mudarAbaConfig(nome) {
+  document.querySelectorAll('.cfg-aba').forEach(p =>
+    p.classList.toggle('oculta', p.id !== 'cfg-' + nome));
+  document.querySelectorAll('.tabs-rel .tab-rel').forEach(b =>
+    b.classList.toggle('ativa', b.dataset.subtab === nome));
+}
+
+// ── Backup / exportação de dados da empresa ─────────────────────
+async function renderBackup() {
+  $('#cad-conteudo').innerHTML = `
+    <div class="card">
+      <h3>📦 Exportação de dados (backup da empresa)</h3>
+      <p class="dica">Gera um arquivo .zip com todos os dados da empresa em CSV (clientes,
+        balanças, ensaios, usuários) e os PDFs de todos os certificados emitidos.
+        O arquivo fica disponível por 7 dias. Fotos e anexos não são incluídos.</p>
+      <button class="btn-mini btn-primario" onclick="solicitarExportacao()">📦 Gerar exportação</button>
+      <button class="btn-mini" onclick="carregarExportacoes()">🔄 Atualizar lista</button>
+      <div id="cf-exports" style="margin-top:8px"></div>
+    </div>`;
+  carregarExportacoes();
 }
 
 // RBC: envia o selo de acreditação (espelha o envio de logo)
@@ -11501,7 +11561,12 @@ async function salvarConfig() {
     instrucaoRev: $('#cf-rev')?.value.trim() || null,
     acreditada: $('#cf-acreditada').checked,
     numAcreditacao: $('#cf-numacred').value || null,
-    usarIncertezaDeclaradaPesos: $('#cf-incerteza-declarada')?.checked ?? false
+    usarIncertezaDeclaradaPesos: $('#cf-incerteza-declarada')?.checked ?? false,
+    marcaSistemaPdf: $('#cf-marca-sistema')?.checked ?? true,
+    numAutorizacao: $('#cf-numautoriz')?.value || null,
+    rbcNumLeituras: Number($('#cf-rbc-leituras')?.value) || null,
+    rbcNumPosicoesExc: Number($('#cf-rbc-posexc')?.value) || null,
+    rbcFatorSub: Number($('#cf-rbc-fatorsub')?.value) || null
   };
   try {
     await api('/empresa/config', { method: 'PUT', body: JSON.stringify(corpo) });

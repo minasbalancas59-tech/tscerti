@@ -74,6 +74,7 @@ public static class BalancaEndpoints
             if (erro is not null) return Results.BadRequest(new { erro });
 
             await using var conn = await Tenant.AbrirConexao(ds, user);
+            if (!await Tenant.PodeCriarBalanca(conn, user)) return Results.Forbid();
             var empresaId = Tenant.EmpresaId(user);
 
             // RLS já garante que só clientes do tenant são visíveis
@@ -294,6 +295,7 @@ public static class BalancaEndpoints
         g.MapPut("/{id:guid}", async (Guid id, BalancaRequest req,
             ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
         {
+            if (!Tenant.EhGestor(user)) return Results.Forbid();
             var erro = Validar(req);
             if (erro is not null) return Results.BadRequest(new { erro });
 
@@ -341,6 +343,7 @@ public static class BalancaEndpoints
         g.MapPut("/{id:guid}/ativo", async (Guid id, AtivoRequest req,
             ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
         {
+            if (!Tenant.EhGestor(user)) return Results.Forbid();
             await using var conn = await Tenant.AbrirConexao(ds, user);
             var n = await conn.ExecuteAsync(
                 "UPDATE balanca SET ativa = @ativo WHERE id = @id",
