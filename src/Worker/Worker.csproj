@@ -16,9 +16,13 @@
     <PackageReference Include="QuestPDF" Version="2024.6.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.8" />
-    <PackageReference Include="MailKit" Version="4.7.1" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="QRCoder" Version="1.5.1" />
     <PackageReference Include="AWSSDK.S3" Version="3.7.307.16" />
+    <!-- Fixa versao segura: 8.0.0 (transitiva) tem 2 CVEs de negacao de
+         servico corrigidos a partir de 8.0.5 (GHSA-hh2w-p6rv-4g7w,
+         GHSA-8g4q-xg66-9fp4). -->
+    <PackageReference Include="System.Text.Json" Version="8.0.6" />
   </ItemGroup>
 
 </Project>

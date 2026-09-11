@@ -56,7 +56,11 @@ public static class RbcEndpoints
                     if (pos.OrdemPosicao == 1)
                     {
                         refCentro = mediaPos; temCentro = true;
-                        cargaExcentricidade = (double)pos.Carga;
+                        // Carga é opcional no request; sem ela, cai em 0 e o
+                        // guard "cargaExcentricidade > 0" mais abaixo já trata
+                        // como "sem centro válido" (mesmo caminho de quando
+                        // temCentro fica false).
+                        cargaExcentricidade = (double)(pos.Carga ?? 0);
                     }
                 }
                 int op = 0;

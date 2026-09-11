@@ -2067,7 +2067,11 @@ public sealed class FilaWorker(
     }
     static bool CorValida(string? c) => !string.IsNullOrWhiteSpace(c) &&
         System.Text.RegularExpressions.Regex.IsMatch(c, "^#?[0-9A-Fa-f]{6}$");
-    static string CorHex(string c) => c.StartsWith("#") ? c : "#" + c;
+    // Só é chamada depois de CorValida(c) confirmar não-nulo (padrão
+    // "CorValida(x) ? CorHex(x) : ..."); assinatura aceita string? pra
+    // bater com o parâmetro de CorValida sem exigir o analisador provar
+    // o fluxo entre as duas funções.
+    static string CorHex(string? c) => c!.StartsWith("#") ? c : "#" + c;
 
     string MontarEmailPesquisa(string empresa, string cliente, string link,
         string? logoDataUri, string cor)
@@ -2311,9 +2315,11 @@ public sealed class FilaWorker(
             msg.Subject = assunto;
             msg.Body = new BodyBuilder { HtmlBody = html }.ToMessageBody();
             using var smtp = new SmtpClient();
-            await smtp.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.Auto);
+            // host/pass vêm de SmtpConfig(): sempre preenchidos na prática (painel
+            // ou fallback do .env) — nunca fica sem nenhuma config de SMTP.
+            await smtp.ConnectAsync(host!, port, MailKit.Security.SecureSocketOptions.Auto);
             if (!string.IsNullOrEmpty(user))
-                await smtp.AuthenticateAsync(user, pass);
+                await smtp.AuthenticateAsync(user, pass!);
             await smtp.SendAsync(msg);
             await smtp.DisconnectAsync(true);
             log.LogInformation("Email de conta enviado para {Para}", para);
@@ -2891,8 +2897,9 @@ public sealed class FilaWorker(
                     corpo.Attachments.Add(numeroNovo + ".pdf", pdf, ContentType.Parse("application/pdf"));
                 msg.Body = corpo.ToMessageBody();
                 using var smtp = new SmtpClient();
-                await smtp.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.Auto);
-                if (!string.IsNullOrEmpty(userS)) await smtp.AuthenticateAsync(userS, passS);
+                // host/pass vêm de SmtpConfig(): sempre preenchidos na prática.
+                await smtp.ConnectAsync(host!, port, MailKit.Security.SecureSocketOptions.Auto);
+                if (!string.IsNullOrEmpty(userS)) await smtp.AuthenticateAsync(userS, passS!);
                 await smtp.SendAsync(msg);
                 await smtp.DisconnectAsync(true);
                 await RegistrarEmail(para, nomeDest ?? cliente, assunto, "revisao_emitida", "enviado",
@@ -3013,8 +3020,9 @@ public sealed class FilaWorker(
                         corpo.Attachments.Add(nome, dados, ContentType.Parse("application/pdf"));
                 msg.Body = corpo.ToMessageBody();
                 using var smtp = new SmtpClient();
-                await smtp.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.Auto);
-                if (!string.IsNullOrEmpty(userS)) await smtp.AuthenticateAsync(userS, passS);
+                // host/pass vêm de SmtpConfig(): sempre preenchidos na prática.
+                await smtp.ConnectAsync(host!, port, MailKit.Security.SecureSocketOptions.Auto);
+                if (!string.IsNullOrEmpty(userS)) await smtp.AuthenticateAsync(userS, passS!);
                 await smtp.SendAsync(msg);
                 await smtp.DisconnectAsync(true);
                 algumEnviado = true;
@@ -3066,9 +3074,10 @@ public sealed class FilaWorker(
             msg.Body = corpo.ToMessageBody();
 
             using var smtp = new SmtpClient();
-            await smtp.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.Auto);
+            // host/pass vêm de SmtpConfig(): sempre preenchidos na prática.
+            await smtp.ConnectAsync(host!, port, MailKit.Security.SecureSocketOptions.Auto);
             if (!string.IsNullOrEmpty(userS))
-                await smtp.AuthenticateAsync(userS, passS);
+                await smtp.AuthenticateAsync(userS, passS!);
             await smtp.SendAsync(msg);
             await smtp.DisconnectAsync(true);
 

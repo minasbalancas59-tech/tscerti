@@ -499,9 +499,12 @@ public static class GeradorPdf
                         var sentidos = SentidosCiclo(d.Indicacao);
                         var ehCiclo = sentidos.Count > 0;
                         // Casas da coluna de incerteza: 2 algarismos significativos
-                        // da MAIOR U da tabela, limitadas pela resolução. O erro e
-                        // a indicação herdam essas casas (GUM 7.2.6, passo 3).
-                        var casasU = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), d.CasasDecimais);
+                        // da MAIOR U da tabela, sem limite pela resolução da balança —
+                        // a incerteza é um cálculo estatístico, não uma leitura, então
+                        // pode legitimamente ter mais casas que a divisão (norma pura,
+                        // NIT-DICLA-021 A.6.3). O erro herda essas casas (GUM 7.2.6,
+                        // passo 3); a indicação/carga continuam presas a d.CasasDecimais.
+                        var casasU = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), int.MaxValue);
                         t.ColumnsDefinition(c =>
                         {
                             if (ehCiclo) c.ConstantColumn(16);        // ↑/↓
@@ -927,7 +930,8 @@ public static class GeradorPdf
                             d.Indicacao.Any(x => x.IndicacaoAntes is not null || x.SemLeituraAntes);
                         var sentidos3 = SentidosCiclo(d.Indicacao);
                         var ehCiclo3 = sentidos3.Count > 0;
-                        var casasU3 = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), casas);
+                        // Sem limite pela resolução (norma pura) — ver comentário no Modelo 1.
+                        var casasU3 = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), int.MaxValue);
                         t.ColumnsDefinition(c =>
                         {
                             if (ehCiclo3) c.ConstantColumn(13);         // ↑/↓
@@ -1173,8 +1177,14 @@ public static class GeradorPdf
         byte[]? seloRbc)
     {
         var r = d.Rbc!;
-        // Casas para incerteza/média: 2 a mais que a divisão (a média cai entre divisões)
+        // Casas da média: 2 a mais que a divisão (a média de N leituras cai entre
+        // divisões) — não é sobre incerteza, é sobre a estatística da média.
         int casasU = d.CasasDecimais + 2;
+        // Casas do Erro/U final (coluna "Resultados"): norma pura, 2 algarismos
+        // significativos da MAIOR U, sem limite pela resolução — igual aos outros
+        // modelos (ver comentário no Modelo 1). Diferente de casasU acima: aqui é
+        // a incerteza REPORTADA no certificado, não a média das leituras.
+        int casasIncerteza = CasasTabelaU(r.Resultados.Select(x => (decimal?)x.U), int.MaxValue);
 
         return Document.Create(doc =>
         {
@@ -1356,8 +1366,8 @@ public static class GeradorPdf
                                 .Padding(4).AlignCenter().Text(s).FontSize(8);
                             C(Val(l.Carga, d.CasasDecimais));
                             C(Val(l.Media, casasU));
-                            C((l.Erro > 0 ? "+" : "") + Val(l.Erro, casasU));
-                            C(ValU(l.U, casasU));
+                            C((l.Erro > 0 ? "+" : "") + Val(l.Erro, casasIncerteza));
+                            C(ValU(l.U, casasIncerteza));
                             C(Val(l.K, 2));
                         }
                     });
@@ -1816,7 +1826,8 @@ public static class GeradorPdf
                            .FontSize(5.5f).Italic().FontColor("#667");
                     var sentidos4 = SentidosCiclo(d.Indicacao);
                     var ehCiclo4 = sentidos4.Count > 0;
-                    var casasU4 = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), casas);
+                    // Sem limite pela resolução (norma pura) — ver comentário no Modelo 1.
+                    var casasU4 = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), int.MaxValue);
                     col.Item().Table(t =>
                     {
                         t.ColumnsDefinition(c =>

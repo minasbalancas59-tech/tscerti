@@ -11263,7 +11263,9 @@ async function renderConfig() {
         Gere o "exemplo em PDF" na aba Conformidade para conferir o resultado.</p>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="cf-marca-sistema" ${sim(c.MarcaSistemaPdf ?? true)}>
         Mostrar a marca "gerado no TSCert" no rodapé do PDF</label>
-      <label>Tamanho da etiqueta de calibração
+      <label class="oculta">Tamanho da etiqueta de calibração
+        <!-- Escondido: hoje só existe o modelo 40x60 em uso. Campo/valor
+             continuam funcionando por trás caso volte a ter mais de um. -->
         <select id="cf-etiqueta">
           <option value="40x60" ${(c.etiqueta_tamanho||'40x60')==='40x60'?'selected':''}>40×60 mm — completa (todos os dados escritos)</option>
           <option value="50x30" ${c.etiqueta_tamanho==='50x30'?'selected':''}>50×30 mm — média (QR + dados principais)</option>
