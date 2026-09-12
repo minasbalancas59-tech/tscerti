@@ -520,10 +520,12 @@
     <div class="card">
       <h3>1 · Carga (indicação) <button type="button" class="btn-ajuda" onclick="ajuda('indicacao')" title="Sobre este ensaio">?</button></h3>
       <p class="dica">Cada ponto medido N vezes. A variabilidade das leituras = repetibilidade do ponto. U combina repetibilidade + resolução + padrão + excentricidade + empuxo.</p>
+      <div id="rbc-sugestao-config"></div>
       <div class="tabela-scroll">
         <table id="rbc-carga"><thead id="rbc-carga-thead"></thead><tbody id="rbc-carga-tbody"></tbody></table>
       </div>
       <button type="button" class="btn-mini" onclick="addCargaRbc()">+ Adicionar carga</button>
+      <button type="button" class="btn-mini" onclick="configurarEnsaioRbc()" style="margin-left:6px">⚙️ Configurar ensaio</button>
       <button type="button" class="btn-mini" onclick="verMemoriaRbc(null)" style="margin-left:6px">📋 Memória de cálculo completa</button>
     </div>
 

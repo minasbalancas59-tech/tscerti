@@ -219,6 +219,48 @@ public static class BalancaEndpoints
             return Results.Ok(new { numero = (string)ult.numero, cargas, exc, rep });
         });
 
+        // ── Última configuração de ensaio RBC desta balança (acelera a
+        // repetição: nº de pontos, nº de leituras e o conjunto de pesos
+        // usados da última vez) — mesmo padrão do "ultimo-plano" acima,
+        // lido do último certificado RBC emitido, sem coluna de memória
+        // dedicada na balança.
+        g.MapGet("/{id:guid}/ultimo-config-rbc", async (Guid id, ClaimsPrincipal user,
+            NpgsqlDataSource ds) =>
+        {
+            await using var conn = await Tenant.AbrirConexao(ds, user);
+            var ult = await conn.QuerySingleOrDefaultAsync("""
+                SELECT ct.id
+                  FROM certificado ct
+                 WHERE ct.balanca_id = @id AND ct.emitir_rbc = true
+                   AND ct.status IN ('emitido','substituido')
+                 ORDER BY ct.data_calibracao DESC NULLS LAST, ct.criado_em DESC
+                 LIMIT 1
+                """, new { id });
+            if (ult is null) return Results.NotFound();
+
+            Guid cid = ult.id;
+            var resumo = await conn.QuerySingleOrDefaultAsync("""
+                SELECT count(DISTINCT ordem_ponto) AS num_pontos,
+                       max(ordem_leitura) AS num_leituras
+                  FROM leitura_rbc WHERE certificado_id = @cid
+                """, new { cid });
+            var pontoTrabalho = await conn.ExecuteScalarAsync<decimal?>(
+                "SELECT max(carga) FROM incerteza_ponto_rbc WHERE certificado_id = @cid", new { cid });
+            var conjuntos = (await conn.QueryAsync<string>("""
+                SELECT DISTINCT peso_identificacao FROM carga_peso_rbc
+                 WHERE certificado_id = @cid AND peso_identificacao IS NOT NULL
+                 ORDER BY peso_identificacao
+                """, new { cid })).ToList();
+
+            if (resumo is null || (int)(resumo.num_pontos ?? 0) == 0) return Results.NotFound();
+            return Results.Ok(new {
+                numPontos = (int)resumo.num_pontos,
+                numLeituras = (int)(resumo.num_leituras ?? 3),
+                pontoTrabalho,
+                conjuntos
+            });
+        });
+
         // ── Faixas (multi-intervalo) ──
         g.MapGet("/{id:guid}/faixas", async (Guid id, ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {

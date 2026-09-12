@@ -115,6 +115,16 @@ async function montarTelaEnsaioRbc() {
   // (wizard) fica disponível à parte, via o botão no cabeçalho.
   window._rbcAbrirNoResumo = false;   // sinalizador legado; mantido só por compatibilidade com app.js
   mostrarResumoRbc();
+
+  // Sugestão de config (pontos/leituras/conjunto de pesos) do último RBC
+  // emitido desta balança — só numa coleta NOVA, pra nunca atropelar dado
+  // já digitado numa reabertura.
+  if (!temColetaSalva && plano?.balanca?.id) {
+    try {
+      const sug = await api('/balancas/' + plano.balanca.id + '/ultimo-config-rbc', { opcional: true });
+      if (sug) mostrarSugestaoConfigRbc(sug);
+    } catch (e) { /* sem histórico — segue sem sugestão */ }
+  }
 }
 
 function renderRbcTudo() {
@@ -647,6 +657,181 @@ function abrirModalRbcGenerico(titulo, corpoHtml, onConfirmar, textoConfirmar) {
     const b = div.querySelector('#rbc-modal-ok');
     if (b) b.onclick = () => { onConfirmar(); div.remove(); };
   }
+}
+
+// ═══ Configuração do ensaio: nº de pontos/leituras + distribuição de
+// cargas a partir das massas reais de um conjunto de pesos ═══════════
+
+// Distribui N cargas somando as peças do conjunto em ordem crescente —
+// como alguém empilha pesos-padrão no prato. Cada carga gerada É a soma
+// de peças reais (nunca um número arbitrário), por isso já sai com os
+// "Pesos usados" corretos.
+function distribuirCargasRbc(pecas, pontoTrabalho, nPontos) {
+  const ordenadas = [...(pecas || [])]
+    .filter(p => Number(p.valor_convencional) > 0)
+    .sort((a, b) => Number(a.valor_convencional) - Number(b.valor_convencional));
+  if (!ordenadas.length || !(pontoTrabalho > 0) || !(nPontos > 0)) return { pontos: [], aviso: null };
+
+  const escada = [];
+  let soma = 0;
+  for (const p of ordenadas) {
+    soma += Number(p.valor_convencional);
+    escada.push({ carga: soma, pesos: ordenadas.slice(0, escada.length + 1) });
+  }
+  const somaTotal = escada[escada.length - 1].carga;
+  let aviso = null;
+  if (somaTotal < pontoTrabalho) {
+    aviso = `O conjunto soma ${fmtLivre(somaTotal)} ${unid()}, menos que o ponto de trabalho pedido ` +
+      `(${fmtLivre(pontoTrabalho)} ${unid()}) — os pontos gerados vão até o máximo disponível.`;
+  }
+  const base = escada.filter(s => s.carga <= pontoTrabalho + 1e-9);
+  const universo = base.length ? base : escada.slice(0, 1);
+  const alvoMax = universo[universo.length - 1].carga;
+
+  const escolhidos = [];
+  const usados = new Set();
+  for (let i = 1; i <= nPontos; i++) {
+    const alvo = alvoMax * i / nPontos;
+    let melhor = universo[0];
+    for (const s of universo) if (Math.abs(s.carga - alvo) < Math.abs(melhor.carga - alvo)) melhor = s;
+    if (!usados.has(melhor.carga)) { escolhidos.push(melhor); usados.add(melhor.carga); }
+  }
+  if (escolhidos.length < nPontos && !aviso) {
+    aviso = `O conjunto de pesos só permite montar ${escolhidos.length} carga(s) distinta(s) até ` +
+      `${fmtLivre(alvoMax)} ${unid()} (pedido: ${nPontos}).`;
+  }
+  return { pontos: escolhidos, aviso };
+}
+
+function redimensionarArrRbc(arr, n) {
+  const novo = Array(n).fill('');
+  (arr || []).forEach((v, i) => { if (i < n) novo[i] = v; });
+  return novo;
+}
+
+function gruposPesosRbc() {
+  const grupos = {};
+  (window._rbc.pesosDisponiveis || []).forEach(p => {
+    const k = p.peso_identificacao || '?';
+    (grupos[k] = grupos[k] || []).push(p);
+  });
+  return grupos;
+}
+
+// Aplica uma config (gera os pontos de carga e, se preciso, redimensiona
+// as leituras de excentricidade/mobilidade para o novo N) — usada tanto
+// pelo modal "Configurar ensaio" quanto pelo atalho "usar esta configuração".
+function aplicarConfigEnsaioRbc({ nPontos, nLeituras, pontoTrabalho, nomeConjunto }) {
+  const R = window._rbc;
+  const pecas = gruposPesosRbc()[nomeConjunto] || [];
+  if (!pecas.length) {
+    toast(`Conjunto de pesos "${nomeConjunto || '?'}" não encontrado ou sem pontos cadastrados.`, 'erro');
+    return;
+  }
+  if (!(nPontos > 0) || !(pontoTrabalho > 0)) {
+    toast('Preencha nº de pontos e ponto de trabalho.', 'erro');
+    return;
+  }
+  const { pontos: gerados, aviso } = distribuirCargasRbc(pecas, pontoTrabalho, nPontos);
+  if (!gerados.length) { toast('Não foi possível gerar pontos com esse conjunto de pesos.', 'erro'); return; }
+
+  const aplicar = () => {
+    if (nLeituras > 0 && nLeituras !== R.numLeituras) {
+      R.exc.forEach(x => { x.leituras = redimensionarArrRbc(x.leituras, nLeituras); });
+      R.mob.leituras = redimensionarArrRbc(R.mob.leituras, nLeituras);
+      R.numLeituras = nLeituras;
+    }
+    R.pontos = gerados.map(g => ({
+      carga: String(g.carga),
+      leituras: Array(R.numLeituras).fill(''),
+      pesos: g.pesos.map(w => ({
+        peso_ponto_rbc_id: w.id, peso_identificacao: w.peso_identificacao,
+        valor_nominal: w.valor_nominal, valor_convencional: w.valor_convencional,
+        incerteza: w.incerteza, k: w.k, num_certificado: w.num_certificado
+      })),
+      orcamento: null
+    }));
+    const box = document.getElementById('rbc-sugestao-config');
+    if (box) box.innerHTML = '';
+    renderRbcTudo();
+    toast(`${gerados.length} ponto(s) de carga gerado(s) a partir de "${nomeConjunto}".` + (aviso ? ' ' + aviso : ''),
+      aviso ? 'aviso' : 'ok', 6000);
+  };
+
+  const temDados = R.pontos.some(p => String(p.carga).trim() || (p.leituras || []).some(l => String(l).trim()));
+  if (temDados) {
+    abrirModalRbcGenerico('Substituir pontos de carga?',
+      `<p class="dica">Isso substitui os ${R.pontos.length} ponto(s) de carga já preenchidos nesta coleta pelos ${gerados.length} pontos gerados. As leituras atuais serão perdidas.</p>`,
+      aplicar, 'Substituir');
+  } else {
+    aplicar();
+  }
+}
+
+function configurarEnsaioRbc() {
+  const R = window._rbc;
+  const grupos = gruposPesosRbc();
+  const nomes = Object.keys(grupos).sort();
+  if (!nomes.length) {
+    toast('Nenhum ponto de peso cadastrado. Cadastre os pesos padrão (com a tabela de pontos) antes.', 'erro');
+    return;
+  }
+  const sug = R._sugestaoConfig || {};
+  const nPontosIni = sug.numPontos || 5;
+  const nLeiturasIni = sug.numLeituras || R.numLeituras || 3;
+  const pontoTrabIni = sug.pontoTrabalho || Number(plano?.balanca?.capacidade) || '';
+  const conjuntoIni = (sug.conjuntos || []).find(c => nomes.includes(c)) || nomes[0];
+
+  const corpo = `
+    <p class="dica">O sistema monta os pontos de carga somando as peças do conjunto escolhido
+      em ordem crescente (como empilhar pesos-padrão) — cada carga já sai com os pesos usados preenchidos.</p>
+    <div class="linha-3">
+      <label>Nº de pontos de carga
+        <input type="number" min="2" step="1" id="rbc-cfg-pontos" value="${nPontosIni}" class="wiz-campo"></label>
+      <label>Nº de repetições (leituras)
+        <input type="number" min="1" max="9" step="1" id="rbc-cfg-leituras" value="${nLeiturasIni}" class="wiz-campo"></label>
+      <label>Ponto de trabalho (<span class="u-unid-rbc">${unid()}</span>)
+        <input type="number" step="any" inputmode="decimal" id="rbc-cfg-ponto-trabalho" value="${pontoTrabIni}" class="wiz-campo"></label>
+    </div>
+    <label>Conjunto de pesos
+      <select id="rbc-cfg-conjunto" class="wiz-campo">
+        ${nomes.map(n => `<option value="${esc(n)}" ${n === conjuntoIni ? 'selected' : ''}>${esc(n)} (${grupos[n].length} peça${grupos[n].length === 1 ? '' : 's'})</option>`).join('')}
+      </select></label>`;
+
+  abrirModalRbcGenerico('Configurar ensaio', corpo, () => {
+    aplicarConfigEnsaioRbc({
+      nPontos: parseInt(document.getElementById('rbc-cfg-pontos')?.value) || 0,
+      nLeituras: parseInt(document.getElementById('rbc-cfg-leituras')?.value) || 0,
+      pontoTrabalho: Number(String(document.getElementById('rbc-cfg-ponto-trabalho')?.value).replace(',', '.')) || 0,
+      nomeConjunto: document.getElementById('rbc-cfg-conjunto')?.value
+    });
+  }, 'Gerar pontos');
+}
+
+// Banner "última config desta balança" — só aparece numa coleta NOVA
+// (nunca atropela dado já digitado numa reabertura). Ver montarTelaEnsaioRbc.
+function mostrarSugestaoConfigRbc(sug) {
+  window._rbc._sugestaoConfig = sug;
+  const box = document.getElementById('rbc-sugestao-config');
+  if (!box) return;
+  const conjunto = (sug.conjuntos && sug.conjuntos[0]) || null;
+  box.innerHTML = `<div class="rbc-sug">
+    💡 Última configuração desta balança: <b>${sug.numPontos} ponto(s)</b>,
+    <b>${sug.numLeituras} leitura(s)</b>${sug.pontoTrabalho ? `, até <b>${fmtLivre(sug.pontoTrabalho)} ${unid()}</b>` : ''}${conjunto ? `, conjunto <b>${esc(conjunto)}</b>` : ''}.
+    ${conjunto ? '<span class="rbc-link" onclick="usarSugestaoConfigRbc()">usar esta configuração</span>' : ''}
+    <span class="rbc-link" style="margin-left:10px" onclick="document.getElementById('rbc-sugestao-config').innerHTML=''">dispensar</span>
+  </div>`;
+}
+
+function usarSugestaoConfigRbc() {
+  const sug = window._rbc._sugestaoConfig;
+  if (!sug) return;
+  aplicarConfigEnsaioRbc({
+    nPontos: sug.numPontos,
+    nLeituras: sug.numLeituras,
+    pontoTrabalho: sug.pontoTrabalho || Number(plano?.balanca?.capacidade) || 0,
+    nomeConjunto: (sug.conjuntos && sug.conjuntos[0]) || null
+  });
 }
 
 // ═══════ MODO GUIADO (wizard): um ponto por vez, resumo no final ═══════
