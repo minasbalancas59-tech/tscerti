@@ -62,7 +62,10 @@ public record DadosRbc(string? NumAcreditacao, decimal? Pressao,
     decimal? MobCargaRef, decimal? MobDivisao, decimal? MobEsperado,
     decimal? MaiorErroExc,
     List<LinhaResultadoRbc> Resultados, List<LinhaExcRbc> Excentricidade,
-    List<LinhaMobRbc> Mobilidade, List<LinhaPesoRbc> PesosRbc);
+    List<LinhaMobRbc> Mobilidade, List<LinhaPesoRbc> PesosRbc,
+    // Textos próprios do RBC — independentes do Conformidade (que usa
+    // d.Metodo/d.TextoRodape, configurados na aba Conformidade).
+    string? MetodoRbc = null, string? TextoRodapeRbc = null);
 
 public static class GeradorPdf
 {
@@ -1224,23 +1227,24 @@ public static class GeradorPdf
                         });
                         row.ConstantItem(190).Column(c =>
                         {
-                            c.Item().AlignRight().Text("CERTIFICADO DE CALIBRAÇÃO")
-                                .FontSize(12).Bold().FontColor(cor);
+                            // Selo ao lado do título "CERTIFICADO DE CALIBRAÇÃO" (não
+                            // embaixo, perto da acreditação) — pedido do usuário, 12/09/2026.
+                            c.Item().Row(rr =>
+                            {
+                                rr.RelativeItem().AlignRight().Text("CERTIFICADO DE CALIBRAÇÃO")
+                                    .FontSize(12).Bold().FontColor(cor);
+                                if (seloRbc is not null)
+                                    rr.ConstantItem(36).PaddingLeft(6).AlignMiddle()
+                                        .MaxHeight(34).Image(seloRbc).FitArea();
+                            });
                             c.Item().AlignRight().Text($"Nº {d.Numero}").FontSize(11).Bold();
                             c.Item().AlignRight().Text($"Emissão: {d.DataEmissao:dd/MM/yyyy}").FontSize(8);
                             if (d.SubstituiNumero is not null)
                                 c.Item().AlignRight().Text($"Substitui o certificado {d.SubstituiNumero}")
                                     .FontSize(8).FontColor("#b02a37");
-                            if (!string.IsNullOrWhiteSpace(r.NumAcreditacao) || seloRbc is not null)
-                                c.Item().PaddingTop(3).Row(rr =>
-                                {
-                                    rr.RelativeItem().AlignRight().AlignMiddle().Text(
-                                        string.IsNullOrWhiteSpace(r.NumAcreditacao) ? "" :
-                                        $"Acreditação Cgcre nº {r.NumAcreditacao}")
-                                        .FontSize(8).Bold().FontColor(cor);
-                                    if (seloRbc is not null)
-                                        rr.ConstantItem(58).PaddingLeft(6).MaxHeight(48).Image(seloRbc).FitArea();
-                                });
+                            if (!string.IsNullOrWhiteSpace(r.NumAcreditacao))
+                                c.Item().PaddingTop(3).AlignRight().Text($"Acreditação Cgcre nº {r.NumAcreditacao}")
+                                    .FontSize(8).Bold().FontColor(cor);
                         });
                     });
                     col.Item().PaddingTop(4).LineHorizontal(1).LineColor(cor);
@@ -1467,13 +1471,16 @@ public static class GeradorPdf
                         });
 
                     // ── Declarações ────────────────────────────
+                    // Método: campo próprio do RBC (r.MetodoRbc) — cai no texto
+                    // do Conformidade só se a empresa nunca configurou o do RBC.
+                    var metodoRbc = r.MetodoRbc ?? d.Metodo;
                     col.Item().PaddingTop(3).Column(c =>
                     {
                         c.Item().Text(t =>
                         {
                             t.Span("Método: ").Bold();
-                            t.Span(d.Metodo == "-" ? "Calibração por comparação direta com massas padrão rastreadas ao SI, " +
-                                "conforme EURAMET cg-18 e o Guia para a Expressão da Incerteza de Medição (GUM)." : d.Metodo);
+                            t.Span(metodoRbc == "-" ? "Calibração por comparação direta com massas padrão rastreadas ao SI, " +
+                                "conforme EURAMET cg-18 e o Guia para a Expressão da Incerteza de Medição (GUM)." : metodoRbc);
                         });
                         c.Item().Text(t =>
                         {
@@ -1527,8 +1534,10 @@ public static class GeradorPdf
 
                     if (!string.IsNullOrWhiteSpace(d.NotaSubstituicao))
                         col.Item().PaddingTop(3).Text(d.NotaSubstituicao).FontSize(7).Italic();
-                    if (d.TextoRodape is not null)
-                        col.Item().PaddingTop(4).Text(d.TextoRodape).FontSize(7).FontColor("#667");
+                    // Rodapé: campo próprio do RBC (r.TextoRodapeRbc) — cai no
+                    // texto do Conformidade só se nunca configurado pro RBC.
+                    if ((r.TextoRodapeRbc ?? d.TextoRodape) is not null)
+                        col.Item().PaddingTop(4).Text(r.TextoRodapeRbc ?? d.TextoRodape).FontSize(7).FontColor("#667");
                 });
 
                 page.Footer().Column(col =>

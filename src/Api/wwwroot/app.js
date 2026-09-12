@@ -3363,6 +3363,10 @@ async function abrirRevisao(id) {
   const fRInc = n => n == null ? '—' : arredondarCima(n, casasCol)
     .toLocaleString('pt-BR', { minimumFractionDigits: casasCol, maximumFractionDigits: casasCol });
   const temAjuste = !!c.houve_ajuste;
+  const rbc = d.rbc;
+  // RBC: sem casas fixas por divisão (a incerteza já sai calculada com a
+  // resolução certa do motor) — mesma formatação livre usada na coleta.
+  const fLivre = n => n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
 
   const linhaInd = l => `<tr>
     <td class="num">${fR(l.carga_aplicada)}</td>
@@ -3445,6 +3449,40 @@ async function abrirRevisao(id) {
       ${temAjuste ? '<p class="dica" style="margin-top:8px">🔧 A balança precisou de ajuste — leituras antes e depois registradas; conformidade avaliada sobre a leitura final.</p>' : ''}
 
       <style>.tab-c th, .tab-c td { text-align: center !important }</style>
+      ${rbc ? `
+      <h4 style="margin-top:12px">1 · Resultados da calibração (${un})</h4>
+      <table class="tab-c"><thead><tr><th class="num">Carga</th><th class="num">Indicação média</th>
+        <th class="num">Erro</th><th class="num">Incerteza U</th><th class="num">k</th></tr></thead>
+        <tbody>${rbc.resultados.map(p => `<tr>
+          <td class="num">${fLivre(p.carga)}</td>
+          <td class="num">${fLivre(p.media)}</td>
+          <td class="num">${p.erro == null ? '—' : (p.erro > 0 ? '+' : '') + fLivre(p.erro)}</td>
+          <td class="num">${fLivre(p.u_expandida)}</td>
+          <td class="num">${fLivre(p.k)}</td>
+        </tr>`).join('')}</tbody></table>
+
+      ${rbc.excentricidade && rbc.excentricidade.length > 0 ? `
+        <h4 style="margin-top:12px">2 · Excentricidade (${un})</h4>
+        <table class="tab-c"><thead><tr><th>Posição</th><th class="num">Média</th><th class="num">Erro (vs centro)</th></tr></thead>
+          <tbody>${rbc.excentricidade.map((x, i) => `<tr><td>${esc(x.nome)}${i === 0 ? ' (ref.)' : ''}</td>
+            <td class="num">${fLivre(x.media)}</td>
+            <td class="num">${i === 0 ? 'ref.' : (x.erro > 0 ? '+' : '') + fLivre(x.erro)}</td></tr>`).join('')}</tbody></table>` : ''}
+
+      ${rbc.mobilidade && rbc.mobilidade.length > 0 ? `
+        <h4 style="margin-top:12px">3 · Mobilidade
+          <span class="dica" style="font-weight:400">· registro, não integra o cálculo</span></h4>
+        <p class="dica">Carga de referência: ${fLivre(rbc.mobCabecalho?.carga_referencia)} ${un}
+          + ${fLivre(rbc.mobCabecalho?.divisao_e)} ${un} · esperado: ${fLivre(rbc.mobCabecalho?.esperado)} ${un}</p>
+        <table class="tab-c"><thead><tr><th>Leitura</th><th class="num">Indicação</th></tr></thead>
+          <tbody>${rbc.mobilidade.map(m => `<tr><td>${m.ordem_leitura}</td>
+            <td class="num">${fLivre(m.display_leu)}</td></tr>`).join('')}</tbody></table>` : ''}
+
+      <h4 style="margin-top:12px">4 · Pesos padrão utilizados</h4>
+      ${(rbc.pesos || []).length ? rbc.pesos.map(p => `<div class="dica">• ${esc(p.peso_identificacao || '?')}
+        · ${esc(p.valor_nominal || '')} ${un} · convenc. ${fLivre(p.valor_convencional)} ${un}
+        · cert. ${esc(p.num_certificado || '—')}</div>`).join('')
+        : '<p class="dica">Nenhum peso vinculado.</p>'}
+      ` : `
       <h4 style="margin-top:12px">Indicação (${un})</h4>
       <table class="tab-c"><thead><tr><th class="num">Carga</th>${temAjuste ? '<th class="num">Antes ajuste</th>' : ''}<th class="num">${temAjuste ? 'Após ajuste' : 'Indicação'}</th><th class="num">Erro</th>
         <th class="num">Incerteza</th><th class="num">EMA</th><th>Situação</th></tr></thead>
@@ -3479,6 +3517,7 @@ async function abrirRevisao(id) {
       <h4 style="margin-top:12px">Pesos padrão utilizados</h4>
       ${d.pesos.map(p => `<div class="dica">• ${esc(p.identificacao)} · ${esc(p.valor_nominal || '')} kg · ${esc(p.classe)}
         · cert. ${esc(p.num_certificado || '—')} · válido até ${p.validade ? new Date(p.validade).toLocaleDateString('pt-BR') : '—'}</div>`).join('')}
+      `}
       ${podeAprovar() ? `
         <div class="rodape-acoes" style="margin-top:16px;flex-wrap:wrap;gap:8px">
           <button class="btn-mini" onclick="editarAguardando('${c.id}')">✏️ Editar ensaio</button>
@@ -6030,6 +6069,30 @@ function imprimirMemorial() {
   setTimeout(() => window.print(), 120);
 }
 
+// Memorial de cálculo pra certificado RBC — reaproveita memoriaHtmlRbc()
+// e textoMetodoRbc() (definidas em rbc.js, já globais nesta página), que
+// é exatamente o mesmo memorial já usado na tela de coleta RBC.
+function verMemorialIncertezaRbc(d) {
+  const leiturasPorPonto = {};
+  (d.leituras || []).forEach(l => {
+    (leiturasPorPonto[l.ordem_ponto] = leiturasPorPonto[l.ordem_ponto] || []).push(l.indicacao);
+  });
+  const pesosPorPonto = {};
+  (d.pesos || []).forEach(w => {
+    (pesosPorPonto[w.ordem_ponto] = pesosPorPonto[w.ordem_ponto] || []).push({
+      peso_identificacao: w.peso_identificacao, valor_nominal: w.valor_nominal, num_certificado: w.num_certificado
+    });
+  });
+  const pontos = d.pontos.map(o => ({
+    carga: o.carga,
+    leituras: leiturasPorPonto[o.ordem_ponto] || [],
+    pesos: pesosPorPonto[o.ordem_ponto] || [],
+    orcamento: o
+  }));
+  const corpo = pontos.map(memoriaHtmlRbc).join('') + textoMetodoRbc();
+  abrirModalRbcGenerico('🔬 Memória de cálculo (RBC)', corpo, null);
+}
+
 async function verMemorialIncerteza(id) {
   document.getElementById('modal-memorial')?.remove();
   const m = document.createElement('div');
@@ -6043,6 +6106,7 @@ async function verMemorialIncerteza(id) {
       <button class="btn-mini" onclick="this.closest('.modal-fundo').remove()">Fechar</button></div>`;
     return;
   }
+  if (d && d.rbc) { m.remove(); verMemorialIncertezaRbc(d); return; }
   if (!d || !d.length) { m.remove(); toast('Sem dados de cálculo para este certificado.', 'erro'); return; }
   const c = d[0];
   const un = c.unidade || 'kg';
@@ -11266,6 +11330,17 @@ async function renderConfig() {
     </div>
 
     <div class="card">
+      <h3>Procedimento RBC</h3>
+      <p class="dica">Texto "Método: ..." impresso no rodapé do certificado RBC — independente do
+        Método/procedimento da aba Conformidade (que cita a Portaria Inmetro 157/2022, a base legal
+        do certificado não-acreditado, não a deste documento).</p>
+      <label>Método / procedimento (texto no certificado RBC)
+        <textarea id="cf-rbc-metodo" rows="3">${esc(c.MetodoCalibracaoRbc || '')}</textarea></label>
+      <label>Texto de rodapé (RBC)
+        <textarea id="cf-rbc-rodape" rows="2">${esc(c.TextoRodapeRbc || '')}</textarea></label>
+    </div>
+
+    <div class="card">
       <h3>Parâmetros de coleta e cálculo RBC</h3>
       <p class="dica">Só valem para o certificado RBC (o de conformidade usa os parâmetros da aba Conformidade).</p>
       <div class="form-grid">
@@ -11541,7 +11616,9 @@ async function salvarConfig() {
     numAutorizacao: $('#cf-numautoriz')?.value || null,
     rbcNumLeituras: Number($('#cf-rbc-leituras')?.value) || null,
     rbcNumPosicoesExc: Number($('#cf-rbc-posexc')?.value) || null,
-    rbcFatorSub: Number($('#cf-rbc-fatorsub')?.value) || null
+    rbcFatorSub: Number($('#cf-rbc-fatorsub')?.value) || null,
+    metodoCalibracaoRbc: $('#cf-rbc-metodo')?.value || null,
+    textoRodapeRbc: $('#cf-rbc-rodape')?.value || null
   };
   try {
     await api('/empresa/config', { method: 'PUT', body: JSON.stringify(corpo) });

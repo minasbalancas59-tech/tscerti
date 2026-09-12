@@ -33,7 +33,11 @@ public record ConfigEmpresaRequest(
     bool? UsarIncertezaDeclaradaPesos = null,
     // Parâmetros de coleta e cálculo RBC (ISO/IEC 17025)
     int? RbcNumLeituras = null, int? RbcNumPosicoesExc = null,
-    decimal? RbcFatorSub = null);
+    decimal? RbcFatorSub = null,
+    // Método/rodapé do RBC — independentes do Conformidade
+    // (MetodoCalibracao/TextoRodape acima); o Método do Conformidade
+    // cita a Portaria 157, que não serve pra um documento acreditado.
+    string? MetodoCalibracaoRbc = null, string? TextoRodapeRbc = null);
 
 public static class EmpresaConfigEndpoints
 {
@@ -131,6 +135,8 @@ public static class EmpresaConfigEndpoints
                        envia_email_automatico AS "EnviaEmailAutomatico",
                          acreditada, num_acreditacao, selo_rbc_url,
                          rbc_num_leituras, rbc_num_posicoes_exc, rbc_fator_sub,
+                         metodo_calibracao_rbc AS "MetodoCalibracaoRbc",
+                         texto_rodape_rbc AS "TextoRodapeRbc",
                          instrucao_it, instrucao_rev, usar_incerteza_declarada_pesos
                   FROM empresa WHERE id = @id
                 """, new { id = Tenant.EmpresaId(user) });
@@ -193,7 +199,9 @@ public static class EmpresaConfigEndpoints
                     num_acreditacao = @NumAcreditacao,
                     rbc_num_leituras = COALESCE(@RbcNumLeituras, rbc_num_leituras),
                     rbc_num_posicoes_exc = COALESCE(@RbcNumPosicoesExc, rbc_num_posicoes_exc),
-                    rbc_fator_sub = COALESCE(@RbcFatorSub, rbc_fator_sub)
+                    rbc_fator_sub = COALESCE(@RbcFatorSub, rbc_fator_sub),
+                    metodo_calibracao_rbc = COALESCE(NULLIF(@MetodoCalibracaoRbc,''), metodo_calibracao_rbc),
+                    texto_rodape_rbc = @TextoRodapeRbc
                  WHERE id = @id
                 """, new
                 {
@@ -208,7 +216,8 @@ public static class EmpresaConfigEndpoints
                     req.Acreditada, req.NumAcreditacao, req.MarcaSistemaPdf,
                     req.LogoLargura, req.LogoAltura, req.LogoAlinhamento,
                     req.InstrucaoIt, req.InstrucaoRev, req.UsarIncertezaDeclaradaPesos,
-                    req.RbcNumLeituras, req.RbcNumPosicoesExc, req.RbcFatorSub
+                    req.RbcNumLeituras, req.RbcNumPosicoesExc, req.RbcFatorSub,
+                    req.MetodoCalibracaoRbc, req.TextoRodapeRbc
                 });
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "empresa", Tenant.EmpresaId(user), "config", req, Auditoria.Ip(ctx));

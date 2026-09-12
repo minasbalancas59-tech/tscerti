@@ -459,10 +459,16 @@ public sealed class FilaWorker(
                 "JOIN certificado ct ON ct.empresa_id = e.id WHERE ct.id=@id", new { id });
             var pressaoRbc = await conn.ExecuteScalarAsync<decimal?>(
                 "SELECT pressao FROM certificado WHERE id=@id", new { id });
+            // Textos próprios do RBC (método/rodapé) — independentes dos
+            // campos do Conformidade.
+            var textosRbc = await conn.QuerySingleOrDefaultAsync(
+                "SELECT e.metodo_calibracao_rbc, e.texto_rodape_rbc FROM empresa e " +
+                "JOIN certificado ct ON ct.empresa_id = e.id WHERE ct.id=@id", new { id });
 
             dadosRbc = new DadosRbc(numAcred, pressaoRbc,
                 mobCab?.carga_referencia, mobCab?.divisao_e, mobCab?.esperado,
-                maiorErro, resultados, excRbc, mobRbc, pesosRbc);
+                maiorErro, resultados, excRbc, mobRbc, pesosRbc,
+                textosRbc?.metodo_calibracao_rbc, textosRbc?.texto_rodape_rbc);
         }
 
         // ── Método da SUBSTITUIÇÃO (lote de carga) — Fase 1 ──

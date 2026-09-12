@@ -135,6 +135,33 @@ public static class CertificadoEndpoints
             ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
             await using var conn = await Tenant.AbrirConexao(ds, user);
+
+            // RBC: a memorial_incerteza() SQL só conhece as tabelas do
+            // Conformidade (ensaio_indicacao etc.) e sempre devolve vazio
+            // pra um certificado RBC — em vez disso, devolve os dados que
+            // o motor RBC já calculou (incerteza_ponto_rbc), no formato
+            // que memoriaHtmlRbc (rbc.js) já sabe renderizar.
+            var ehRbc = await conn.ExecuteScalarAsync<bool>(
+                "SELECT COALESCE(emitir_rbc,false) FROM certificado WHERE id=@id", new { id });
+            if (ehRbc)
+            {
+                var pontos = (await conn.QueryAsync("""
+                    SELECT ordem_ponto, carga, media, erro, s_rep, u_rep, u_res, u_pad,
+                           u_exc, u_buoy, u_c, veff, k, u_expandida, u_sub, degraus_sub
+                      FROM incerteza_ponto_rbc WHERE certificado_id=@id ORDER BY ordem_ponto
+                    """, new { id })).ToList();
+                if (!pontos.Any()) return Results.NotFound();
+                var leituras = await conn.QueryAsync("""
+                    SELECT ordem_ponto, ordem_leitura, indicacao FROM leitura_rbc
+                     WHERE certificado_id=@id ORDER BY ordem_ponto, ordem_leitura
+                    """, new { id });
+                var pesos = await conn.QueryAsync("""
+                    SELECT ordem_ponto, peso_identificacao, valor_nominal, num_certificado
+                      FROM carga_peso_rbc WHERE certificado_id=@id ORDER BY ordem_ponto
+                    """, new { id });
+                return Results.Ok(new { rbc = true, pontos, leituras, pesos });
+            }
+
             var linhas = await conn.QueryAsync(
                 "SELECT * FROM memorial_incerteza(@id)", new { id });
             if (!linhas.Any()) return Results.NotFound();

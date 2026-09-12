@@ -57,8 +57,54 @@ public static class AprovacaoEndpoints
                   FROM ensaio_sensibilidade WHERE certificado_id = @id
                 """, new { id });
 
+            // ── Dados RBC (mesmas consultas que o Worker usa pro PDF —
+            // ver Worker/Program.cs — pra revisão mostrar os mesmos
+            // números que saem no certificado final) ──
+            object? rbc = null;
+            if ((bool)ct.emitir_rbc)
+            {
+                var rbcResultados = await conn.QueryAsync("""
+                    SELECT ordem_ponto, carga, media, erro, u_expandida, k, degraus_sub
+                      FROM incerteza_ponto_rbc WHERE certificado_id=@id ORDER BY ordem_ponto
+                    """, new { id });
+
+                var excBruta = (await conn.QueryAsync("""
+                    SELECT ordem_posicao, nome_posicao, avg(indicacao) AS media
+                      FROM excentricidade_rbc WHERE certificado_id=@id
+                     GROUP BY ordem_posicao, nome_posicao ORDER BY ordem_posicao
+                    """, new { id })).ToList();
+                decimal? mediaCentro = excBruta.Count > 0 ? (decimal?)excBruta[0].media : null;
+                var rbcExc = excBruta.Select(x => new {
+                    x.ordem_posicao,
+                    nome = (string)(x.nome_posicao ?? x.ordem_posicao.ToString()),
+                    media = (decimal)x.media,
+                    erro = mediaCentro is null ? 0m : (decimal)x.media - mediaCentro.Value
+                }).ToList();
+
+                var rbcMob = await conn.QueryAsync("""
+                    SELECT ordem_leitura, display_leu FROM mobilidade_rbc
+                     WHERE certificado_id=@id ORDER BY ordem_leitura
+                    """, new { id });
+                var mobCab = await conn.QuerySingleOrDefaultAsync("""
+                    SELECT carga_referencia, divisao_e, esperado FROM mobilidade_rbc
+                     WHERE certificado_id=@id ORDER BY ordem_leitura LIMIT 1
+                    """, new { id });
+
+                var rbcPesos = await conn.QueryAsync("""
+                    SELECT DISTINCT peso_identificacao, valor_nominal, valor_convencional,
+                           incerteza, num_certificado
+                      FROM carga_peso_rbc WHERE certificado_id=@id
+                     ORDER BY peso_identificacao
+                    """, new { id });
+
+                rbc = new {
+                    resultados = rbcResultados, excentricidade = rbcExc,
+                    mobilidade = rbcMob, mobCabecalho = mobCab, pesos = rbcPesos
+                };
+            }
+
             return Results.Ok(new { certificado = ct, indicacao = ind,
-                excentricidade = exc, repetibilidade = rep, pesos, faixas, sensibilidade });
+                excentricidade = exc, repetibilidade = rep, pesos, faixas, sensibilidade, rbc });
         });
 
         // ── Aprovar → emite (só responsável_tecnico ou admin) ───
