@@ -11067,24 +11067,26 @@ function interpretarColagem() {
       }
     }
   } else {
-    // FORMATO B (FNA, uma linha por ponto): nominal = número redondo antes do convencional.
+    // FORMATO B (FNA, uma linha por ponto): "nominal convencional incerteza k",
+    // contado de tras pra frente — assim funciona mesmo com prefixo extra colado
+    // junto (numero do item, unidade tipo "1kg" etc.), pois o que importa e a
+    // posicao dos ULTIMOS numeros da linha, nao a primeira ocorrencia de virgula.
     for (const l of linhas) {
       const matches = l.match(/[+-]?\d+(?:[.,]\d+)?/g);
       if (!matches || matches.length < 2) continue;
-      let idxConv = -1;
-      for (let i = 0; i < matches.length; i++) {
-        if (/[.,]/.test(matches[i])) { idxConv = i; break; }
-      }
-      let nominal, convencional, incerteza;
-      if (idxConv >= 1) {
-        convencional = matches[idxConv];
-        nominal = matches[idxConv - 1];
-        incerteza = matches[matches.length - 1];
+      let nominal, convencional, incerteza, k;
+      if (matches.length >= 4) {
+        [nominal, convencional, incerteza, k] = matches.slice(-4);
+      } else if (matches.length === 3) {
+        [convencional, incerteza, k] = matches.slice(-3);
+        nominal = convencional;
       } else {
-        nominal = matches[0]; convencional = matches[1] || ''; incerteza = matches[matches.length - 1];
+        [convencional, incerteza] = matches.slice(-2);
+        nominal = convencional;
+        k = 2;
       }
       novos.push({ valorNominal: nominal, valorConvencional: normNum(convencional || ''),
-                   incerteza: normNum(incerteza || ''), k: 2 });
+                   incerteza: normNum(incerteza || ''), k: normNum(k) });
     }
   }
   if (novos.length === 0) {
