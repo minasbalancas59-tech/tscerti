@@ -49,7 +49,7 @@ async function montarTelaEnsaioRbc() {
   // mobilidade
   R.mob = { cargaRef:'', divisao: Number(plano?.balanca?.divisao_e)||'', esperado:'', leituras: Array(R.numLeituras).fill('') };
 
-  // Reabertura: carrega a coleta salva (se houver) e vai direto ao resumo
+  // Reabertura: carrega a coleta salva, se houver
   let temColetaSalva = false;
   try {
     const d = await api('/certificados/' + certId + '/coleta-rbc');
@@ -111,10 +111,10 @@ async function montarTelaEnsaioRbc() {
   document.querySelectorAll('.u-unid-rbc').forEach(el => el.textContent = unid());
   renderCabecalhoRbc();
   renderRbcTudo();
-  // Abre no resumo quando ja ha coleta salva, ou quando veio da "edicao manual"
-  const irAoResumo = temColetaSalva || window._rbcAbrirNoResumo === true;
-  window._rbcAbrirNoResumo = false;   // consome o sinalizador
-  iniciarWizardRbc(irAoResumo);
+  // A tabela é sempre a tela inicial (nova ou reaberta) — o modo guiado
+  // (wizard) fica disponível à parte, via o botão no cabeçalho.
+  window._rbcAbrirNoResumo = false;   // sinalizador legado; mantido só por compatibilidade com app.js
+  mostrarResumoRbc();
 }
 
 function renderRbcTudo() {
@@ -188,7 +188,6 @@ function renderRbcCarga() {
   if (!tbody) return;
   tbody.innerHTML = R.pontos.map((p, i) => {
     const media = mediaRbc(p.leituras);
-    const u = p.orcamento ? '± ' + fmtU(p.orcamento.u_expandida) : '—';
     const nPesos = (p.pesos || []).length;
     const dv = divergenciaPesos(p);
     const alerta = dv && dv.grave
@@ -207,7 +206,7 @@ function renderRbcCarga() {
                title="Método da substituição — toque para ajustar ou remover"
                onclick="editarDegrausRbc(${i})">SUBST · ${p.degrausSub} degrau${p.degrausSub === 1 ? '' : 's'}</span>`
           : `<br><span class="rbc-link" style="color:#8a6d1a" onclick="editarDegrausRbc(${i})">＋ substituição</span>`}</td>
-      <td><span class="rbc-u">${u}</span></td>
+      <td>${htmlCelulaURbc(p)}</td>
       <td><button type="button" class="btn-mini" onclick="verMemoriaRbc(${i})" title="Memória de cálculo">📋</button></td>
       <td><button type="button" class="btn-mini btn-vinho" onclick="removerCargaRbc(${i})">✕</button></td>
     </tr>`;
@@ -220,16 +219,19 @@ function renderRbcCarga() {
 function editarDegrausRbc(i) {
   const R = window._rbc, p = R.pontos[i];
   const atual = p.degrausSub || 0;
-  const v = prompt(
-    'Degraus de substituição neste ponto de ' + (p.carga || '?') + ' ' + unid() + ':\n\n' +
-    '0 = ponto realizado só com pesos-padrão\n' +
-    'N = número de trocas pela carga de substituição\n\n' +
-    'A incerteza do ponto cresce com √N.', atual);
-  if (v === null) return;
-  const n = parseInt(v);
-  p.degrausSub = (isFinite(n) && n > 0) ? n : 0;
-  marcarSujoRbc?.();
-  renderRbcCarga();
+  const corpo = `
+    <p class="dica">Degraus de substituição neste ponto de <b>${fmtU(p.carga) || '?'} ${unid()}</b>:</p>
+    <p class="dica">0 = ponto realizado só com pesos-padrão<br>
+       N = número de trocas pela carga de substituição<br>
+       A incerteza do ponto cresce com √N.</p>
+    <label>Número de degraus (N)
+      <input type="number" min="0" step="1" id="rbc-modal-degraus" value="${atual}" class="wiz-campo"></label>`;
+  abrirModalRbcGenerico('Método da substituição', corpo, () => {
+    const n = parseInt(document.getElementById('rbc-modal-degraus')?.value);
+    p.degrausSub = (isFinite(n) && n > 0) ? n : 0;
+    marcarOrcamentoDesatualizado(i);
+    renderRbcCarga();
+  }, 'Aplicar');
 }
 
 // ── ENSAIO 2: EXCENTRICIDADE ─────────────────────────────────────
@@ -333,9 +335,9 @@ function maiorErroExc() {
 }
 
 // ── Edição de campos (atualiza o estado) ─────────────────────────
-function setRbcCarga(i, v) { if (window._rbc.pontos[i]) window._rbc.pontos[i].carga = v; }
-function setRbcLeitura(i, j, v) { if (window._rbc.pontos[i]) { window._rbc.pontos[i].leituras[j] = v; atualizarMediaCargaLinha(i); } }
-function setRbcExc(i, j, v) { if (window._rbc.exc[i]) { window._rbc.exc[i].leituras[j] = v; renderRbcExc(); } }
+function setRbcCarga(i, v) { if (window._rbc.pontos[i]) { window._rbc.pontos[i].carga = v; marcarOrcamentoDesatualizado(i); } }
+function setRbcLeitura(i, j, v) { if (window._rbc.pontos[i]) { window._rbc.pontos[i].leituras[j] = v; atualizarMediaCargaLinha(i); marcarOrcamentoDesatualizado(i); } }
+function setRbcExc(i, j, v) { if (window._rbc.exc[i]) { window._rbc.exc[i].leituras[j] = v; renderRbcExc(); marcarTodosOrcamentosDesatualizados(); } }
 function setRbcMob(j, v) { window._rbc.mob.leituras[j] = v; }
 // Arredonda os campos da mobilidade pela divisão (faixa da carga de referência)
 function mobBlur(input, alvo) {
@@ -360,6 +362,32 @@ function atualizarMediaCargaLinha(i) {
   const nCols = window._rbc.numLeituras;
   const tdMedia = linha.children[1 + nCols];
   if (tdMedia) tdMedia.textContent = m==null?'—':fmtMediaRbc(m);
+}
+
+// ── "U" desatualizado: qualquer edição que invalide o orçamento salvo
+// (carga, leitura, pesos, substituição, excentricidade) marca o ponto em
+// vez de deixar a coluna U mostrando um valor antigo sem aviso nenhum.
+function htmlCelulaURbc(p) {
+  if (!p.orcamento) return '<span class="rbc-u">—</span>';
+  if (p.orcamentoDesatualizado)
+    return '<span class="rbc-u rbc-u-stale" title="Editado após o último cálculo — salve para recalcular" onclick="salvarColetaRbc(false)">⟳ recalcular</span>';
+  return '<span class="rbc-u">± ' + fmtU(p.orcamento.u_expandida) + '</span>';
+}
+function marcarOrcamentoDesatualizado(i) {
+  const p = window._rbc.pontos[i];
+  if (p && p.orcamento && !p.orcamentoDesatualizado) { p.orcamentoDesatualizado = true; atualizarUCelulaRbc(i); }
+}
+function marcarTodosOrcamentosDesatualizados() {
+  window._rbc.pontos.forEach((p, i) => { if (p.orcamento && !p.orcamentoDesatualizado) { p.orcamentoDesatualizado = true; atualizarUCelulaRbc(i); } });
+}
+// atualização leve da célula "U" (sem redesenhar a tabela toda)
+function atualizarUCelulaRbc(i) {
+  const tbody = document.getElementById('rbc-carga-tbody');
+  const linha = tbody?.children[i];
+  if (!linha) return;
+  const nCols = window._rbc.numLeituras;
+  const tdU = linha.children[3 + nCols]; // Carga, N leituras, Média, Pesos usados, [U]
+  if (tdU) tdU.innerHTML = htmlCelulaURbc(window._rbc.pontos[i]);
 }
 
 // arredondamento — REUSA fmtCampo/eDaFaixa do app.js (mesmo da conformidade)
@@ -474,7 +502,7 @@ function confirmarComposicao(idx) {
     });
   });
   window._rbc.pontos[idx].pesos = pesos;
-  document.querySelector('.modal-fundo')?.remove();
+  marcarOrcamentoDesatualizado(idx);
   renderRbcCarga();
   if (window._rbc.wiz && window._rbc.wiz.fase !== 'resumo') renderWizard();
   toast(`${pesos.length} peso(s) vinculado(s) à carga.`, 'ok');
@@ -537,7 +565,10 @@ async function salvarColetaRbc(enviar) {
 function aplicarOrcamentosRbc(orcamentos) {
   for (const o of orcamentos) {
     const idx = (o.ordem_ponto||0) - 1;
-    if (window._rbc.pontos[idx]) window._rbc.pontos[idx].orcamento = o;
+    if (window._rbc.pontos[idx]) {
+      window._rbc.pontos[idx].orcamento = o;
+      window._rbc.pontos[idx].orcamentoDesatualizado = false;
+    }
   }
 }
 
@@ -610,8 +641,11 @@ function abrirModalRbcGenerico(titulo, corpoHtml, onConfirmar, textoConfirmar) {
   </div>`;
   document.body.appendChild(div);
   if (onConfirmar) {
+    // Fecha ESTE modal (a instância "div" capturada aqui), nunca o primeiro
+    // ".modal-fundo" da página — o app já tem um modal de ajuda estático
+    // (#modal-ajuda) que sempre "ganharia" de um querySelector genérico.
     const b = div.querySelector('#rbc-modal-ok');
-    if (b) b.onclick = onConfirmar;
+    if (b) b.onclick = () => { onConfirmar(); div.remove(); };
   }
 }
 
@@ -621,9 +655,23 @@ function cardRbcDe(idElemento) {
   return el ? el.closest('.card') : null;
 }
 
-function iniciarWizardRbc(irResumo) {
+// Alterna entre a tabela (tela principal) e o modo guiado (wizard, um
+// ponto por vez) — útil em campo/celular. Os dois modos leem e escrevem
+// o mesmo estado (window._rbc), então trocar de modo nunca perde dado
+// já digitado nem recarrega nada do servidor.
+function alternarModoRbc() {
+  if (window._rbc.modoGuiado) mostrarResumoRbc();
+  else iniciarWizardRbc();
+}
+function atualizarBotaoModoRbc() {
+  const btn = document.getElementById('rbc-btn-modo-guiado');
+  if (btn) btn.textContent = window._rbc.modoGuiado ? '📋 Ver tabela' : '🧭 Modo guiado';
+}
+
+function iniciarWizardRbc() {
   const R = window._rbc;
-  R.wiz = irResumo ? { fase: 'resumo', idx: 0 } : { fase: 'carga', idx: 0 };
+  R.wiz = { fase: 'carga', idx: 0 };
+  R.modoGuiado = true;
   // CSS do wizard (injetado uma vez)
   if (!document.getElementById('rbc-wiz-css')) {
     const st = document.createElement('style');
@@ -656,6 +704,7 @@ function iniciarWizardRbc(irResumo) {
       cardCond ? 'afterend' : 'beforeend', div);
   }
   document.getElementById('rbc-wizard').style.display = '';
+  atualizarBotaoModoRbc();
   renderWizard();
 }
 
@@ -683,7 +732,6 @@ function renderWizard() {
   if (W.fase === 'carga') {
     const p = R.pontos[W.idx];
     const media = mediaRbc(p.leituras);
-    const u = p.orcamento ? '\u00b1 ' + fmtU(p.orcamento.u_expandida) : '\u2014';
     const pills = (p.pesos || []).length
       ? p.pesos.map(w => `<span class="rbc-pill">${esc(w.peso_identificacao || '?')}\u00b7${esc(w.valor_nominal || '')}</span>`).join('')
       : '<span class="dica">sem pesos</span>';
@@ -703,7 +751,7 @@ function renderWizard() {
               onblur="wizBlurLeitura(this, ${W.idx}, ${j})" class="wiz-campo"></label>`).join('')}
       </div>
       <p class="dica">M\u00e9dia: <b id="wiz-media">${media == null ? '\u2014' : fmtMediaRbc(media)}</b>
-        &nbsp;\u00b7&nbsp; U: <span class="rbc-u">${u}</span></p>`;
+        &nbsp;\u00b7&nbsp; U: ${htmlCelulaURbc(p)}</p>`;
   } else if (W.fase === 'exc') {
     const pos = R.exc[W.idx];
     const centro = R.exc.find(x => x.ordem === 1);
@@ -777,6 +825,7 @@ function wizIr(fase, idx) {
 // setters do wizard (com média ao vivo e arredondamento pela divisão)
 function wizLeitura(i, j, v) {
   window._rbc.pontos[i].leituras[j] = v;
+  marcarOrcamentoDesatualizado(i);
   const m = mediaRbc(window._rbc.pontos[i].leituras);
   const el = document.getElementById('wiz-media');
   if (el) el.textContent = m == null ? '\u2014' : fmtMediaRbc(m);
@@ -793,10 +842,11 @@ function wizBlurCarga(input, i) {
   const v = Number(String(input.value).replace(',', '.'));
   const res = (plano?.faixas?.length && v) ? eDaFaixa(v) : null;
   const f = fmtCampo(input.value, res);
-  if (f !== '') { input.value = f; window._rbc.pontos[i].carga = f; }
+  if (f !== '') { input.value = f; window._rbc.pontos[i].carga = f; marcarOrcamentoDesatualizado(i); }
 }
 function wizExc(i, j, v) {
   window._rbc.exc[i].leituras[j] = v;
+  marcarTodosOrcamentosDesatualizados();
   // erro ao vivo
   const R = window._rbc;
   const centro = R.exc.find(x => x.ordem === 1);
@@ -816,40 +866,16 @@ function wizBlurExc(input, i, j) {
   if (f !== '') { input.value = f; wizExc(i, j, f); }
 }
 
-// Resumo final: mostra as grades preenchidas + salvar
+// Tela principal: tabela com todos os pontos, sempre editável direto.
 function mostrarResumoRbc() {
   const box = document.getElementById('rbc-wizard');
   if (box) box.style.display = 'none';
+  window._rbc.modoGuiado = false;
   renderRbcTudo();
   ['rbc-carga', 'rbc-exc', 'rbc-mob'].forEach(id => {
     const c = cardRbcDe(id); if (c) c.style.display = '';
   });
   const rodape = document.querySelector('#tela-ensaio-rbc .rodape-acoes');
   if (rodape) rodape.style.display = '';
-  // botão de voltar ao guiado (uma vez)
-  if (!document.getElementById('rbc-voltar-wiz')) {
-    const cardCarga = cardRbcDe('rbc-carga');
-    if (cardCarga) {
-      const div = document.createElement('div');
-      div.id = 'rbc-voltar-wiz';
-      div.style.margin = '0 0 10px';
-      div.innerHTML = '<button type="button" class="btn-mini" onclick="voltarWizardRbc()">\u270F\uFE0F Voltar ao preenchimento guiado</button>';
-      cardCarga.insertAdjacentElement('beforebegin', div);
-    }
-  } else {
-    document.getElementById('rbc-voltar-wiz').style.display = '';
-  }
-}
-function voltarWizardRbc() {
-  ['rbc-carga', 'rbc-exc', 'rbc-mob'].forEach(id => {
-    const c = cardRbcDe(id); if (c) c.style.display = 'none';
-  });
-  const rodape = document.querySelector('#tela-ensaio-rbc .rodape-acoes');
-  if (rodape) rodape.style.display = 'none';
-  const v = document.getElementById('rbc-voltar-wiz');
-  if (v) v.style.display = 'none';
-  const box = document.getElementById('rbc-wizard');
-  if (box) box.style.display = '';
-  window._rbc.wiz = { fase: 'carga', idx: 0 };
-  renderWizard();
+  atualizarBotaoModoRbc();
 }

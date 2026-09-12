@@ -688,6 +688,7 @@ body.com-banner-vis { padding-top: 44px; }
 /* ── Coleta RBC ──────────────────────────────────────────── */
 .tag-reg { background:#fff3e0; color:#8a6d00; font-size:10px; padding:2px 7px; border-radius:9px; font-weight:600; }
 .rbc-u { background:#eef6ff; border-radius:6px; padding:1px 7px; font-weight:600; color:#1e3a5f; font-size:11px; white-space:nowrap; }
+.rbc-u-stale { background:#fdf1e0; color:#8a5a00; cursor:pointer; text-decoration:underline dotted; }
 .rbc-pill { display:inline-block; background:#1e3a5f; color:#fff; font-size:9.5px; padding:1px 6px; border-radius:8px; margin:1px; }
 .rbc-link { color:#1e3a5f; text-decoration:underline; cursor:pointer; font-size:10.5px; }
 .rbc-sug { background:#e7f6ee; border-left:3px solid #0a7d55; padding:8px 12px; font-size:12px; border-radius:5px; margin-bottom:10px; color:#0a5c40; }
