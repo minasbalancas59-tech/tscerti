@@ -3438,8 +3438,10 @@ async function abrirRevisao(id) {
         ${chip('Data', c.data_calibracao ? new Date(c.data_calibracao).toLocaleDateString('pt-BR') : null)}
         ${chip('Critério', c.contexto_ema === 'em_uso' ? 'Em uso' : 'Verificação subsequente')}
         ${chip('Local', localTxt)}
-        ${chip('Temperatura', c.temperatura != null ? c.temperatura + ' °C' : null)}
-        ${chip('Umidade', c.umidade != null ? c.umidade + ' %' : null)}
+        ${chip('Temperatura', c.temperatura == null ? null : c.temperatura_fim != null
+          ? c.temperatura + '°C (início) · ' + c.temperatura_fim + '°C (término)' : c.temperatura + ' °C')}
+        ${chip('Umidade', c.umidade == null ? null : c.umidade_fim != null
+          ? c.umidade + '% (início) · ' + c.umidade_fim + '% (término)' : c.umidade + ' %')}
         ${chip('Pressão', c.pressao != null ? c.pressao + ' hPa' : null)}
         ${chip('Lacre', c.numero_lacre)} ${chip('Selo Inmetro', c.selo_inmetro)}
       </div>
@@ -11352,6 +11354,12 @@ async function renderConfig() {
       </div>
       <p class="dica">Fator de substituição: multiplica a incerteza de repetibilidade em cada degrau
         do método da substituição. Padrão 1,0 (conservador) — só altere com respaldo técnico da Cgcre.</p>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="cf-rbc-temp-fim"
+          ${sim(c.rbc_temp_umid_inicio_fim)}>
+        Registrar temperatura e umidade no início E no término do ensaio</label>
+      <p class="dica" style="margin-top:-4px">Desligado (padrão): só um valor de temperatura/umidade,
+        como sempre foi. Ligado: a coleta RBC pede também os valores do término do ensaio, e o
+        certificado mostra os dois.</p>
     </div>
     </div>
 
@@ -11619,6 +11627,7 @@ async function salvarConfig() {
     rbcNumLeituras: Number($('#cf-rbc-leituras')?.value) || null,
     rbcNumPosicoesExc: Number($('#cf-rbc-posexc')?.value) || null,
     rbcFatorSub: Number($('#cf-rbc-fatorsub')?.value) || null,
+    rbcTempUmidInicioFim: $('#cf-rbc-temp-fim')?.checked ?? false,
     metodoCalibracaoRbc: $('#cf-rbc-metodo')?.value || null,
     textoRodapeRbc: $('#cf-rbc-rodape')?.value || null
   };

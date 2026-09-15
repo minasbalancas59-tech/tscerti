@@ -34,6 +34,9 @@ public record ConfigEmpresaRequest(
     // Parâmetros de coleta e cálculo RBC (ISO/IEC 17025)
     int? RbcNumLeituras = null, int? RbcNumPosicoesExc = null,
     decimal? RbcFatorSub = null,
+    // Registrar temperatura/umidade no início E no término do ensaio RBC
+    // (opcional; desligado = só um valor, como no Conformidade).
+    bool? RbcTempUmidInicioFim = null,
     // Método/rodapé do RBC — independentes do Conformidade
     // (MetodoCalibracao/TextoRodape acima); o Método do Conformidade
     // cita a Portaria 157, que não serve pra um documento acreditado.
@@ -135,6 +138,7 @@ public static class EmpresaConfigEndpoints
                        envia_email_automatico AS "EnviaEmailAutomatico",
                          acreditada, num_acreditacao, selo_rbc_url,
                          rbc_num_leituras, rbc_num_posicoes_exc, rbc_fator_sub,
+                         rbc_temp_umid_inicio_fim,
                          metodo_calibracao_rbc AS "MetodoCalibracaoRbc",
                          texto_rodape_rbc AS "TextoRodapeRbc",
                          instrucao_it, instrucao_rev, usar_incerteza_declarada_pesos
@@ -200,6 +204,7 @@ public static class EmpresaConfigEndpoints
                     rbc_num_leituras = COALESCE(@RbcNumLeituras, rbc_num_leituras),
                     rbc_num_posicoes_exc = COALESCE(@RbcNumPosicoesExc, rbc_num_posicoes_exc),
                     rbc_fator_sub = COALESCE(@RbcFatorSub, rbc_fator_sub),
+                    rbc_temp_umid_inicio_fim = COALESCE(@RbcTempUmidInicioFim, rbc_temp_umid_inicio_fim),
                     metodo_calibracao_rbc = COALESCE(NULLIF(@MetodoCalibracaoRbc,''), metodo_calibracao_rbc),
                     texto_rodape_rbc = @TextoRodapeRbc
                  WHERE id = @id
@@ -217,6 +222,7 @@ public static class EmpresaConfigEndpoints
                     req.LogoLargura, req.LogoAltura, req.LogoAlinhamento,
                     req.InstrucaoIt, req.InstrucaoRev, req.UsarIncertezaDeclaradaPesos,
                     req.RbcNumLeituras, req.RbcNumPosicoesExc, req.RbcFatorSub,
+                    req.RbcTempUmidInicioFim,
                     req.MetodoCalibracaoRbc, req.TextoRodapeRbc
                 });
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),

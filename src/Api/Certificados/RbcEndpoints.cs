@@ -314,10 +314,12 @@ public static class RbcEndpoints
                    SET status = 'aguardando_aprovacao',
                        data_calibracao = @dataCal,
                        temperatura = @temp, umidade = @umid, pressao = @press,
+                       temperatura_fim = @tempFim, umidade_fim = @umidFim,
                        local_tipo = @localTipo
                  WHERE id = @id
                 """, new { id, dataCal,
                     temp = req.Temperatura, umid = req.Umidade, press = req.Pressao,
+                    tempFim = req.TemperaturaFim, umidFim = req.UmidadeFim,
                     localTipo = req.LocalTipo is "laboratorio" ? "laboratorio" : "in_loco" });
 
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
@@ -352,4 +354,5 @@ public record ColetaRbcRequest(
     double? TempC, double? PressaoHpa, double? UmidadePct);
 
 public record EnviarRbcRequest(string? DataCalibracao,
-    decimal? Temperatura, decimal? Umidade, decimal? Pressao, string? LocalTipo);
+    decimal? Temperatura, decimal? Umidade, decimal? Pressao, string? LocalTipo,
+    decimal? TemperaturaFim = null, decimal? UmidadeFim = null);

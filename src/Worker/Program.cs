@@ -353,7 +353,8 @@ public sealed class FilaWorker(
                    -- no fim desta lista, nunca no meio.
                    ct.ordem_servico AS OrdemServico, ct.endereco_calibracao AS EnderecoCalibracao,
                    e.marca_sistema_pdf AS MarcaSistema,
-                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev
+                   e.instrucao_it AS InstrucaoIt, e.instrucao_rev AS InstrucaoRev,
+                   ct.temperatura_fim AS TemperaturaFim, ct.umidade_fim AS UmidadeFim
               FROM certificado ct
               JOIN empresa e  ON e.id = ct.empresa_id
               JOIN cliente cl ON cl.id = ct.cliente_id
@@ -540,7 +541,8 @@ public sealed class FilaWorker(
             c.OrdemServico, c.EnderecoCalibracao, c.MarcaSistema,
             SubCargas: subCargas, NotaSubstituicao: notaSub,
             InstrucaoIt: c.InstrucaoIt, InstrucaoRev: c.InstrucaoRev,
-            DivisaoD: c.DivisaoD);
+            DivisaoD: c.DivisaoD,
+            TemperaturaFim: c.TemperaturaFim, UmidadeFim: c.UmidadeFim);
 
         // Baixa o logo da empresa (se houver) para embutir no PDF
         byte[]? logoBytes = null;
@@ -3163,4 +3165,5 @@ public sealed record CabecalhoCert(
     int LogoLargura = 90, int LogoAltura = 55, string? LogoAlinhamento = null,
     string? OrdemServico = null, string? EnderecoCalibracao = null,
     bool MarcaSistema = true,
-    string? InstrucaoIt = null, string? InstrucaoRev = null);
+    string? InstrucaoIt = null, string? InstrucaoRev = null,
+    decimal? TemperaturaFim = null, decimal? UmidadeFim = null);

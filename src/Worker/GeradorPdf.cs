@@ -32,7 +32,8 @@ public record DadosCertificado(
     bool MarcaSistema = true,
     List<decimal>? SubCargas = null, string? NotaSubstituicao = null,
     string? InstrucaoIt = null, string? InstrucaoRev = null,
-    decimal? DivisaoD = null);
+    decimal? DivisaoD = null,
+    decimal? TemperaturaFim = null, decimal? UmidadeFim = null);
 
 public record LinhaSensibilidade(decimal CargaReferencia, decimal Adicao, decimal ResultadoDisplay);
 
@@ -1293,8 +1294,14 @@ public static class GeradorPdf
                         }
                         Info("Data da calibração", d.DataCalibracao?.ToString("dd/MM/yyyy"));
                         Info("Local", d.LocalTipo == "laboratorio" ? "Laboratório" : "In loco (cliente)");
-                        Info("Temperatura", d.Temperatura is null ? null : $"{d.Temperatura:0.0} °C");
-                        Info("Umidade", d.Umidade is null ? null : $"{d.Umidade:0} %");
+                        Info(d.TemperaturaFim is null ? "Temperatura" : "Temperatura (início/término)",
+                            d.Temperatura is null ? null : d.TemperaturaFim is null
+                                ? $"{d.Temperatura:0.0} °C"
+                                : $"{d.Temperatura:0.0} / {d.TemperaturaFim:0.0} °C");
+                        Info(d.UmidadeFim is null ? "Umidade" : "Umidade (início/término)",
+                            d.Umidade is null ? null : d.UmidadeFim is null
+                                ? $"{d.Umidade:0} %"
+                                : $"{d.Umidade:0} / {d.UmidadeFim:0} %");
                         Info("Pressão", r.Pressao is null ? null : $"{r.Pressao:0.0} hPa");
                     });
 

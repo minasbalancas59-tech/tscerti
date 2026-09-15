@@ -23,7 +23,8 @@ async function montarTelaEnsaioRbc() {
     const cfg = await api('/empresa/config');
     R.numLeituras = Number(cfg.rbc_num_leituras) || 3;
     R.numPosExc = Number(cfg.rbc_num_posicoes_exc) || 5;
-  } catch (e) { R.numLeituras = 3; R.numPosExc = 5; }
+    R.tempUmidInicioFim = !!cfg.rbc_temp_umid_inicio_fim;
+  } catch (e) { R.numLeituras = 3; R.numPosExc = 5; R.tempUmidInicioFim = false; }
 
   // carrega os pontos de peso disponíveis (para a composição)
   try {
@@ -109,6 +110,14 @@ async function montarTelaEnsaioRbc() {
   const t = document.getElementById('rbc-titulo');
   if (t) t.textContent = `Coleta RBC · ${plano?.balanca?.identificacao || ''}`;
   document.querySelectorAll('.u-unid-rbc').forEach(el => el.textContent = unid());
+  // Temperatura/umidade no início E no término do ensaio — opcional por
+  // empresa (Configurações → RBC); desligado = só um valor, como sempre foi.
+  const linhaFim = document.getElementById('rbc-linha-temp-umid-fim');
+  if (linhaFim) linhaFim.style.display = R.tempUmidInicioFim ? '' : 'none';
+  const lblTemp = document.getElementById('rbc-lbl-temp');
+  if (lblTemp) lblTemp.textContent = R.tempUmidInicioFim ? 'Temperatura início (°C)' : 'Temperatura (°C)';
+  const lblUmid = document.getElementById('rbc-lbl-umid');
+  if (lblUmid) lblUmid.textContent = R.tempUmidInicioFim ? 'Umidade início (%)' : 'Umidade (%)';
   renderCabecalhoRbc();
   renderRbcTudo();
   // A tabela é sempre a tela inicial (nova ou reaberta) — o modo guiado
@@ -561,7 +570,9 @@ async function salvarColetaRbc(enviar) {
         temperatura: num($('#rbc-temp')?.value),
         umidade: num($('#rbc-umid')?.value),
         pressao: num($('#rbc-pressao')?.value),
-        localTipo: $('#rbc-local')?.value || 'in_loco'
+        localTipo: $('#rbc-local')?.value || 'in_loco',
+        temperaturaFim: R.tempUmidInicioFim ? num($('#rbc-temp-fim')?.value) : null,
+        umidadeFim: R.tempUmidInicioFim ? num($('#rbc-umid-fim')?.value) : null
       };
       await api('/certificados/' + certId + '/enviar-rbc', { method: 'POST', body: JSON.stringify(corpoEnv) });
       toast('Certificado RBC enviado para aprovação.', 'ok', 5000);

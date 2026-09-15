@@ -502,8 +502,13 @@
     <div class="card">
       <div class="linha-3">
         <label>Data da calibração <input type="date" id="rbc-data"></label>
-        <label>Temperatura (°C) <span class="temp-wrap"><input type="number" step="0.1" id="rbc-temp"><button type="button" class="btn-clima" id="rbc-btn-clima" onclick="sugerirClimaRbc()" title="Sugerir do local">🌡️</button></span></label>
-        <label>Umidade (%) <input type="number" step="1" id="rbc-umid"></label>
+        <label><span id="rbc-lbl-temp">Temperatura (°C)</span> <span class="temp-wrap"><input type="number" step="0.1" id="rbc-temp"><button type="button" class="btn-clima" id="rbc-btn-clima" onclick="sugerirClimaRbc()" title="Sugerir do local">🌡️</button></span></label>
+        <label><span id="rbc-lbl-umid">Umidade (%)</span> <input type="number" step="1" id="rbc-umid"></label>
+      </div>
+      <div class="linha-3" id="rbc-linha-temp-umid-fim" style="display:none">
+        <label></label>
+        <label>Temperatura término (°C) <input type="number" step="0.1" id="rbc-temp-fim"></label>
+        <label>Umidade término (%) <input type="number" step="1" id="rbc-umid-fim"></label>
       </div>
       <div class="linha-3">
         <label>Pressão atm. (hPa) <input type="number" step="0.1" id="rbc-pressao"></label>
