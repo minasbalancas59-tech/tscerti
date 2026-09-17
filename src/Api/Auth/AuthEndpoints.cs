@@ -193,7 +193,8 @@ public static class AuthEndpoints
             return Results.Ok(new
             {
                 token, expiraEm,
-                usuario = new { u.Id, u.Nome, u.Papel, u.Empresa }
+                usuario = new { u.Id, u.Nome, u.Papel, u.Empresa,
+                    u.PodeCriarCliente, u.PodeCriarBalanca }
             });
         });
 
@@ -268,7 +269,8 @@ public static class AuthEndpoints
     private sealed record UsuarioLogin(
         Guid Id, Guid EmpresaId, string Nome, string Papel,
         string SenhaHash, bool Ativo, string Empresa, string EmpresaStatus,
-        string? MotivoSuspensao, int TentativasLogin, bool BloqueadoLogin);
+        string? MotivoSuspensao, int TentativasLogin, bool BloqueadoLogin,
+        bool PodeCriarCliente, bool PodeCriarBalanca);
 }
 
         
