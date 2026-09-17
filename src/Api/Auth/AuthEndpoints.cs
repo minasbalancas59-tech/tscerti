@@ -193,8 +193,15 @@ public static class AuthEndpoints
             return Results.Ok(new
             {
                 token, expiraEm,
+                // Nomes explícitos em snake_case: o serializador padrão do
+                // ASP.NET Core usa camelCase pra tipos fortemente tipados
+                // (diferente do dynamic do Dapper usado no resto da API,
+                // que preserva o nome literal da coluna/alias) — sem isso
+                // viraria "podeCriarCliente" no JSON e o front, que lê
+                // "pode_criar_cliente", nunca enxergaria o valor.
                 usuario = new { u.Id, u.Nome, u.Papel, u.Empresa,
-                    u.PodeCriarCliente, u.PodeCriarBalanca }
+                    pode_criar_cliente = u.PodeCriarCliente,
+                    pode_criar_balanca = u.PodeCriarBalanca }
             });
         });
 

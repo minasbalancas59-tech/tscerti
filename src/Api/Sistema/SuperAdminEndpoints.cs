@@ -158,8 +158,10 @@ public static class SuperAdminEndpoints
         // ── Entrar em modo de VISUALIZAÇÃO (somente leitura) de uma empresa ──
         // Gera um token de impersonação que faz o RLS mostrar os dados da
         // empresa-alvo. Registra o acesso na auditoria. Só leitura.
-        g.MapPost("/empresas/{id:guid}/visualizar", async (string? papel, Guid id, ClaimsPrincipal user,
-            NpgsqlDataSource ds, TokenService tokens, HttpContext ctx) =>
+        // Opcionalmente recebe usuarioId: em vez do papel genérico, visualiza
+        // exatamente como aquele usuário real (papel + permissões dele).
+        g.MapPost("/empresas/{id:guid}/visualizar", async (string? papel, Guid? usuarioId, Guid id,
+            ClaimsPrincipal user, NpgsqlDataSource ds, TokenService tokens, HttpContext ctx) =>
         {
             if (!Ok(user)) return Results.Forbid();
             await using var conn = await ds.OpenConnectionAsync();
@@ -179,20 +181,47 @@ public static class SuperAdminEndpoints
             var sid = await conn.ExecuteScalarAsync<Guid>(
                 "SELECT auth_nova_sessao(@id)", new { id = saId });
 
-            // Registra na auditoria o acesso de visualização
+            // A partir daqui a conexão fica com o tenant da empresa-alvo
+            // (mesmo truque usado no resto da API — Tenant.AbrirConexao).
             await conn.ExecuteAsync(
                 "SELECT set_config('app.empresa_id', @id, false)", new { id = id.ToString() });
+
+            // Se um usuário real foi escolhido, busca papel e permissões DELE
+            // de verdade — visualização fiel, não um papel genérico.
+            string papelEfetivo = papel is "admin" or "tecnico" ? papel : "responsavel_tecnico";
+            bool podeCriarCliente = false, podeCriarBalanca = true;
+            string? usuarioVisNome = null;
+            if (usuarioId is not null)
+            {
+                var uv = await conn.QuerySingleOrDefaultAsync(
+                    "SELECT nome, papel, COALESCE(pode_criar_cliente, false) AS pode_criar_cliente, " +
+                    "COALESCE(pode_criar_balanca, true) AS pode_criar_balanca " +
+                    "FROM usuario WHERE id = @usuarioId AND empresa_id = @id AND ativo",
+                    new { usuarioId, id });
+                if (uv is null)
+                    return Results.BadRequest(new { erro = "Usuário não encontrado (ou inativo) nesta empresa." });
+                papelEfetivo = (string)uv.papel;
+                podeCriarCliente = (bool)uv.pode_criar_cliente;
+                podeCriarBalanca = (bool)uv.pode_criar_balanca;
+                usuarioVisNome = (string)uv.nome;
+            }
+
+            // Registra na auditoria o acesso de visualização
             await Auditoria.Registrar(conn, id, saId,
                 "empresa", id, "visualizar_super_admin",
-                new { super_admin = saNome, empresa = empNome }, Auditoria.Ip(ctx));
+                new { super_admin = saNome, empresa = empNome, papel = papelEfetivo,
+                    usuario_visualizado = usuarioVisNome }, Auditoria.Ip(ctx));
 
-            papel = papel is "admin" or "tecnico" ? papel : "responsavel_tecnico";
-            var (token, expiraEm) = tokens.GerarVisualizacao(saId, saNome, id, empNome, sid, papel);
+            var (token, expiraEm) = tokens.GerarVisualizacao(saId, saNome, id, empNome, sid, papelEfetivo);
             return Results.Ok(new
             {
                 token, expiraEm,
                 empresaNome = empNome,
-                modo = "visualizacao"
+                modo = "visualizacao",
+                papel = papelEfetivo,
+                usuario_nome = usuarioVisNome,
+                pode_criar_cliente = podeCriarCliente,
+                pode_criar_balanca = podeCriarBalanca
             });
         });
 

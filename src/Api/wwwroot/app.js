@@ -8407,14 +8407,48 @@ async function visualizarEmpresa(id, nome, papel) {
   } catch (e) { toast(e.message, 'erro'); }
 }
 
-function mostrarBannerVisualizacao(nomeEmpresa, papel) {
+// Visualização fiel: entra vendo exatamente como UM usuário real da
+// empresa (papel + permissões dele, ex. pode_criar_cliente), em vez do
+// papel genérico de visualizarEmpresa() acima. Ainda somente leitura.
+async function visualizarComoUsuarioSelecionado(id) {
+  const sel = document.getElementById('sa-usuario-vis');
+  const usuarioId = sel?.value;
+  if (!usuarioId) { toast('Escolha um usuário da lista.', 'erro'); return; }
+  await visualizarComoUsuario(id, usuarioId, sel.options[sel.selectedIndex].textContent);
+}
+
+async function visualizarComoUsuario(id, usuarioId, nomeRotulo) {
+  const ok = await modalConfirmar(
+    '👁 Visualizar como usuário real',
+    `Você vai entrar no modo de visualização (somente leitura) vendo o sistema ` +
+    `exatamente como <b>${esc(nomeRotulo)}</b> vê — incluindo as permissões reais dele ` +
+    '(ex.: se pode cadastrar clientes/equipamentos).\n\n' +
+    'Você não poderá alterar nada. Este acesso fica registrado. Deseja continuar?',
+    { textoSim: 'Entrar na visualização', textoNao: 'Cancelar' });
+  if (!ok) return;
+  try {
+    const r = await saApi('/empresas/' + id + '/visualizar?usuarioId=' + usuarioId,
+      { method: 'POST' });
+    token = r.token;
+    localStorage.setItem('token', token);
+    usuario = { ...usuario, papel: r.papel, empresa: r.empresaNome,
+      pode_criar_cliente: r.pode_criar_cliente, pode_criar_balanca: r.pode_criar_balanca,
+      _visualizando: true, _empresaVis: r.empresaNome };
+    localStorage.setItem('usuario', JSON.stringify(usuario));
+    localStorage.setItem('_visualizando', '1');
+    mostrarBannerVisualizacao(r.empresaNome, r.papel, r.usuario_nome);
+    irPainel();
+  } catch (e) { toast(e.message, 'erro'); }
+}
+
+function mostrarBannerVisualizacao(nomeEmpresa, papel, nomeUsuario) {
   document.getElementById('banner-visualizacao')?.remove();
   const rotP = PAPEL_VIS_ROTULO[papel] || 'Resp. técnico';
   const banner = document.createElement('div');
   banner.id = 'banner-visualizacao';
   banner.innerHTML = `
     <span>👁 <b>Modo visualização</b> — vendo a empresa
-      <b>${esc(nomeEmpresa)}</b> como <b>${rotP}</b> (somente leitura).</span>
+      <b>${esc(nomeEmpresa)}</b> como <b>${nomeUsuario ? esc(nomeUsuario) + ' — ' : ''}${rotP}</b> (somente leitura).</span>
     <button onclick="sairVisualizacao()">Sair da visualização</button>`;
   document.body.prepend(banner);
   document.body.classList.add('com-banner-vis');
@@ -8559,6 +8593,14 @@ async function abrirEmpresaSA(id) {
         <button class="btn-primario btn-mini" onclick="visualizarEmpresa('${id}', '${esc(e.razao_social).replace(/'/g, "\\'")}', 'admin')">Admin</button>
         <button class="btn-mini" onclick="visualizarEmpresa('${id}', '${esc(e.razao_social).replace(/'/g, "\\'")}', 'responsavel_tecnico')">RT</button>
         <button class="btn-mini" onclick="visualizarEmpresa('${id}', '${esc(e.razao_social).replace(/'/g, "\\'")}', 'tecnico')">Técnico</button>
+        ${usuarios.filter(u => u.ativo && u.papel !== 'super_admin').length ? `
+        <select id="sa-usuario-vis" style="max-width:220px">
+          <option value="">— usuário real —</option>
+          ${usuarios.filter(u => u.ativo && u.papel !== 'super_admin').map(u =>
+            `<option value="${u.id}">${esc(u.nome)} (${PAPEIS[u.papel] || u.papel})</option>`).join('')}
+        </select>
+        <button class="btn-mini" onclick="visualizarComoUsuarioSelecionado('${id}')"
+          title="Vê o sistema exatamente como este usuário, com as permissões reais dele">👁 Ver como este</button>` : ''}
         <button onclick="abrirManutencaoSA()" title="Todos os dados da empresa e dos clientes finais dela, para manutenção">🗂 Dados completos</button>
         <button onclick="liberarEmpresaSA()" title="Mantém a empresa ativa até a data escolhida, mesmo inadimplente (escudo contra as suspensões automáticas)">🔓 Liberar temporariamente</button>
         <span id="sa-liberacao-badge"></span>
