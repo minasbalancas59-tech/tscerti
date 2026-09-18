@@ -506,9 +506,11 @@ public static class GeradorPdf
                         // da MAIOR U da tabela, sem limite pela resolução da balança —
                         // a incerteza é um cálculo estatístico, não uma leitura, então
                         // pode legitimamente ter mais casas que a divisão (norma pura,
-                        // NIT-DICLA-021 A.6.3). O erro herda essas casas (GUM 7.2.6,
-                        // passo 3); a indicação/carga continuam presas a d.CasasDecimais.
+                        // NIT-DICLA-021 A.6.3). Carga/indicação/erro/EMA ficam presos
+                        // à resolução real da balança (d.CasasDecimais) — só a
+                        // incerteza tem dígitos a mais.
                         var casasU = CasasTabelaU(d.Indicacao.Select(x => x.Incerteza), int.MaxValue);
+                        string V(decimal? v) => Val(v, d.CasasDecimais);
                         t.ColumnsDefinition(c =>
                         {
                             if (ehCiclo) c.ConstantColumn(16);        // ↑/↓
@@ -538,14 +540,14 @@ public static class GeradorPdf
                             if (ehCiclo)
                                 t.Cell().BorderBottom(0.5f).BorderColor("#e6e6e6").Padding(2.5f)
                                  .AlignCenter().Text(sentidos[iInd]).FontSize(8).FontColor("#667");
-                            C(Val(l.Carga, casasU) + (d.SubCargas != null && d.SubCargas.Contains(l.Carga) ? " *" : ""));
+                            C(V(l.Carga) + (d.SubCargas != null && d.SubCargas.Contains(l.Carga) ? " *" : ""));
                             if (d.HouveAjuste) C(l.SemLeituraAntes ? "sem leitura **"
-                                : l.IndicacaoAntes is null ? "—" : Val(l.IndicacaoAntes, casasU));
+                                : l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes));
                             // Ponto SEM LEITURA: o visor nao indicou na carga (Joao, 22/08/2026)
-                            C(l.SemLeitura ? "sem leitura **" : Val(l.Indicacao, casasU));
-                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + Val(l.Erro, casasU));
+                            C(l.SemLeitura ? "sem leitura **" : V(l.Indicacao));
+                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
                             C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU));
-                            C(Val(l.Ema, casasU));
+                            C(V(l.Ema));
                             if (completo)
                             {
                                 // k e veff: o cálculo dos modelos comuns usa k = 2
@@ -1377,7 +1379,7 @@ public static class GeradorPdf
                                 .Padding(4).AlignCenter().Text(s).FontSize(8);
                             C(Val(l.Carga, d.CasasDecimais));
                             C(Val(l.Media, casasU));
-                            C((l.Erro > 0 ? "+" : "") + Val(l.Erro, casasIncerteza));
+                            C((l.Erro > 0 ? "+" : "") + Val(l.Erro, d.CasasDecimais));
                             C(ValU(l.U, casasIncerteza));
                             C(Val(l.K, 2));
                         }
@@ -1871,12 +1873,12 @@ public static class GeradorPdf
                             void C(string s, string? fc = null) => t.Cell().Border(0.4f).BorderColor(borda)
                                 .Padding(2.5f).AlignCenter().Text(s).FontSize(8).FontColor(fc ?? "#1c2b33");
                             if (ehCiclo4) C(sentidos4[i4], "#667");
-                            C(Val(l.Carga, casasU4));
-                            if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : Val(l.IndicacaoAntes, casasU4)));
-                            C(l.SemLeitura ? "**" : Val(l.Indicacao, casasU4));
-                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + Val(l.Erro, casasU4));
+                            C(V(l.Carga));
+                            if (indComAntes) C(l.SemLeituraAntes ? "**" : (l.IndicacaoAntes is null ? "—" : V(l.IndicacaoAntes)));
+                            C(l.SemLeitura ? "**" : V(l.Indicacao));
+                            C(l.SemLeitura ? "—" : (l.Erro > 0 ? "+" : "") + V(l.Erro));
                             C(l.SemLeitura ? "—" : ValU(l.Incerteza, casasU4));
-                            C(Val(l.Ema, casasU4));
+                            C(V(l.Ema));
                             C(l.Aprovado is null ? "—" : l.Aprovado.Value ? "Conforme" : "Não conforme",
                               l.Aprovado == false ? "#b02a37" : "#146c43");
                         }
