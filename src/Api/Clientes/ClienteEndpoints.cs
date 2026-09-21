@@ -15,6 +15,8 @@ public record EnderecoRequest(string Apelido, string? Endereco, string? Cidade,
 public record ContatoRequest(string Nome, string? Cargo, string? Telefone,
     string? Email, string? Observacao, bool RecebeCertificado = false);
 
+public record VincularFilialRequest(Guid ClienteAlvoId);
+
 public static class ClienteEndpoints
 {
     public static void Map(WebApplication app)
@@ -81,6 +83,50 @@ public static class ClienteEndpoints
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
                 "cliente_endereco", eid, "delete", null, Auditoria.Ip(ctx));
             return Results.Ok(new { removido = true });
+        });
+
+        // ── Vínculo manual de outra filial no portal ─────────────
+        // Filiais com a mesma raiz de CNPJ já se juntam sozinhas no
+        // portal. Isto é só pro caso raro de duas filiais com CNPJs de
+        // raízes diferentes que devem, mesmo assim, cair no mesmo
+        // login — por isso só deixa escolher entre os PRÓPRIOS
+        // clientes da empresa (cliente_portal_vincular já garante isso
+        // via current_empresa_id(), não confia em nada vindo do front).
+        g.MapGet("/{id:guid}/portal-vinculo", async (Guid id, ClaimsPrincipal user,
+            NpgsqlDataSource ds) =>
+        {
+            await using var conn = await Tenant.AbrirConexao(ds, user);
+            return Results.Ok(await conn.QueryAsync(
+                "SELECT * FROM cliente_portal_vinculo(@id)", new { id }));
+        });
+
+        g.MapPost("/{id:guid}/portal-vinculo", async (Guid id, VincularFilialRequest req,
+            ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
+        {
+            if (!Tenant.EhGestor(user)) return Results.Forbid();
+            await using var conn = await Tenant.AbrirConexao(ds, user);
+            var erro = await conn.ExecuteScalarAsync<string?>(
+                "SELECT cliente_portal_vincular(@id, @alvo)",
+                new { id, alvo = req.ClienteAlvoId });
+            if (erro is not null) return Results.BadRequest(new { erro });
+            await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
+                "cliente", id, "vincular_portal_filial",
+                new { alvo = req.ClienteAlvoId }, Auditoria.Ip(ctx));
+            return Results.Ok(new { vinculado = true });
+        });
+
+        g.MapDelete("/{id:guid}/portal-vinculo/{documento}", async (Guid id, string documento,
+            ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
+        {
+            if (!Tenant.EhGestor(user)) return Results.Forbid();
+            await using var conn = await Tenant.AbrirConexao(ds, user);
+            var erro = await conn.ExecuteScalarAsync<string?>(
+                "SELECT cliente_portal_desvincular(@id, @documento)", new { id, documento });
+            if (erro is not null) return Results.BadRequest(new { erro });
+            await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
+                "cliente", id, "desvincular_portal_filial",
+                new { documento }, Auditoria.Ip(ctx));
+            return Results.Ok(new { desvinculado = true });
         });
 
         g.MapGet("/{id:guid}/contatos", async (Guid id, ClaimsPrincipal user,

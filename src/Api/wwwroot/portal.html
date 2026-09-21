@@ -683,6 +683,11 @@ function dbr(v) {
 let filtroSit = 'todas';
 function filtrarSituacao(f) { filtroSit = f; desenharCerts(); }
 
+// Filtro por filial (só aparece quando a conta unifica mais de uma,
+// via raiz de CNPJ ou vínculo manual — ver multiFilial em desenharCerts).
+let filtroFilial = 'todas';
+function filtrarFilial(f) { filtroFilial = f; desenharCerts(); }
+
 async function verCerts() {
   $('#tab-certs').classList.add('ativa'); $('#tab-pesos').classList.remove('ativa');
   $('#conteudo').innerHTML = '<div class="esqueleto"></div><div class="esqueleto"></div>';
@@ -757,6 +762,7 @@ function desenharCerts() {
     g.semValido = validos.length === 0;
     g.sit = g.semValido ? { cod: 'venc', rot: 'sem certificado válido', dias: null }
                         : situacao(g.atual.vence_em);
+    g.filial = [g.atual.cidade, g.atual.uf].filter(Boolean).join('/');
   });
   let todos = [...grupos.values()].sort((a, b) => {
     const ordem = { venc: 0, avencer: 1, vig: 2, semper: 3 };
@@ -764,19 +770,34 @@ function desenharCerts() {
     return (a.sit.dias ?? 9999) - (b.sit.dias ?? 9999);
   });
 
+  // Filtro por filial não some com o resto da tela nem afeta a
+  // contagem geral do resumo (que continua sobre TODAS as filiais) —
+  // só restringe quais cartões aparecem, igual ao filtro de situação.
+  if (multiFilial && filtroFilial !== 'todas' && !filiais.has(filtroFilial)) filtroFilial = 'todas';
+  const todosDaFilial = !multiFilial || filtroFilial === 'todas'
+    ? todos : todos.filter(g => g.filial === filtroFilial);
+
   const cont = { venc: 0, avencer: 0, vig: 0, semper: 0 };
-  todos.forEach(g => cont[g.sit.cod]++);
-  const n = todos.length;
-  const naoConformes = todos.filter(g => g.atual.conforme === false).length;
+  todosDaFilial.forEach(g => cont[g.sit.cod]++);
+  const n = todosDaFilial.length;
+  const naoConformes = todosDaFilial.filter(g => g.atual.conforme === false).length;
 
   $('#id-resumo').textContent =
-    `· ${n} ${n === 1 ? 'balança' : 'balanças'} · ${lista.length} ${
-      lista.length === 1 ? 'certificado' : 'certificados'}`;
+    `· ${n} ${n === 1 ? 'balança' : 'balanças'} · ${todosDaFilial.reduce((s, g) => s + g.itens.length, 0)} ${
+      todosDaFilial.reduce((s, g) => s + g.itens.length, 0) === 1 ? 'certificado' : 'certificados'}`;
   $('#busca').classList.toggle('oculta', n < 2);
 
-  const vis = filtroSit === 'todas' ? todos
-    : filtroSit === 'nok' ? todos.filter(g => g.atual.conforme === false)
-    : todos.filter(g => g.sit.cod === filtroSit);
+  const seletorFilial = !multiFilial ? '' : `
+    <select onchange="filtrarFilial(this.value)" style="margin:0 0 10px;padding:8px 10px;
+      border:1px solid #dde5ec;border-radius:9px;font:inherit;font-size:.9rem">
+      <option value="todas" ${filtroFilial === 'todas' ? 'selected' : ''}>🏢 Todas as filiais (${todos.length})</option>
+      ${[...filiais].sort().map(f => `<option value="${esc(f)}" ${filtroFilial === f ? 'selected' : ''}>
+        📍 ${esc(f)} (${todos.filter(g => g.filial === f).length})</option>`).join('')}
+    </select>`;
+
+  const vis = filtroSit === 'todas' ? todosDaFilial
+    : filtroSit === 'nok' ? todosDaFilial.filter(g => g.atual.conforme === false)
+    : todosDaFilial.filter(g => g.sit.cod === filtroSit);
 
   const pct = k => Math.round(100 * cont[k] / n);
   const resumo = `
@@ -952,7 +973,7 @@ function desenharCerts() {
       </article>`;
     }).join('');
 
-  $('#conteudo').innerHTML = resumo + pedirGeral + chips + cartoes +
+  $('#conteudo').innerHTML = seletorFilial + resumo + pedirGeral + chips + cartoes +
     '<div id="contato-empresas"></div>' + marcaSistema();
   carregarContatoEmpresas();
 }

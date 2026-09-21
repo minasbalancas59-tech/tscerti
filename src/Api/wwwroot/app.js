@@ -573,20 +573,40 @@ function avisoPortalFiliais() {
 
   const div = document.createElement('div');
   div.id = 'aviso-portal-filiais';
-  div.style.cssText = 'margin:0 0 12px;padding:11px 14px;border-radius:10px;' +
-    'background:#eef3f8;border:1px solid #5a718333;display:flex;' +
-    'gap:10px;align-items:center;flex-wrap:wrap';
+  div.style.cssText = 'margin:0 0 12px;padding:12px 16px;border-radius:10px;' +
+    'background:#eef3f8;border:1px solid #5a718333';
   div.innerHTML = `
-    <span style="font-size:18px">🏢</span>
-    <span style="flex:1;font-size:13px;color:#43607f">
-      <b>Novidade no Portal do Cliente:</b> quando um cliente tem várias
-      filiais com a mesma raiz de CNPJ (matriz + filiais de verdade), o
-      portal agora mostra os certificados de todas elas juntos, num
-      único login — não precisa mais criar um acesso por filial.</span>
-    <button style="background:none;border:0;cursor:pointer;font-size:13px;
-      color:#43607f;text-decoration:underline;white-space:nowrap"
-      onclick="localStorage.setItem('aviso_portal_filiais_visto','1');
-               this.closest('#aviso-portal-filiais').remove()">Entendi, não mostrar de novo</button>`;
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:18px">🏢</span>
+      <div style="flex:1;font-size:13px;color:#43607f">
+        <b>Novidade no Portal do Cliente:</b> clientes com várias filiais
+        agora podem ver os certificados de todas elas juntos, num único
+        login.
+        <ul style="margin:8px 0 6px;padding-left:18px">
+          <li><b>Automático:</b> filiais com a mesma raiz de CNPJ (matriz +
+            filiais de verdade — os 8 primeiros dígitos) já aparecem juntas
+            sozinhas, sem precisar fazer nada.</li>
+          <li><b>Manual</b> (pra filiais de raízes diferentes, caso raro):
+            <ol style="margin:4px 0 0;padding-left:18px">
+              <li>Vá em <b>Cadastros → Clientes</b>.</li>
+              <li>Ache uma das filiais e clique em <b>🏢 Filiais no portal</b>
+                (ela precisa já ter acesso criado — convide antes pelo botão
+                <b>🔗 Portal</b>, se ainda não tiver).</li>
+              <li>No menu que abrir, escolha a outra filial (precisa ter
+                CNPJ cadastrado) e clique em <b>+ Vincular</b>.</li>
+              <li>Pronto — as duas passam a aparecer juntas nesse login. Pra
+                desfazer, é só clicar no 🗑 ao lado do vínculo.</li>
+            </ol>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:4px">
+      <button style="background:none;border:0;cursor:pointer;font-size:13px;
+        color:#43607f;text-decoration:underline"
+        onclick="localStorage.setItem('aviso_portal_filiais_visto','1');
+                 this.closest('#aviso-portal-filiais').remove()">Entendi, não mostrar de novo</button>
+    </div>`;
   const ref = document.getElementById('guia-passos')
     || document.getElementById('painel-graficos');
   (ref?.parentNode || document.getElementById('tela-painel'))
@@ -10015,6 +10035,10 @@ function htmlClientes(lista) {
       ? `<button class="btn-mini" title="Escolher os contatos que receberão o convite do portal"
            onclick="convidarPortal('${c.id}', ${JSON.stringify(esc(c.razao_social)).replace(/"/g, '&quot;')})">🔗 Portal</button>`
       : `<button class="btn-mini" disabled title="Cadastre o CNPJ/CPF do cliente para liberar o portal">🔗 Portal</button>`) : '';
+    const botaoVinculo = ehGestor() ? (c.cnpj
+      ? `<button class="btn-mini" title="Unir esta filial com outra no mesmo login do portal (CNPJs de raízes diferentes)"
+           onclick="gerenciarVinculoFilial('${c.id}', ${JSON.stringify(esc(c.razao_social)).replace(/"/g, '&quot;')})">🏢 Filiais no portal</button>`
+      : '') : '';
     return `
     <div class="item-cert">
       <span onclick="detalheCliente('${c.id}')" style="cursor:pointer">
@@ -10027,6 +10051,7 @@ function htmlClientes(lista) {
           title="Filiais e unidades — para escolher onde a calibração foi feita"
           onclick="abrirEnderecos('${c.id}', ${JSON.stringify(esc(c.razao_social)).replace(/"/g, '&quot;')})">📍 Endereços</button>` : ''}
         ${botaoPortal}
+        ${botaoVinculo}
         ${botaoPesquisa}
         <button class="btn-mini" onclick="detalheCliente('${c.id}')">Balanças ➜</button>
       </span>
@@ -10146,6 +10171,90 @@ async function excluirEndereco(clienteId, eid, apelido) {
     const nome = document.querySelector('#modal-enderecos h3').textContent.replace('📍 Endereços de ', '');
     document.getElementById('modal-enderecos').remove();
     abrirEnderecos(clienteId, nome);
+  } catch (e) { toast(e.message, 'erro'); }
+}
+
+// ── Vínculo manual de outra filial no portal (mesma empresa) ────
+// Filiais com a mesma raiz de CNPJ já se juntam sozinhas no portal.
+// Isto é só pra unir filiais de raízes DIFERENTES no mesmo login —
+// só é possível escolher entre os próprios clientes desta empresa
+// (o backend garante isso, não confia em nada vindo do front).
+async function gerenciarVinculoFilial(clienteId, nome) {
+  let lista;
+  try { lista = await api('/clientes/' + clienteId + '/portal-vinculo'); }
+  catch (e) { toast(e.message, 'erro'); return; }
+
+  const semAcesso = lista.length === 0;
+  const emailLogin = lista[0]?.email;
+  const outrosClientes = (clientesListaCache || [])
+    .filter(c => c.id !== clienteId && c.cnpj);
+
+  const linhas = lista.map(d => `
+    <tr>
+      <td class="mono">${esc(fmtDocPortal(d.documento))}</td>
+      <td style="text-align:right">${d.origem === 'ancora'
+        ? '<span class="dica">login original</span>'
+        : `<button class="btn-mini" onclick="removerVinculoFilial('${clienteId}','${d.documento}')">🗑 remover</button>`}</td>
+    </tr>`).join('');
+
+  document.querySelector('#modal-vinculo-filial')?.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-fundo" id="modal-vinculo-filial" onclick="if(event.target===this)this.remove()">
+      <div class="modal-caixa" style="max-width:560px">
+        <h3>🏢 Filiais no portal — ${esc(nome)}</h3>
+        <p class="dica">Filiais com a mesma raiz de CNPJ já aparecem juntas automaticamente
+          no portal. Use isto só pra unir com outra filial de raiz DIFERENTE, no mesmo login.</p>
+        ${semAcesso
+          ? '<p class="dica">Esse cliente ainda não tem acesso ao portal — convide primeiro pelo botão 🔗 Portal.</p>'
+          : `<p class="dica">Login do portal: <b>${esc(emailLogin)}</b></p>
+             <table style="width:100%">
+               <tbody>${linhas}</tbody>
+             </table>
+             <div class="form-grid" style="margin-top:10px">
+               <label>Vincular outra filial desta empresa
+                 <select id="vinc-filial-alvo">
+                   <option value="">— escolha —</option>
+                   ${outrosClientes.map(c => `<option value="${c.id}">${esc(c.razao_social)}${
+                     c.cidade ? ' — ' + esc(c.cidade) + (c.uf ? '/' + esc(c.uf) : '') : ''
+                     } (${esc(c.cnpj)})</option>`).join('')}
+                 </select></label>
+             </div>`}
+        <div class="rodape-acoes" style="margin-top:10px">
+          <button onclick="this.closest('.modal-fundo').remove()">Fechar</button>
+          ${semAcesso ? '' : `<button class="btn-primario" onclick="vincularFilial('${clienteId}')">+ Vincular</button>`}
+        </div>
+        <p id="vinc-filial-erro" class="erro"></p>
+      </div>
+    </div>`);
+}
+
+async function vincularFilial(clienteId) {
+  const alvo = document.getElementById('vinc-filial-alvo')?.value;
+  const erroEl = document.getElementById('vinc-filial-erro');
+  if (erroEl) erroEl.textContent = '';
+  if (!alvo) { if (erroEl) erroEl.textContent = 'Escolha uma filial pra vincular.'; return; }
+  try {
+    await api('/clientes/' + clienteId + '/portal-vinculo',
+      { method: 'POST', body: JSON.stringify({ clienteAlvoId: alvo }) });
+    toast('Filial vinculada.', 'ok');
+    const nome = document.querySelector('#modal-vinculo-filial h3').textContent
+      .replace('🏢 Filiais no portal — ', '');
+    document.getElementById('modal-vinculo-filial').remove();
+    gerenciarVinculoFilial(clienteId, nome);
+  } catch (e) { if (erroEl) erroEl.textContent = e.message; else toast(e.message, 'erro'); }
+}
+
+async function removerVinculoFilial(clienteId, documento) {
+  if (!await modalConfirmar('Remover vínculo',
+    'Essa filial deixa de aparecer junto no portal. Continuar?',
+    { textoSim: 'Remover', textoNao: 'Cancelar' })) return;
+  try {
+    await api('/clientes/' + clienteId + '/portal-vinculo/' + documento, { method: 'DELETE' });
+    toast('Vínculo removido.', 'ok');
+    const nome = document.querySelector('#modal-vinculo-filial h3').textContent
+      .replace('🏢 Filiais no portal — ', '');
+    document.getElementById('modal-vinculo-filial').remove();
+    gerenciarVinculoFilial(clienteId, nome);
   } catch (e) { toast(e.message, 'erro'); }
 }
 
