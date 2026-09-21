@@ -497,7 +497,7 @@ async function irPainel() {
   $('#btn-relatorios').style.display = gestor ? '' : 'none';
   $('#busca-equip').style.display = gestor ? '' : 'none';
   $('#filtro-cliente-tec').style.display = gestor ? 'none' : '';
-  if (gestor) { renderGraficos(graficosDias); avisoContrato(); cardPlano(); avisoPesosPadrao(); avisoBackupEmpresa(); }
+  if (gestor) { renderGraficos(graficosDias); avisoContrato(); cardPlano(); avisoPesosPadrao(); avisoBackupEmpresa(); avisoPortalFiliais(); }
   guiaPrimeirosPassos();
   const certs = await api('/certificados');
   certsPainelCache = certs;
@@ -562,6 +562,35 @@ async function avisoPesosPadrao() {
     (ref?.parentNode || document.getElementById('tela-painel'))
       ?.insertBefore(div, ref || null);
   } catch (e) { console.warn('avisoPesosPadrao:', e); }
+}
+
+// ── Aviso: portal do cliente agora une filiais automaticamente ──
+// Novidade única, some pra sempre ao clicar (sem repetir por dia,
+// diferente do aviso de pesos) — mesmo padrão visual/dismiss.
+function avisoPortalFiliais() {
+  document.getElementById('aviso-portal-filiais')?.remove();
+  if (localStorage.getItem('aviso_portal_filiais_visto')) return;
+
+  const div = document.createElement('div');
+  div.id = 'aviso-portal-filiais';
+  div.style.cssText = 'margin:0 0 12px;padding:11px 14px;border-radius:10px;' +
+    'background:#eef3f8;border:1px solid #5a718333;display:flex;' +
+    'gap:10px;align-items:center;flex-wrap:wrap';
+  div.innerHTML = `
+    <span style="font-size:18px">🏢</span>
+    <span style="flex:1;font-size:13px;color:#43607f">
+      <b>Novidade no Portal do Cliente:</b> quando um cliente tem várias
+      filiais com a mesma raiz de CNPJ (matriz + filiais de verdade), o
+      portal agora mostra os certificados de todas elas juntos, num
+      único login — não precisa mais criar um acesso por filial.</span>
+    <button style="background:none;border:0;cursor:pointer;font-size:13px;
+      color:#43607f;text-decoration:underline;white-space:nowrap"
+      onclick="localStorage.setItem('aviso_portal_filiais_visto','1');
+               this.closest('#aviso-portal-filiais').remove()">Entendi, não mostrar de novo</button>`;
+  const ref = document.getElementById('guia-passos')
+    || document.getElementById('painel-graficos');
+  (ref?.parentNode || document.getElementById('tela-painel'))
+    ?.insertBefore(div, ref || null);
 }
 
 // ── Lembrete de backup da empresa (João, 20/08/2026) ────────────
@@ -7937,6 +7966,74 @@ async function verPortalDoCliente(clienteId, nome) {
   } catch (e) { toast(e.message, 'erro'); }
 }
 
+// ── Vínculo manual de CNPJ/CPF a um acesso do portal ────────
+// Filiais que compartilham a raiz do CNPJ já se juntam sozinhas
+// (cliente_no_grupo, automático). Isto aqui é só pro caso raro de
+// documentos de raízes diferentes que devem, mesmo assim, cair no
+// mesmo login — por isso fica restrito ao super-admin.
+function fmtDocPortal(d) {
+  const s = String(d || '').replace(/\D/g, '');
+  if (s.length === 14) return s.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  if (s.length === 11) return s.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  return d || '—';
+}
+
+async function gerenciarDocumentosPortal(acessoId, email) {
+  let docs;
+  try { docs = await saApi('/portal/acesso/' + acessoId + '/documentos'); }
+  catch (e) { toast(e.message, 'erro'); return; }
+  document.querySelectorAll('.modal-fundo[data-modal-docs-portal]').forEach(m => m.remove());
+  const linhas = docs.map(d => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eee">
+      <span class="mono">${esc(fmtDocPortal(d.documento))}</span>
+      ${d.origem === 'ancora'
+        ? '<span class="dica">login original</span>'
+        : `<button class="btn-mini" style="color:#b02a37"
+             onclick="removerDocumentoPortal('${acessoId}','${d.documento}','${esc(email)}')">🗑 remover</button>`}
+    </div>`).join('');
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-fundo" data-modal-docs-portal onclick="if(event.target===this)this.remove()">
+      <div class="modal-caixa" style="max-width:460px">
+        <h3>🔗 Documentos vinculados</h3>
+        <p class="dica">${esc(email)} — filiais com a mesma raiz de CNPJ já aparecem juntas
+          automaticamente. Use abaixo só pra unir documentos de raízes diferentes.</p>
+        <div id="lista-docs-portal">${linhas || '<p class="dica">Nenhum vínculo extra ainda.</p>'}</div>
+        <div class="form-grid" style="margin-top:10px">
+          <input type="text" id="novo-doc-portal" placeholder="CNPJ ou CPF (só números)" maxlength="18">
+        </div>
+        <div class="rodape-acoes" style="margin-top:10px">
+          <button onclick="this.closest('.modal-fundo').remove()">Fechar</button>
+          <button class="btn-primario" onclick="adicionarDocumentoPortal('${acessoId}','${esc(email)}')">+ Vincular</button>
+        </div>
+      </div>
+    </div>`);
+}
+
+async function adicionarDocumentoPortal(acessoId, email) {
+  const input = document.getElementById('novo-doc-portal');
+  const documento = (input?.value || '').replace(/\D/g, '');
+  if (documento.length !== 11 && documento.length !== 14) {
+    toast('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.', 'erro'); return;
+  }
+  try {
+    await saApi('/portal/acesso/' + acessoId + '/documentos',
+      { method: 'POST', body: JSON.stringify({ documento }) });
+    toast('Documento vinculado.', 'ok');
+    gerenciarDocumentosPortal(acessoId, email);
+  } catch (e) { toast(e.message, 'erro'); }
+}
+
+async function removerDocumentoPortal(acessoId, documento, email) {
+  if (!await modalConfirmar('Remover vínculo',
+    'Esse documento deixa de aparecer nesse login do portal. Continuar?',
+    { textoSim: 'Remover', textoNao: 'Cancelar' })) return;
+  try {
+    await saApi('/portal/acesso/' + acessoId + '/documentos/' + documento, { method: 'DELETE' });
+    toast('Vínculo removido.', 'ok');
+    gerenciarDocumentosPortal(acessoId, email);
+  } catch (e) { toast(e.message, 'erro'); }
+}
+
 // Abre o portal do cliente numa aba, com os dados reais dele (auditado)
 async function verPortalComoCliente(acessoId, email) {
   if (!await modalConfirmar('Ver o portal como este cliente',
@@ -8273,7 +8370,9 @@ async function renderPortalSA() {
           <td>${a.ultimo_acesso ? dt(a.ultimo_acesso)
             : '<span class="dica">nunca entrou</span>'}</td>
           <td>${a.id ? `<button class="btn-mini" title="Abrir o portal como este cliente"
-            onclick="verPortalComoCliente('${a.id}','${esc(a.email)}')">👁</button>` : ''}</td>
+            onclick="verPortalComoCliente('${a.id}','${esc(a.email)}')">👁</button>
+            <button class="btn-mini" title="Vincular CNPJs/CPFs de outras raízes a este login"
+            onclick="gerenciarDocumentosPortal('${a.id}','${esc(a.email)}')">🔗</button>` : ''}</td>
         </tr>`).join('')}</tbody>
       </table></div>`}
     </div>

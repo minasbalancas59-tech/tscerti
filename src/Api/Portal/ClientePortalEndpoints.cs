@@ -18,6 +18,7 @@ public record PortalConviteRequest(string Token, string Senha, string? Nome);
 public record ConviteVariosRequest(string[] Emails);
 public record VerDocumentoRequest(string Documento);
 public record SolicitarCalibracaoRequest(string[]? Balancas, string? Mensagem);
+public record VincularDocumentoRequest(string Documento);
 
 /// <summary>
 /// Portal do cliente final: login próprio (separado dos usuários das
@@ -571,6 +572,51 @@ public static class ClientePortalEndpoints
                 certificados = (long)c.certificados,
                 tem_acesso = (bool)c.tem_acesso
             });
+        });
+
+        // ── Vínculo manual de documentos extras a um acesso ─────
+        // O portal já une automaticamente filiais que compartilham a
+        // raiz do CNPJ (cliente_no_grupo, ver migration 162). Isto aqui
+        // cobre o caso raro de CNPJs sem raiz em comum que, mesmo assim,
+        // devem aparecer juntos pro mesmo login (decisão caso a caso,
+        // por isso fica restrita ao super-admin).
+        sa.MapGet("/acesso/{acessoId:guid}/documentos", async (Guid acessoId,
+            ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            if (Tenant.Papel(user) != "super_admin") return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            return Results.Ok(await conn.QueryAsync(
+                "SELECT * FROM sa_acesso_documentos(@id)", new { id = acessoId }));
+        });
+
+        sa.MapPost("/acesso/{acessoId:guid}/documentos", async (Guid acessoId,
+            VincularDocumentoRequest req, ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
+        {
+            if (Tenant.Papel(user) != "super_admin") return Results.Forbid();
+            var doc = new string((req.Documento ?? "").Where(char.IsDigit).ToArray());
+            if (doc.Length != 11 && doc.Length != 14)
+                return Results.BadRequest(new { erro = "Documento inválido (CPF ou CNPJ)." });
+
+            await using var conn = await ds.OpenConnectionAsync();
+            await conn.ExecuteAsync(
+                "SELECT sa_vincular_documento_acesso(@id, @doc)", new { id = acessoId, doc });
+            await Auditoria.Registrar(conn, null, Tenant.UsuarioId(user),
+                "cliente_acesso", acessoId, "vincular_documento_portal",
+                new { documento = doc }, Auditoria.Ip(ctx));
+            return Results.Ok(new { vinculado = true });
+        });
+
+        sa.MapDelete("/acesso/{acessoId:guid}/documentos/{documento}", async (Guid acessoId,
+            string documento, ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
+        {
+            if (Tenant.Papel(user) != "super_admin") return Results.Forbid();
+            await using var conn = await ds.OpenConnectionAsync();
+            await conn.ExecuteAsync(
+                "SELECT sa_desvincular_documento_acesso(@id, @doc)", new { id = acessoId, doc = documento });
+            await Auditoria.Registrar(conn, null, Tenant.UsuarioId(user),
+                "cliente_acesso", acessoId, "desvincular_documento_portal",
+                new { documento }, Auditoria.Ip(ctx));
+            return Results.Ok(new { desvinculado = true });
         });
 
         // Lista de clientes finais por DOCUMENTO (filtro opcional por empresa)

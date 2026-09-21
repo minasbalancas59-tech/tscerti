@@ -686,6 +686,7 @@ function filtrarSituacao(f) { filtroSit = f; desenharCerts(); }
 async function verCerts() {
   $('#tab-certs').classList.add('ativa'); $('#tab-pesos').classList.remove('ativa');
   $('#conteudo').innerHTML = '<div class="esqueleto"></div><div class="esqueleto"></div>';
+  avisoFiliaisCliente();
   try {
     const lista = await api('/certificados');
     window._certs = lista;
@@ -695,6 +696,30 @@ async function verCerts() {
     $('#conteudo').innerHTML =
       `<div class="vazio"><b>Não foi possível carregar</b><p>${esc(e.message)}</p></div>`;
   }
+}
+
+// Aviso único (some pra sempre ao clicar) explicando que, quando a
+// empresa tem várias filiais com a mesma raiz de CNPJ, agora aparecem
+// juntas nesta mesma conta.
+function avisoFiliaisCliente() {
+  document.getElementById('aviso-filiais-cliente')?.remove();
+  if (localStorage.getItem('aviso_filiais_cliente_visto')) return;
+  const div = document.createElement('div');
+  div.id = 'aviso-filiais-cliente';
+  div.style.cssText = 'margin:0 0 14px;padding:11px 14px;border-radius:10px;' +
+    'background:#eef3f8;border:1px solid #5a718333;display:flex;' +
+    'gap:10px;align-items:center;flex-wrap:wrap';
+  div.innerHTML = `
+    <span style="font-size:18px">🏢</span>
+    <span style="flex:1;font-size:13px;color:#43607f">
+      <b>Novidade:</b> se sua empresa tem mais de uma filial com o mesmo
+      grupo de CNPJ, os certificados de todas elas agora aparecem juntos
+      aqui, num único acesso.</span>
+    <button style="background:none;border:0;cursor:pointer;font-size:13px;
+      color:#43607f;text-decoration:underline;white-space:nowrap"
+      onclick="localStorage.setItem('aviso_filiais_cliente_visto','1');
+               this.closest('#aviso-filiais-cliente').remove()">Entendi, não mostrar de novo</button>`;
+  document.querySelector('.identidade')?.insertAdjacentElement('afterend', div);
 }
 
 function desenharCerts() {
@@ -708,6 +733,12 @@ function desenharCerts() {
          ela aparece nesta tela — e fica guardada.</p></div>`;
     return;
   }
+
+  // Mais de uma cidade/UF entre os certificados = conta unificando
+  // filiais (raiz de CNPJ ou vínculo manual). Só aí vale mostrar de
+  // qual filial é cada balança — com uma filial só, seria ruído.
+  const filiais = new Set(lista.map(c => [c.cidade, c.uf].filter(Boolean).join('/')).filter(Boolean));
+  const multiFilial = filiais.size > 1;
 
   // agrupa por balança; o certificado mais recente define a situação
   const grupos = new Map();
@@ -849,6 +880,8 @@ function desenharCerts() {
           : '';
 
       const etiquetas = [
+        multiFilial && (atual.cidade || atual.uf)
+          ? `<span class="etq">📍 ${esc([atual.cidade, atual.uf].filter(Boolean).join('/'))}</span>` : '',
         atual.acreditado ? '<span class="etq rbc">RBC · acreditado</span>' : '',
         atual.selo_inmetro ? `<span class="etq">selo Inmetro <b>${esc(atual.selo_inmetro)}</b></span>` : '',
         atual.numero_lacre ? `<span class="etq">lacre <b>${esc(atual.numero_lacre)}</b></span>` : '',
