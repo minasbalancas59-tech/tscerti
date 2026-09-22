@@ -875,6 +875,20 @@ public static class ClientePortalEndpoints
             return await BaixarS3(pdfUrl, cfg);
         }).RequireAuthorization("portal");
 
+        // Pontos individuais do ensaio (pra gráfico erro×carga/tendência no
+        // portal) — unifica Conformidade e RBC no mesmo shape. Documento sem
+        // acesso a este certificado: devolve lista vazia, não erro (mesmo
+        // padrão de cliente_pontos_certificado, evita vazar "existe/não existe").
+        g.MapGet("/certificados/{id:guid}/pontos", async (Guid id, ClaimsPrincipal user,
+            NpgsqlDataSource ds) =>
+        {
+            var doc = DocDoCliente(user);
+            if (doc is null) return Results.Unauthorized();
+            await using var conn = await ds.OpenConnectionAsync();
+            return Results.Ok(await conn.QueryAsync(
+                "SELECT * FROM cliente_pontos_certificado(@d, @id)", new { d = doc, id }));
+        }).RequireAuthorization("portal");
+
         // ── Download do PDF do certificado de um peso-padrão ──
         g.MapGet("/pesos/{id:guid}/pdf", async (Guid id, ClaimsPrincipal user,
             NpgsqlDataSource ds, IConfiguration cfg, HttpContext ctx) =>
