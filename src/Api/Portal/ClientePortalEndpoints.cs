@@ -321,12 +321,17 @@ public static class ClientePortalEndpoints
 
             var id = (Guid)a.id;
             var doc = (string)a.documento;
+            // Captura o último acesso ANTERIOR antes de cliente_marcar_acesso
+            // atualizar pra agora — é a base do aviso "novos certificados
+            // desde sua última visita" (o front compara com data_emissao).
+            var ultimoAcessoAnterior = (DateTime?)a.ultimo_acesso;
             await conn.ExecuteAsync("SELECT cliente_marcar_acesso(@id)", new { id });
             await conn.ExecuteAsync("SELECT cliente_log(@id, @d, @e, 'login', NULL, @ip)",
                 new { id, d = doc, e = req.Email, ip = Ip(ctx) });
 
             var token = GerarToken(cfg, id, doc, (string?)a.nome ?? "Cliente", (string)a.email);
-            return Results.Ok(new { token, nome = (string?)a.nome, documento = doc });
+            return Results.Ok(new { token, nome = (string?)a.nome, documento = doc,
+                ultimo_acesso = ultimoAcessoAnterior });
         });
 
         // ════════ LADO DA EMPRESA: convidar cliente ao portal ════════

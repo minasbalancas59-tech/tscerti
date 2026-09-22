@@ -597,6 +597,11 @@ async function entrar() {
     localStorage.setItem('portal_token', token);
     if (r.documento) localStorage.setItem('portal_doc', r.documento);
     localStorage.setItem('portal_nome', nome);
+    // Último acesso ANTERIOR a este login (o back manda antes de
+    // atualizar) — base do aviso de novos certificados. Sem valor =
+    // primeiro login de todos, não mostra o aviso (senão tudo "seria novo").
+    if (r.ultimo_acesso) localStorage.setItem('portal_ultimo_acesso', r.ultimo_acesso);
+    else localStorage.removeItem('portal_ultimo_acesso');
     irPainel();
   } catch (e) {
     $('#lg-erro').textContent = e.message;
@@ -706,12 +711,42 @@ async function verCerts() {
   try {
     const lista = await api('/certificados');
     window._certs = lista;
+    avisoNovosCertificados(lista);
     desenharCerts();
     carregarContatoEmpresas();
   } catch (e) {
     $('#conteudo').innerHTML =
       `<div class="vazio"><b>Não foi possível carregar</b><p>${esc(e.message)}</p></div>`;
   }
+}
+
+// Aviso dinâmico (não é "dispensar pra sempre" — reaparece sozinho
+// sempre que houver algo novo desde o último login, e some sozinho no
+// login seguinte porque portal_ultimo_acesso avança). Sem login
+// anterior registrado (primeiro acesso de todos) não mostra nada —
+// senão TODO certificado "seria novo".
+function avisoNovosCertificados(lista) {
+  document.getElementById('aviso-novos-certs')?.remove();
+  const ultimo = localStorage.getItem('portal_ultimo_acesso');
+  if (!ultimo) return;
+  const desde = new Date(ultimo);
+  const novos = lista.filter(c => c.data_emissao && new Date(c.data_emissao) > desde);
+  if (!novos.length) return;
+
+  const balancas = [...new Set(novos.map(c => c.balanca).filter(Boolean))];
+  const div = document.createElement('div');
+  div.id = 'aviso-novos-certs';
+  div.style.cssText = 'margin:0 0 14px;padding:11px 14px;border-radius:10px;' +
+    'background:#eef7f0;border:1px solid #1e7d4633;display:flex;' +
+    'gap:10px;align-items:center;flex-wrap:wrap';
+  div.innerHTML = `
+    <span style="font-size:18px">🆕</span>
+    <span style="flex:1;font-size:13px;color:#1e7d46">
+      <b>${novos.length} ${novos.length === 1 ? 'certificado novo' : 'certificados novos'}</b>
+      desde sua última visita (${desde.toLocaleDateString('pt-BR')})${
+        balancas.length ? ': ' + esc(balancas.slice(0, 4).join(', ')) +
+          (balancas.length > 4 ? '…' : '') : ''}.</span>`;
+  document.querySelector('.identidade')?.insertAdjacentElement('afterend', div);
 }
 
 // Aviso único (some pra sempre ao clicar) explicando que, quando a
@@ -802,16 +837,31 @@ function desenharCerts() {
       todosDaFilial.reduce((s, g) => s + g.itens.length, 0) === 1 ? 'certificado' : 'certificados'}`;
   $('#busca').classList.toggle('oculta', n < 2);
 
+  // Cada filial mostra um resumo rápido de situação (vencida/a vencer/
+  // não conforme), não só a contagem total — ajuda a ver de longe qual
+  // unidade precisa de atenção sem precisar clicar em cada uma.
+  const chipFilial = (valor, rotulo) => `
+    <button class="chip ${filtroFilial === valor ? 'ativo' : ''}" onclick="filtrarFilial('${esc(valor)}')">
+      ${rotulo}</button>`;
+  const resumoFilial = grupo => {
+    const cVenc = grupo.filter(g => g.sit.cod === 'venc').length;
+    const cAvencer = grupo.filter(g => g.sit.cod === 'avencer').length;
+    const cNok = grupo.filter(g => g.atual.conforme === false).length;
+    const partes = [
+      cVenc ? `⛔${cVenc}` : '', cAvencer ? `⏰${cAvencer}` : '', cNok ? `✕${cNok}` : ''
+    ].filter(Boolean).join(' ');
+    return partes || `✓${grupo.length}`;
+  };
   const seletorFilial = !multiFilial ? '' : `
-    <select onchange="filtrarFilial(this.value)" style="margin:0 0 10px;padding:8px 10px;
-      border:1px solid #dde5ec;border-radius:9px;font:inherit;font-size:.9rem">
-      <option value="todas" ${filtroFilial === 'todas' ? 'selected' : ''}>🏢 Todas as filiais (${todos.length})</option>
-      ${[...filiais].sort().map(f => {
+    <div class="chips" style="margin-bottom:10px">
+      ${chipFilial('todas', `🏢 Todas as filiais (${todos.length})`)}
+      ${[...filiais].map(f => {
         const rep = lista.find(c => c.cnpj === f) || {};
-        return `<option value="${esc(f)}" ${filtroFilial === f ? 'selected' : ''}>
-          📍 ${esc(rotuloFilial(rep))} (${todos.filter(g => g.filial === f).length})</option>`;
-      }).join('')}
-    </select>`;
+        const grupo = todos.filter(g => g.filial === f);
+        return { f, rotulo: rotuloFilial(rep), grupo };
+      }).sort((a, b) => a.rotulo.localeCompare(b.rotulo))
+        .map(x => chipFilial(x.f, `📍 ${esc(x.rotulo)} (${resumoFilial(x.grupo)})`)).join('')}
+    </div>`;
 
   const vis = filtroSit === 'todas' ? todosDaFilial
     : filtroSit === 'nok' ? todosDaFilial.filter(g => g.atual.conforme === false)
