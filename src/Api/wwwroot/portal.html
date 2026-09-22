@@ -658,7 +658,13 @@ function fmtNum(v) {
 
 // Campos da balança que valem para exibir e para buscar (só os que existirem)
 function dadosBal(c) {
-  const d = c.dados_balanca || {};
+  // dados_balanca chega como STRING JSON (o Dapper/Npgsql devolve
+  // jsonb como texto em consulta dynamic), não como objeto já pronto —
+  // bug antigo, achado só agora: capacidade/classe/Inmetro/patrimônio
+  // nunca apareciam em NENHUM cartão porque isto sempre tentou ler
+  // propriedade direto de uma string.
+  let d = c.dados_balanca || {};
+  if (typeof d === 'string') { try { d = JSON.parse(d) || {}; } catch (e) { d = {}; } }
   const cap = d.capacidade ?? d.capacidade_max ?? null;
   const uni = d.unidade || d.unidade_capacidade || 'kg';
   return {
@@ -1295,8 +1301,12 @@ function desenharCalendario() {
   const item = c => {
     const dias = Math.floor((new Date(dataPura(c.vence_em) + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
     const bal = dadosBal(c);
-    const ficha = [[c.marca, c.modelo].filter(Boolean).join(' '), bal.capacidade]
-      .filter(Boolean).join(' · ');
+    const ficha = [
+      [c.marca, c.modelo].filter(Boolean).join(' ') || null,
+      bal.capacidade ? `cap. ${bal.capacidade}` : null,
+      bal.divisao != null ? `divisão ${bal.divisao}` : null,
+      bal.inmetro ? `Inmetro ${bal.inmetro}` : null
+    ].filter(Boolean).join(' · ');
     return `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;
       border-bottom:1px solid #eef1f4;flex-wrap:wrap">
       <span><b>${esc(c.balanca || 'Equipamento')}</b>${c.num_serie
@@ -1355,8 +1365,12 @@ function baixarIcs() {
   itens.forEach(c => {
     const data = dataPura(c.vence_em).replace(/-/g, '');
     const bal = dadosBal(c);
-    const ficha = [[c.marca, c.modelo].filter(Boolean).join(' '), bal.capacidade]
-      .filter(Boolean).join(' · ');
+    const ficha = [
+      [c.marca, c.modelo].filter(Boolean).join(' ') || null,
+      bal.capacidade ? `cap. ${bal.capacidade}` : null,
+      bal.divisao != null ? `divisão ${bal.divisao}` : null,
+      bal.inmetro ? `Inmetro ${bal.inmetro}` : null
+    ].filter(Boolean).join(' · ');
     linhas.push('BEGIN:VEVENT',
       `UID:${c.id}@portalclientes.totalscale.com.br`,
       `DTSTAMP:${dtstamp}`,
