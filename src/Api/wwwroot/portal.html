@@ -1294,10 +1294,14 @@ function desenharCalendario() {
   }
   const item = c => {
     const dias = Math.floor((new Date(dataPura(c.vence_em) + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+    const bal = dadosBal(c);
+    const ficha = [[c.marca, c.modelo].filter(Boolean).join(' '), bal.capacidade]
+      .filter(Boolean).join(' · ');
     return `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;
       border-bottom:1px solid #eef1f4;flex-wrap:wrap">
       <span><b>${esc(c.balanca || 'Equipamento')}</b>${c.num_serie
-        ? ` <span class="dica">série ${esc(c.num_serie)}</span>` : ''}</span>
+        ? ` <span class="dica">série ${esc(c.num_serie)}</span>` : ''}${ficha
+        ? `<br><span class="dica">${esc(ficha)}</span>` : ''}</span>
       <span class="dica">${dbr(c.vence_em)}${dias < 0 ? ` · venceu há ${-dias} dia(s)`
         : dias <= 60 ? ` · em ${dias} dia(s)` : ''}</span>
     </div>`;
@@ -1350,12 +1354,16 @@ function baixarIcs() {
   const linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TSCert//Portal do Cliente//PT', 'CALSCALE:GREGORIAN'];
   itens.forEach(c => {
     const data = dataPura(c.vence_em).replace(/-/g, '');
+    const bal = dadosBal(c);
+    const ficha = [[c.marca, c.modelo].filter(Boolean).join(' '), bal.capacidade]
+      .filter(Boolean).join(' · ');
     linhas.push('BEGIN:VEVENT',
       `UID:${c.id}@portalclientes.totalscale.com.br`,
       `DTSTAMP:${dtstamp}`,
       `DTSTART;VALUE=DATE:${data}`,
       `SUMMARY:Calibração vence — ${esc2(c.balanca || 'Equipamento')}`,
-      `DESCRIPTION:Certificado ${esc2(c.numero)} · emitido por ${esc2(c.empresa)}`,
+      `DESCRIPTION:Certificado ${esc2(c.numero)}${ficha ? ' · ' + esc2(ficha) : ''} · ` +
+        `emitido por ${esc2(c.empresa)}`,
       'END:VEVENT');
   });
   linhas.push('END:VCALENDAR');
