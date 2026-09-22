@@ -953,8 +953,11 @@ function desenharCerts() {
         <button class="pedir" onclick="pedirCalibracao(null)">
           📅 Solicitar calibração das ${cont.venc + cont.avencer} balança(s) em atenção</button>` : ''}
       <button class="baixar" onclick="baixarTudo()" id="btn-zip"
-        title="Um arquivo só com o certificado atual de cada balança">
+        title="Um arquivo só com o certificado atual de cada balança, mais um relatório de auditoria em PDF">
         📦 Baixar todos (ZIP)</button>
+      <button class="baixar" onclick="baixarCsv()" id="btn-csv"
+        title="Planilha com balança, número, datas e situação de cada certificado">
+        📊 Exportar CSV</button>
     </div>`;
 
   const chips = `<div class="chips">
@@ -1125,6 +1128,33 @@ async function baixarTudo() {
       <p id="zip-erro" class="erro"></p>
     </div>`;
   document.body.appendChild(m);
+}
+
+// Planilha simples com todas as balanças — pra jogar num Excel/BI do
+// próprio cliente, sem precisar abrir o portal balança a balança.
+async function baixarCsv() {
+  const bt = document.getElementById('btn-csv');
+  const original = bt.textContent;
+  bt.disabled = true; bt.textContent = 'Gerando…';
+  try {
+    const r = await fetch('/api/portal/certificados/csv',
+      { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.erro || 'Não foi possível gerar a planilha.');
+    }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'certificados_' + new Date().toISOString().substring(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    bt.textContent = '✓ Baixado';
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    setTimeout(() => { bt.disabled = false; bt.textContent = original; }, 1200);
+  }
 }
 
 async function confirmarZip() {

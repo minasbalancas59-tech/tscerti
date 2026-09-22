@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using CertSaas.Api.Certificados;
 using CertSaas.Api.Infra;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -778,8 +779,39 @@ public static class ClientePortalEndpoints
 
                 var ie = zip.CreateEntry("INDICE.txt",
                     System.IO.Compression.CompressionLevel.Fastest);
-                using var iss = ie.Open();
-                await iss.WriteAsync(System.Text.Encoding.UTF8.GetBytes(indice.ToString()));
+                using (var iss = ie.Open())
+                    await iss.WriteAsync(System.Text.Encoding.UTF8.GetBytes(indice.ToString()));
+
+                // Mesmo índice, em PDF formatado — o que o auditor costuma
+                // preferir de entregar/anexar (reaproveita RelPdf, já usado
+                // nos relatórios do laboratório, agora pro portal do cliente).
+                var colunas = new[]
+                {
+                    new RelPdf.Coluna("Balança", 2f), new RelPdf.Coluna("Série", 1.2f),
+                    new RelPdf.Coluna("Certificado", 1.3f), new RelPdf.Coluna("Calibrado em", 1f),
+                    new RelPdf.Coluna("Válido até", 1f), new RelPdf.Coluna("Situação", 1f),
+                    new RelPdf.Coluna("Emitido por", 1.8f)
+                };
+                var linhasPdf = certs.Select(c =>
+                {
+                    var venc = c.vence_em is null ? "sem periodicidade" : ((DateTime)c.vence_em).ToString("dd/MM/yyyy");
+                    var sit = c.vence_em is null ? "—"
+                        : ((DateTime)c.vence_em).Date < DateTime.Today ? "VENCIDA" : "vigente";
+                    return new[]
+                    {
+                        (string?)c.balanca ?? "", (string?)c.num_serie ?? "-", (string?)c.numero ?? "",
+                        ((DateTime?)c.data_calibracao)?.ToString("dd/MM/yyyy") ?? "-", venc, sit,
+                        (string?)c.empresa ?? ""
+                    };
+                }).ToList();
+                var pdfBytes = RelPdf.Gerar(
+                    user.FindFirstValue("nome") ?? "Cliente", "Pacote de auditoria — certificados vigentes",
+                    $"{certs.Count} balança(s) · gerado pelo Portal do Cliente TSCert",
+                    colunas, linhasPdf);
+                var pe = zip.CreateEntry("RELATORIO-AUDITORIA.pdf",
+                    System.IO.Compression.CompressionLevel.Fastest);
+                using (var pss = pe.Open())
+                    await pss.WriteAsync(pdfBytes);
             }
 
             await conn.ExecuteAsync(
@@ -788,6 +820,45 @@ public static class ClientePortalEndpoints
 
             return Results.File(ms.ToArray(), "application/zip",
                 $"certificados_{DateTime.Now:yyyy-MM-dd}.zip");
+        }).RequireAuthorization("portal");
+
+        // ── Exportar planilha (CSV) com o status de todas as balanças ──
+        // Pro cliente jogar num Excel/BI dele, ou anexar num e-mail — sem
+        // precisar abrir o portal balança a balança. Reaproveita RelCsv,
+        // já usado nos relatórios do laboratório.
+        g.MapGet("/certificados/csv", async (ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            var doc = DocDoCliente(user);
+            if (doc is null) return Results.Unauthorized();
+
+            await using var conn = await ds.OpenConnectionAsync();
+            var certs = (await conn.QueryAsync(
+                "SELECT * FROM cliente_certificados_vigentes(@d)", new { d = doc })).ToList();
+            if (certs.Count == 0)
+                return Results.NotFound(new { erro = "Nenhum certificado disponível." });
+
+            var cab = new[]
+            {
+                "Balança", "Série", "Certificado", "Calibrado em",
+                "Válido até", "Situação", "Emitido por", "Cidade", "UF"
+            };
+            var dados = certs.Select(c =>
+            {
+                var venc = c.vence_em is null ? "sem periodicidade"
+                    : ((DateTime)c.vence_em).ToString("dd/MM/yyyy");
+                var sit = c.vence_em is null ? "sem periodicidade"
+                    : ((DateTime)c.vence_em).Date < DateTime.Today ? "vencida" : "vigente";
+                return RelCsv.Join(
+                    (string?)c.balanca, (string?)c.num_serie,
+                    (string?)c.numero, RelCsv.D((DateTime?)c.data_calibracao), venc, sit,
+                    (string?)c.empresa, (string?)c.cidade, (string?)c.uf);
+            });
+
+            await conn.ExecuteAsync(
+                "SELECT cliente_log(NULL, @d, NULL, 'download', 'exportação CSV', NULL)",
+                new { d = doc });
+
+            return RelCsv.File(cab, dados, $"certificados_{DateTime.Now:yyyy-MM-dd}.csv");
         }).RequireAuthorization("portal");
 
         // ── Solicitar calibração (o cliente pede a visita) ──────
