@@ -493,6 +493,7 @@ button.primario:hover { background: #1b3a5c; }
     </div>
     <div class="tabs">
       <button class="tab ativa" id="tab-certs" onclick="verCerts()">Meus certificados</button>
+      <button class="tab" id="tab-cal" onclick="verCalendario()">📅 Vencimentos</button>
       <button class="tab" id="tab-pesos" onclick="verPesos()">Pesos-padrão</button>
     </div>
     <input type="search" class="busca oculta" id="busca"
@@ -706,6 +707,7 @@ function rotuloFilial(c) {
 
 async function verCerts() {
   $('#tab-certs').classList.add('ativa'); $('#tab-pesos').classList.remove('ativa');
+  $('#tab-cal').classList.remove('ativa');
   $('#conteudo').innerHTML = '<div class="esqueleto"></div><div class="esqueleto"></div>';
   avisoFiliaisCliente();
   try {
@@ -831,6 +833,32 @@ function desenharCerts() {
   todosDaFilial.forEach(g => cont[g.sit.cod]++);
   const n = todosDaFilial.length;
   const naoConformes = todosDaFilial.filter(g => g.atual.conforme === false).length;
+
+  // Painel resumo pro gestor — histórico dos últimos 12 meses (não só
+  // a situação ATUAL), usando todo o histórico de cada balança da
+  // seleção (itens, não só o certificado mais recente).
+  const itensDaFilial = todosDaFilial.flatMap(g => g.itens);
+  const umAno = new Date(); umAno.setFullYear(umAno.getFullYear() - 1);
+  const reprovacoes12m = itensDaFilial.filter(c =>
+    c.conforme === false && c.data_calibracao && new Date(c.data_calibracao) >= umAno).length;
+  const emitidos12m = itensDaFilial.filter(c =>
+    c.status !== 'cancelado' && c.data_calibracao && new Date(c.data_calibracao) >= umAno).length;
+  const pctEmDia = n ? Math.round(100 * cont.vig / n) : 0;
+  const painelResumo = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="flex:1;min-width:130px;background:#fff;border:1px solid #e3eaf2;
+        border-radius:10px;padding:11px 14px">
+        <div class="dica">Balanças em dia</div>
+        <b style="font-size:1.35rem;color:#0f7a52">${pctEmDia}%</b></div>
+      <div style="flex:1;min-width:130px;background:#fff;border:1px solid #e3eaf2;
+        border-radius:10px;padding:11px 14px">
+        <div class="dica">Reprovações (12 meses)</div>
+        <b style="font-size:1.35rem;color:${reprovacoes12m ? '#b3283a' : '#0f7a52'}">${reprovacoes12m}</b></div>
+      <div style="flex:1;min-width:130px;background:#fff;border:1px solid #e3eaf2;
+        border-radius:10px;padding:11px 14px">
+        <div class="dica">Certificados emitidos (12 meses)</div>
+        <b style="font-size:1.35rem;color:#1c2b33">${emitidos12m}</b></div>
+    </div>`;
 
   $('#id-resumo').textContent =
     `· ${n} ${n === 1 ? 'balança' : 'balanças'} · ${todosDaFilial.reduce((s, g) => s + g.itens.length, 0)} ${
@@ -1040,7 +1068,7 @@ function desenharCerts() {
       </article>`;
     }).join('');
 
-  $('#conteudo').innerHTML = seletorFilial + resumo + pedirGeral + chips + cartoes +
+  $('#conteudo').innerHTML = painelResumo + seletorFilial + resumo + pedirGeral + chips + cartoes +
     '<div id="contato-empresas"></div>' + marcaSistema();
   carregarContatoEmpresas();
 }
@@ -1228,8 +1256,119 @@ function filtrarCerts(termo) {
   }
 }
 
+// ── Aba Vencimentos: timeline dos próximos 12 meses + exportar .ics ──
+// Reaproveita window._certs (já carregado por verCerts) — não busca
+// nada novo na API. Uma balança só entra aqui pelo certificado ATUAL
+// (emitido, com vence_em), igual à regra de "situação" dos cartões.
+function baseCalendario() {
+  const porBalanca = new Map();
+  (window._certs || []).forEach(c => {
+    if (c.status !== 'emitido' || !c.vence_em) return;
+    const chave = (c.balanca || 'Equipamento') + '' + (c.num_serie || '');
+    const atual = porBalanca.get(chave);
+    if (!atual || new Date(c.data_calibracao || 0) > new Date(atual.data_calibracao || 0))
+      porBalanca.set(chave, c);
+  });
+  return [...porBalanca.values()];
+}
+
+async function verCalendario() {
+  $('#tab-cal').classList.add('ativa'); $('#tab-certs').classList.remove('ativa');
+  $('#tab-pesos').classList.remove('ativa'); $('#busca').classList.add('oculta');
+  if (!window._certs) { $('#conteudo').innerHTML = '<div class="esqueleto"></div>'; window._certs = await api('/certificados'); }
+  desenharCalendario();
+}
+
+// vence_em/data_calibracao vêm como datetime ISO completo
+// ("2027-09-18T00:00:00"), não só a data — mesma pegadinha que dbr()
+// já trata em outro lugar deste arquivo (.substring(0,10) primeiro).
+function dataPura(v) { return String(v || '').substring(0, 10); }
+
+function desenharCalendario() {
+  const itens = baseCalendario();
+  if (!itens.length) {
+    $('#conteudo').innerHTML = '<div class="vazio"><b>Nenhum vencimento programado</b>' +
+      '<p>Assim que suas balanças tiverem certificado com periodicidade definida, os ' +
+      'vencimentos aparecem aqui.</p></div>';
+    return;
+  }
+  const item = c => {
+    const dias = Math.floor((new Date(dataPura(c.vence_em) + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+    return `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;
+      border-bottom:1px solid #eef1f4;flex-wrap:wrap">
+      <span><b>${esc(c.balanca || 'Equipamento')}</b>${c.num_serie
+        ? ` <span class="dica">série ${esc(c.num_serie)}</span>` : ''}</span>
+      <span class="dica">${dbr(c.vence_em)}${dias < 0 ? ` · venceu há ${-dias} dia(s)`
+        : dias <= 60 ? ` · em ${dias} dia(s)` : ''}</span>
+    </div>`;
+  };
+  const hoje = new Date(new Date().toDateString());
+  const vencidas = itens.filter(c => new Date(dataPura(c.vence_em) + 'T00:00:00') < hoje)
+    .sort((a, b) => dataPura(a.vence_em).localeCompare(dataPura(b.vence_em)));
+  const futuras = itens.filter(c => new Date(dataPura(c.vence_em) + 'T00:00:00') >= hoje);
+  const porMes = new Map();
+  futuras.forEach(c => {
+    const chave = dataPura(c.vence_em).slice(0, 7);   // AAAA-MM
+    if (!porMes.has(chave)) porMes.set(chave, []);
+    porMes.get(chave).push(c);
+  });
+  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  let html = `<div class="bloco"><h2>📅 Vencimentos</h2>
+    <p class="dica">Linha do tempo das próximas calibrações, pra planejar com antecedência.</p>
+    <button class="baixar leve" onclick="baixarIcs()" style="margin:8px 0 14px">
+      📆 Exportar pra agenda (.ics)</button>`;
+  if (vencidas.length) {
+    html += `<div style="margin-bottom:14px">
+      <h3 style="color:#b3283a;font-size:.95rem;margin-bottom:4px">⛔ Vencidas (${vencidas.length})</h3>
+      ${vencidas.map(item).join('')}
+    </div>`;
+  }
+  [...porMes.keys()].sort().forEach(chave => {
+    const [ano, mes] = chave.split('-');
+    const grupo = porMes.get(chave).sort((a, b) => dataPura(a.vence_em).localeCompare(dataPura(b.vence_em)));
+    html += `<div style="margin-bottom:14px">
+      <h3 style="font-size:.95rem;margin-bottom:4px;text-transform:capitalize">
+        ${meses[Number(mes) - 1]} de ${ano} (${grupo.length})</h3>
+      ${grupo.map(item).join('')}
+    </div>`;
+  });
+  html += '</div>';
+  $('#conteudo').innerHTML = html;
+}
+
+// Gera o .ics inteiro no navegador (sem chamada ao servidor) e baixa.
+function baixarIcs() {
+  const itens = baseCalendario();
+  if (!itens.length) { toast('Nenhum vencimento pra exportar.', 'erro'); return; }
+  const esc2 = s => String(s || '').replace(/[,;\\]/g, '\\$&');
+  const pad = n => String(n).padStart(2, '0');
+  const agora = new Date();
+  const dtstamp = `${agora.getUTCFullYear()}${pad(agora.getUTCMonth() + 1)}${pad(agora.getUTCDate())}` +
+    `T${pad(agora.getUTCHours())}${pad(agora.getUTCMinutes())}${pad(agora.getUTCSeconds())}Z`;
+  const linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TSCert//Portal do Cliente//PT', 'CALSCALE:GREGORIAN'];
+  itens.forEach(c => {
+    const data = dataPura(c.vence_em).replace(/-/g, '');
+    linhas.push('BEGIN:VEVENT',
+      `UID:${c.id}@portalclientes.totalscale.com.br`,
+      `DTSTAMP:${dtstamp}`,
+      `DTSTART;VALUE=DATE:${data}`,
+      `SUMMARY:Calibração vence — ${esc2(c.balanca || 'Equipamento')}`,
+      `DESCRIPTION:Certificado ${esc2(c.numero)} · emitido por ${esc2(c.empresa)}`,
+      'END:VEVENT');
+  });
+  linhas.push('END:VCALENDAR');
+  const blob = new Blob([linhas.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vencimentos-calibracao.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
 async function verPesos() {
   $('#tab-pesos').classList.add('ativa'); $('#tab-certs').classList.remove('ativa');
+  $('#tab-cal').classList.remove('ativa');
   $('#busca').classList.add('oculta');
   $('#conteudo').innerHTML = '<div class="esqueleto"></div>';
   try {
