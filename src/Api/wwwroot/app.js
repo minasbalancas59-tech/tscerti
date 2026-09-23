@@ -10444,8 +10444,21 @@ async function buscarCnpj() {
   const txt = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   try {
-    const r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + cnpj);
-    if (!r.ok) throw new Error(r.status === 404 ? 'CNPJ não encontrado na base da Receita.' : 'Não foi possível consultar agora.');
+    let r;
+    try {
+      r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + cnpj);
+    } catch {
+      throw new Error('Não foi possível conectar à Receita — verifique sua internet ' +
+        '(ou se algum firewall/bloqueador de anúncios está impedindo o acesso a brasilapi.com.br).');
+    }
+    if (!r.ok) {
+      let msg = null;
+      try { msg = (await r.json()).message; } catch {}
+      if (r.status === 404) throw new Error('CNPJ não encontrado na base da Receita.');
+      if (r.status === 400) throw new Error(msg || 'CNPJ inválido — confira os dígitos digitados.');
+      if (r.status === 429) throw new Error('Muitas consultas em sequência — aguarde alguns segundos e tente de novo.');
+      throw new Error(`A consulta da Receita está indisponível no momento (erro ${r.status}) — tente novamente em instantes.`);
+    }
     const d = await r.json();
     // Preenche o que veio (sem sobrescrever com vazio)
     const set = (id, val) => { if (val) $(id).value = val; };
