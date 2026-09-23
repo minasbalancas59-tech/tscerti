@@ -17,7 +17,7 @@ public record ContatoRequest(string Nome, string? Cargo, string? Telefone,
 
 public record VincularFilialRequest(Guid ClienteAlvoId);
 
-public record LogConsultaCnpjRequest(string Nivel, string Mensagem, string? Cnpj);
+public record LogConsultaCnpjRequest(string Mensagem, string? Cnpj);
 
 public static class ClienteEndpoints
 {
@@ -317,10 +317,10 @@ public static class ClienteEndpoints
         // ── Log de falha na busca automática de CNPJ ──────────────
         // A busca em si (botão 🔍 do cadastro) é feita direto do navegador
         // pras APIs públicas de CNPJ — nunca passa pelo nosso backend. Esse
-        // endpoint só recebe o aviso quando os provedores falham (rede,
-        // instabilidade, os dois provedores fora do ar), pra aparecer no
-        // painel de Erros do sistema e dar visibilidade de produção — sem
-        // isso, essas falhas nunca deixavam rastro nenhum pra depuração.
+        // endpoint só recebe o aviso quando os DOIS provedores falham (o
+        // front já tenta um alternativo sozinho antes de chamar aqui) —
+        // um provedor caindo e o outro resolvendo não é problema que
+        // precise aparecer no painel de Erros, só quando os dois falham.
         g.MapPost("/log-consulta-cnpj", async (LogConsultaCnpjRequest req,
             ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
@@ -331,7 +331,7 @@ public static class ClienteEndpoints
                 {
                     rota = "front:consulta-cnpj",
                     metodo = "GET",
-                    tipo = req.Nivel == "erro" ? "ConsultaCnpjFalhou" : "ConsultaCnpjDegradada",
+                    tipo = "ConsultaCnpjFalhou",
                     msg = req.Mensagem,
                     detalhe = $"CNPJ consultado: {req.Cnpj ?? "(não informado)"}",
                     empresa = Tenant.EmpresaId(user),

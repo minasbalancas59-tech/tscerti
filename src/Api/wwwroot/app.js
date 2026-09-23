@@ -10466,11 +10466,12 @@ function mensagemErroCnpj(resp) {
 
 // Best-effort: nunca deve travar o fluxo do usuário nem aparecer pra ele.
 // Só existe pra sobrar rastro no painel de Erros do sistema, já que a
-// consulta em si nunca passa pelo nosso backend.
-async function logConsultaCnpjFalha(nivel, mensagem, cnpj) {
+// consulta em si nunca passa pelo nosso backend. Só chamada quando os DOIS
+// provedores falham — o alternativo resolvendo sozinho não é um problema.
+async function logConsultaCnpjFalha(mensagem, cnpj) {
   try {
     await api('/clientes/log-consulta-cnpj', {
-      method: 'POST', body: JSON.stringify({ nivel, mensagem, cnpj })
+      method: 'POST', body: JSON.stringify({ mensagem, cnpj })
     });
   } catch { /* log é melhor-esforço */ }
 }
@@ -10491,19 +10492,15 @@ async function buscarCnpj() {
     // quando o CNPJ em si é inválido ou não existe, porque aí o segundo
     // provedor ia dar o mesmo resultado.
     if (!resp.ok && resp.status !== 400 && resp.status !== 404) {
-      const falhaPrimario = mensagemErroCnpj(resp);
+      // Não loga aqui: o alternativo resolvendo sozinho não é um problema
+      // que precise de atenção — só interessa quando os DOIS falham.
       const alt = await consultarCnpjProvedor('https://minhareceita.org/', cnpj);
-      if (alt.ok) {
-        resp = alt;
-        logConsultaCnpjFalha('aviso',
-          `BrasilAPI falhou (${falhaPrimario}) — usado o provedor alternativo ` +
-          '(Minha Receita) com sucesso.', cnpj);
-      }
+      if (alt.ok) resp = alt;
     }
     if (!resp.ok) {
       const mensagem = mensagemErroCnpj(resp);
       // CNPJ inválido/não encontrado não é falha de sistema — não loga.
-      if (resp.status !== 400 && resp.status !== 404) logConsultaCnpjFalha('erro', mensagem, cnpj);
+      if (resp.status !== 400 && resp.status !== 404) logConsultaCnpjFalha(mensagem, cnpj);
       throw new Error(mensagem);
     }
     const d = resp.dados;
