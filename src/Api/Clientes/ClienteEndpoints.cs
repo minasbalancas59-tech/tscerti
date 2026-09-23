@@ -17,6 +17,8 @@ public record ContatoRequest(string Nome, string? Cargo, string? Telefone,
 
 public record VincularFilialRequest(Guid ClienteAlvoId);
 
+public record LogConsultaCnpjRequest(string Nivel, string Mensagem, string? Cnpj);
+
 public static class ClienteEndpoints
 {
     public static void Map(WebApplication app)
@@ -310,6 +312,32 @@ public static class ClienteEndpoints
                 Tenant.UsuarioId(user), "cliente", id,
                 req.Ativo ? "reativar" : "inativar", null, Auditoria.Ip(ctx));
             return Results.Ok(new { id, req.Ativo });
+        });
+
+        // ── Log de falha na busca automática de CNPJ ──────────────
+        // A busca em si (botão 🔍 do cadastro) é feita direto do navegador
+        // pras APIs públicas de CNPJ — nunca passa pelo nosso backend. Esse
+        // endpoint só recebe o aviso quando os provedores falham (rede,
+        // instabilidade, os dois provedores fora do ar), pra aparecer no
+        // painel de Erros do sistema e dar visibilidade de produção — sem
+        // isso, essas falhas nunca deixavam rastro nenhum pra depuração.
+        g.MapPost("/log-consulta-cnpj", async (LogConsultaCnpjRequest req,
+            ClaimsPrincipal user, NpgsqlDataSource ds) =>
+        {
+            await using var conn = await ds.OpenConnectionAsync();
+            await conn.ExecuteAsync(
+                "SELECT registrar_erro(@rota, @metodo, @tipo, @msg, @detalhe, @empresa, @usuario)",
+                new
+                {
+                    rota = "front:consulta-cnpj",
+                    metodo = "GET",
+                    tipo = req.Nivel == "erro" ? "ConsultaCnpjFalhou" : "ConsultaCnpjDegradada",
+                    msg = req.Mensagem,
+                    detalhe = $"CNPJ consultado: {req.Cnpj ?? "(não informado)"}",
+                    empresa = Tenant.EmpresaId(user),
+                    usuario = Tenant.UsuarioId(user)
+                });
+            return Results.Ok();
         });
     }
 

@@ -10434,6 +10434,47 @@ function filtrarClientesLista(termo) {
   $('#clientes-lista').innerHTML = htmlClientes(filt);
 }
 
+// Consulta um provedor de CNPJ e normaliza o resultado — nunca lança,
+// devolve { ok, dados } ou { ok:false, falhaRede/status/msg } pra quem
+// chamou decidir o que fazer (tentar outro provedor, montar mensagem).
+async function consultarCnpjProvedor(baseUrl, cnpj) {
+  let r;
+  try {
+    r = await fetch(baseUrl + cnpj);
+  } catch {
+    return { ok: false, falhaRede: true };
+  }
+  if (!r.ok) {
+    let msg = null;
+    try { msg = (await r.json()).message; } catch {}
+    return { ok: false, status: r.status, msg };
+  }
+  return { ok: true, dados: await r.json() };
+}
+
+function mensagemErroCnpj(resp) {
+  if (resp.falhaRede) {
+    return 'Não foi possível conectar à Receita — verifique sua internet ' +
+      '(ou se algum firewall/bloqueador de anúncios está impedindo o acesso a ' +
+      'brasilapi.com.br e minhareceita.org).';
+  }
+  if (resp.status === 404) return 'CNPJ não encontrado na base da Receita.';
+  if (resp.status === 400) return resp.msg || 'CNPJ inválido — confira os dígitos digitados.';
+  if (resp.status === 429) return 'Muitas consultas em sequência — aguarde alguns segundos e tente de novo.';
+  return `A consulta da Receita está indisponível no momento (erro ${resp.status}) — tente novamente em instantes.`;
+}
+
+// Best-effort: nunca deve travar o fluxo do usuário nem aparecer pra ele.
+// Só existe pra sobrar rastro no painel de Erros do sistema, já que a
+// consulta em si nunca passa pelo nosso backend.
+async function logConsultaCnpjFalha(nivel, mensagem, cnpj) {
+  try {
+    await api('/clientes/log-consulta-cnpj', {
+      method: 'POST', body: JSON.stringify({ nivel, mensagem, cnpj })
+    });
+  } catch { /* log é melhor-esforço */ }
+}
+
 async function buscarCnpj() {
   const el = $('#f-cnpj');
   const cnpj = (el.value || '').replace(/\D/g, '');
@@ -10444,22 +10485,28 @@ async function buscarCnpj() {
   const txt = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   try {
-    let r;
-    try {
-      r = await fetch('https://brasilapi.com.br/api/cnpj/v1/' + cnpj);
-    } catch {
-      throw new Error('Não foi possível conectar à Receita — verifique sua internet ' +
-        '(ou se algum firewall/bloqueador de anúncios está impedindo o acesso a brasilapi.com.br).');
+    let resp = await consultarCnpjProvedor('https://brasilapi.com.br/api/cnpj/v1/', cnpj);
+    // Só vale tentar o provedor alternativo quando o problema é de
+    // DISPONIBILIDADE (rede/instabilidade/limite de consultas) — nunca
+    // quando o CNPJ em si é inválido ou não existe, porque aí o segundo
+    // provedor ia dar o mesmo resultado.
+    if (!resp.ok && resp.status !== 400 && resp.status !== 404) {
+      const falhaPrimario = mensagemErroCnpj(resp);
+      const alt = await consultarCnpjProvedor('https://minhareceita.org/', cnpj);
+      if (alt.ok) {
+        resp = alt;
+        logConsultaCnpjFalha('aviso',
+          `BrasilAPI falhou (${falhaPrimario}) — usado o provedor alternativo ` +
+          '(Minha Receita) com sucesso.', cnpj);
+      }
     }
-    if (!r.ok) {
-      let msg = null;
-      try { msg = (await r.json()).message; } catch {}
-      if (r.status === 404) throw new Error('CNPJ não encontrado na base da Receita.');
-      if (r.status === 400) throw new Error(msg || 'CNPJ inválido — confira os dígitos digitados.');
-      if (r.status === 429) throw new Error('Muitas consultas em sequência — aguarde alguns segundos e tente de novo.');
-      throw new Error(`A consulta da Receita está indisponível no momento (erro ${r.status}) — tente novamente em instantes.`);
+    if (!resp.ok) {
+      const mensagem = mensagemErroCnpj(resp);
+      // CNPJ inválido/não encontrado não é falha de sistema — não loga.
+      if (resp.status !== 400 && resp.status !== 404) logConsultaCnpjFalha('erro', mensagem, cnpj);
+      throw new Error(mensagem);
     }
-    const d = await r.json();
+    const d = resp.dados;
     // Preenche o que veio (sem sobrescrever com vazio)
     const set = (id, val) => { if (val) $(id).value = val; };
     set('#f-razao', d.razao_social);
