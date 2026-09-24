@@ -337,11 +337,11 @@ public static class BalancaEndpoints
         g.MapPut("/{id:guid}", async (Guid id, BalancaRequest req,
             ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
         {
-            if (!Tenant.EhGestor(user)) return Results.Forbid();
+            await using var conn = await Tenant.AbrirConexao(ds, user);
+            if (!await Tenant.PodeCriarBalanca(conn, user)) return Results.Forbid();
             var erro = Validar(req);
             if (erro is not null) return Results.BadRequest(new { erro });
 
-            await using var conn = await Tenant.AbrirConexao(ds, user);
             try
             {
             var n = await conn.ExecuteAsync("""

@@ -10652,8 +10652,8 @@ function htmlBalancas(lista, clienteId) {
         <span class="dica">${linha2}</span>
       </span>
       <span class="acoes">
-        <button class="btn-mini"
-          onclick='formBalanca("${clienteId}", ${JSON.stringify(b)})'>✏️</button>
+        ${podeCriarBalanca() ? `<button class="btn-mini"
+          onclick='formBalanca("${clienteId}", ${JSON.stringify(b)})'>✏️</button>` : ''}
       </span>
     </div>`;
   }).join('');

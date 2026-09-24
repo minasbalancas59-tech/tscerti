@@ -38,6 +38,9 @@ public static class Tenant
             new { id = UsuarioId(user) });
     }
 
+    /// <summary>Gestor sempre pode; técnico depende da permissão no cadastro.
+    /// Diferente de PodeCriarCliente: aqui cobre CRIAR e EDITAR balança
+    /// (24/09/2026) — excluir/ativar-inativar seguem restritos a gestor.</summary>
     public static async Task<bool> PodeCriarBalanca(NpgsqlConnection conn, ClaimsPrincipal user)
     {
         if (EhGestor(user)) return true;
