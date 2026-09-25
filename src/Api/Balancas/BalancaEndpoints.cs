@@ -14,6 +14,7 @@ public record BalancaRequest(string Identificacao, string Tipo, string? Marca,
 
 public record FaixaReq(decimal LimiteSup, decimal DivisaoE);
 public record FaixasRequest(List<FaixaReq> Faixas);
+public record PontoTrabalhoRequest(decimal PontoTrabalho);
 
 public static class BalancaEndpoints
 {
@@ -296,6 +297,13 @@ public static class BalancaEndpoints
                         return Results.BadRequest(new { erro = "Limite e divisão das faixas devem ser positivos." });
                     if (i > 0 && faixas[i].LimiteSup <= faixas[i - 1].LimiteSup)
                         return Results.BadRequest(new { erro = "Os limites das faixas devem estar em ordem crescente." });
+                    // Defesa contra digitar a divisão errada (ex. "2" em vez de
+                    // "0,002") — uma balança real sempre tem muito mais que 50
+                    // divisões até o limite de cada faixa (Minas Balanças, 24/09/2026).
+                    if (faixas[i].LimiteSup / faixas[i].DivisaoE < 50)
+                        return Results.BadRequest(new { erro =
+                            $"A divisão ({faixas[i].DivisaoE}) parece grande demais para o limite " +
+                            $"da faixa ({faixas[i].LimiteSup}) — confira se não faltou uma vírgula." });
                 }
                 if (Math.Abs(faixas[^1].LimiteSup - capacidade.Value) > 0.0000001m)
                     return Results.BadRequest(new { erro =
@@ -319,9 +327,34 @@ public static class BalancaEndpoints
 
             await Auditoria.Registrar(conn, empresaId, Tenant.UsuarioId(user),
                 "balanca", id, "faixas", new { faixas }, Auditoria.Ip(ctx));
-            return Results.Ok(new { ok = true, total = faixas.Count });
+            var afetados = await CertificadosAbertos(conn, id);
+            return Results.Ok(new { ok = true, total = faixas.Count, certificadosAfetados = afetados });
         });
 
+        // ── Ponto de trabalho (carga máxima que será de fato testada,
+        //    pode ser menor que a capacidade nominal) — perguntado ao
+        //    técnico na primeira calibração, só quando a empresa liga
+        //    "usar ponto de trabalho" em Configurações → Conformidade.
+        //    Minas Balanças, 25/09/2026. ──
+        g.MapPut("/{id:guid}/ponto-trabalho", async (Guid id, PontoTrabalhoRequest req,
+            ClaimsPrincipal user, NpgsqlDataSource ds, HttpContext ctx) =>
+        {
+            await using var conn = await Tenant.AbrirConexao(ds, user);
+            var capacidade = await conn.ExecuteScalarAsync<decimal?>(
+                "SELECT capacidade FROM balanca WHERE id=@id", new { id });
+            if (capacidade is null) return Results.NotFound();
+            if (req.PontoTrabalho <= 0 || req.PontoTrabalho > capacidade)
+                return Results.BadRequest(new { erro =
+                    $"O ponto de trabalho deve estar entre 0 e a capacidade da balança ({capacidade.Value})." });
+
+            await conn.ExecuteAsync(
+                "UPDATE balanca SET ponto_trabalho = @pt WHERE id=@id",
+                new { id, pt = req.PontoTrabalho });
+
+            await Auditoria.Registrar(conn, Tenant.EmpresaId(user), Tenant.UsuarioId(user),
+                "balanca", id, "ponto_trabalho", req, Auditoria.Ip(ctx));
+            return Results.Ok(new { ok = true, pontoTrabalho = req.PontoTrabalho });
+        });
 
         g.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, NpgsqlDataSource ds) =>
         {
@@ -367,7 +400,8 @@ public static class BalancaEndpoints
 
             await Auditoria.Registrar(conn, Tenant.EmpresaId(user),
                 Tenant.UsuarioId(user), "balanca", id, "update", req, Auditoria.Ip(ctx));
-            return Results.Ok(new { id });
+            var afetados = await CertificadosAbertos(conn, id);
+            return Results.Ok(new { id, certificadosAfetados = afetados });
             }
             // Mesmo tratamento do cadastro novo: sem isto, editar uma balança
             // para um número de série que já existe no cliente estourava o erro
@@ -399,6 +433,20 @@ public static class BalancaEndpoints
         });
     }
 
+    /// <summary>Certificados desta balança ainda em andamento (rascunho ou
+    /// aguardando aprovação) — usado pra avisar quem edita a balança que
+    /// esses certificados podem ter ficado com dado antigo e precisam ser
+    /// excluídos e refeitos (Minas Balanças, 24/09/2026).</summary>
+    private static Task<IEnumerable<dynamic>> CertificadosAbertos(NpgsqlConnection conn, Guid balancaId) =>
+        conn.QueryAsync("""
+            SELECT ct.id, ct.numero, ct.status, u.nome AS tecnico
+              FROM certificado ct
+              JOIN usuario u ON u.id = ct.tecnico_id
+             WHERE ct.balanca_id = @balancaId
+               AND ct.status IN ('rascunho', 'aguardando_aprovacao')
+             ORDER BY ct.status, ct.numero
+            """, new { balancaId });
+
     private static string? Validar(BalancaRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Identificacao))
@@ -411,6 +459,12 @@ public static class BalancaEndpoints
         if (req.DivisaoE <= 0) return "Divisão (e) deve ser maior que zero.";
         if (req.DivisaoE >= req.Capacidade)
             return "Divisão (e) deve ser menor que a capacidade.";
+        // Defesa contra digitar a divisão errada (ex. "2" em vez de "0,002")
+        // — uma balança real sempre tem muito mais que 50 divisões até a
+        // capacidade máxima (Minas Balanças, 24/09/2026).
+        if (req.Capacidade / req.DivisaoE < 50)
+            return $"A divisão ({req.DivisaoE}) parece grande demais para a capacidade " +
+                   $"({req.Capacidade}) — confira se não faltou uma vírgula.";
         // Em multi-intervalo o d não se aplica (cada faixa tem seu e); em
         // escala única ele é obrigatório e o certificado sempre o declara.
         if (!req.MultiIntervalo)

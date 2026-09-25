@@ -31,6 +31,7 @@ public record ConfigEmpresaRequest(
     // Instrução de calibração (IT + revisão) — fixa por empresa, usada no Modelo 4
     string? InstrucaoIt = null, string? InstrucaoRev = null,
     bool? UsarIncertezaDeclaradaPesos = null,
+    bool? UsarPontoTrabalho = null,
     // Parâmetros de coleta e cálculo RBC (ISO/IEC 17025)
     int? RbcNumLeituras = null, int? RbcNumPosicoesExc = null,
     decimal? RbcFatorSub = null,
@@ -141,7 +142,8 @@ public static class EmpresaConfigEndpoints
                          rbc_temp_umid_inicio_fim,
                          metodo_calibracao_rbc AS "MetodoCalibracaoRbc",
                          texto_rodape_rbc AS "TextoRodapeRbc",
-                         instrucao_it, instrucao_rev, usar_incerteza_declarada_pesos
+                         instrucao_it, instrucao_rev, usar_incerteza_declarada_pesos,
+                         usar_ponto_trabalho
                   FROM empresa WHERE id = @id
                 """, new { id = Tenant.EmpresaId(user) });
             return cfg is null ? Results.NotFound() : Results.Ok(cfg);
@@ -200,6 +202,7 @@ public static class EmpresaConfigEndpoints
                     instrucao_it = @InstrucaoIt,
                     instrucao_rev = @InstrucaoRev,
                     usar_incerteza_declarada_pesos = COALESCE(@UsarIncertezaDeclaradaPesos, usar_incerteza_declarada_pesos),
+                    usar_ponto_trabalho = COALESCE(@UsarPontoTrabalho, usar_ponto_trabalho),
                     num_acreditacao = @NumAcreditacao,
                     rbc_num_leituras = COALESCE(@RbcNumLeituras, rbc_num_leituras),
                     rbc_num_posicoes_exc = COALESCE(@RbcNumPosicoesExc, rbc_num_posicoes_exc),
@@ -221,6 +224,7 @@ public static class EmpresaConfigEndpoints
                     req.Acreditada, req.NumAcreditacao, req.MarcaSistemaPdf,
                     req.LogoLargura, req.LogoAltura, req.LogoAlinhamento,
                     req.InstrucaoIt, req.InstrucaoRev, req.UsarIncertezaDeclaradaPesos,
+                    req.UsarPontoTrabalho,
                     req.RbcNumLeituras, req.RbcNumPosicoesExc, req.RbcFatorSub,
                     req.RbcTempUmidInicioFim,
                     req.MetodoCalibracaoRbc, req.TextoRodapeRbc

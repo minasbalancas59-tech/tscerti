@@ -24,14 +24,27 @@ public static class CertificadoEndpoints
                 SELECT b.id, b.identificacao, b.tipo, b.capacidade, b.divisao_e,
                        b.divisao_d, b.classe_exatidao, b.unidade, b.numero_inmetro,
                        b.patrimonio, b.marca, b.modelo, b.num_serie,
-                       b.faz_excentricidade, b.faz_sensibilidade,
+                       b.faz_excentricidade, b.faz_sensibilidade, b.ponto_trabalho,
                        c.razao_social AS cliente
                   FROM balanca b JOIN cliente c ON c.id = b.cliente_id
                  WHERE b.id = @id
                 """, new { id });
             if (b is null) return Results.NotFound();
 
-            decimal cap = b.capacidade, e = b.divisao_e;
+            // Config buscada aqui em cima (não onde estava antes) porque
+            // "cap" já depende de usar_ponto_trabalho pra decidir o alvo
+            // da sugestão (Minas Balanças, 25/09/2026).
+            var config = await conn.QuerySingleOrDefaultAsync("""
+                SELECT usa_excentricidade, usa_repetibilidade, num_repeticoes,
+                       exige_temp_umidade, exige_lacre_selo, fator_abrangencia,
+                       titulo_documento, usa_ajuste, usar_ponto_trabalho
+                  FROM empresa WHERE id = @empresaId
+                """, new { empresaId = Tenant.EmpresaId(user) });
+
+            bool usarNovo = config?.usar_ponto_trabalho ?? false;
+            decimal? pontoTrabalho = b.ponto_trabalho;
+            decimal cap = usarNovo ? (pontoTrabalho ?? (decimal)b.capacidade) : (decimal)b.capacidade;
+            decimal e = b.divisao_e;
 
             // ── Balança RODOVIÁRIA (regra do João, 09/08/2026) ──
             // Indicação: 11 pontos fixos = carga mínima (20·e) + 1.000 a
@@ -64,15 +77,23 @@ public static class CertificadoEndpoints
 
             if (rodoviaria)
             {
-                indicacaoSugerida = cargasRodoviaria;
-                cargaSensibilidade = 10000m;
+                // Com "usar ponto de trabalho" ligado, a rodoviária deixa de ter
+                // uma sugestão fixa (sempre 1.000-10.000kg, ignorando a
+                // capacidade/ponto real) e passa a usar a mesma regra redonda das
+                // demais balanças — sensibilidade também mira o alvo real, não
+                // mais um valor fixo de 10.000 (Minas Balanças, 25/09/2026).
+                indicacaoSugerida = usarNovo
+                    ? Metrologia.SugerirCargasRedondo(cap, e, (string)b.classe_exatidao)
+                    : cargasRodoviaria;
+                cargaSensibilidade = usarNovo ? cap : 10000m;
                 (posicoes, cargaExc) = Metrologia.SugerirExcentricidade((string)b.tipo, cap, e);
                 cargaRepetibilidade = Metrologia.CargaMeioFundo(cap, e);
             }
             else if (multi)
             {
-                indicacaoSugerida = Metrologia.SugerirCargasIndicacaoMulti(
-                    faixasTuplas, cap, (string)b.classe_exatidao);
+                indicacaoSugerida = usarNovo
+                    ? Metrologia.SugerirCargasRedondo(cap, e, (string)b.classe_exatidao, faixasTuplas)
+                    : Metrologia.SugerirCargasIndicacaoMulti(faixasTuplas, cap, (string)b.classe_exatidao);
                 cargaSensibilidade = null;
                 (posicoes, cargaExc) = Metrologia.SugerirExcentricidadeMulti(
                     (string)b.tipo, faixasTuplas, cap);
@@ -80,18 +101,14 @@ public static class CertificadoEndpoints
             }
             else
             {
-                indicacaoSugerida = Metrologia.SugerirCargasIndicacao(cap, e, (string)b.classe_exatidao);
+                indicacaoSugerida = usarNovo
+                    ? Metrologia.SugerirCargasRedondo(cap, e, (string)b.classe_exatidao)
+                    : Metrologia.SugerirCargasIndicacao(cap, e, (string)b.classe_exatidao);
                 cargaSensibilidade = null;
                 (posicoes, cargaExc) = Metrologia.SugerirExcentricidade((string)b.tipo, cap, e);
                 cargaRepetibilidade = Metrologia.CargaMeioFundo(cap, e);
             }
 
-            var config = await conn.QuerySingleOrDefaultAsync("""
-                SELECT usa_excentricidade, usa_repetibilidade, num_repeticoes,
-                       exige_temp_umidade, exige_lacre_selo, fator_abrangencia,
-                       titulo_documento, usa_ajuste
-                  FROM empresa WHERE id = @empresaId
-                """, new { empresaId = Tenant.EmpresaId(user) });
             int nRep = config?.num_repeticoes ?? 3;
 
             // Casas decimais de exibição: usa a MENOR divisão relevante.
@@ -1278,6 +1295,11 @@ public static class CertificadoEndpoints
 
             if (d.TryGetProperty("excentricidade", out var ej))
             {
+                // Defesa dupla, mesmo padrão da sensibilidade mais abaixo: a
+                // carga de excentricidade não pode ultrapassar a capacidade
+                // máxima da balança (Minas Balanças, 24/09/2026).
+                var capacidadeExc = (decimal)ct.capacidade;
+
                 // Referência: a leitura do CENTRO (o erro é a variação entre
                 // posições, não a diferença para a carga nominal)
                 decimal? indCentro = null;
@@ -1299,6 +1321,10 @@ public static class CertificadoEndpoints
                                 "Há ponto de excentricidade com indicação mas sem carga. Preencha a carga ou limpe a linha." });
                         decimal carga = xcg.GetDecimal(),
                                 ind = xi.GetDecimal();
+                        if (carga > capacidadeExc)
+                            return Results.BadRequest(new { erro =
+                                $"A carga de excentricidade ({carga}) ultrapassa a capacidade máxima " +
+                                $"da balança ({capacidadeExc}). Corrija antes de enviar." });
                         // Leitura "antes do ajuste" (opcional; só quando houve ajuste)
                         decimal? antesX = x.TryGetProperty("indicacaoAntes", out var xan)
                             && xan.ValueKind == JsonValueKind.Number ? xan.GetDecimal() : (decimal?)null;

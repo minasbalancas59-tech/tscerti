@@ -497,7 +497,7 @@ async function irPainel() {
   $('#btn-relatorios').style.display = gestor ? '' : 'none';
   $('#busca-equip').style.display = gestor ? '' : 'none';
   $('#filtro-cliente-tec').style.display = gestor ? 'none' : '';
-  if (gestor) { renderGraficos(graficosDias); avisoContrato(); cardPlano(); avisoPesosPadrao(); avisoBackupEmpresa(); avisoPortalFiliais(); }
+  if (gestor) { renderGraficos(graficosDias); avisoContrato(); cardPlano(); avisoPesosPadrao(); avisoBackupEmpresa(); avisoPortalFiliais(); avisoPontoTrabalho(); }
   guiaPrimeirosPassos();
   const certs = await api('/certificados');
   certsPainelCache = certs;
@@ -606,6 +606,49 @@ function avisoPortalFiliais() {
         color:#43607f;text-decoration:underline"
         onclick="localStorage.setItem('aviso_portal_filiais_visto','1');
                  this.closest('#aviso-portal-filiais').remove()">Entendi, não mostrar de novo</button>
+    </div>`;
+  const ref = document.getElementById('guia-passos')
+    || document.getElementById('painel-graficos');
+  (ref?.parentNode || document.getElementById('tela-painel'))
+    ?.insertBefore(div, ref || null);
+}
+
+// ── Aviso: ponto de trabalho nas cargas sugeridas (Minas Balanças,
+//    25/09/2026) ── Novidade única, some pra sempre ao clicar — mesmo
+//    padrão de avisoPortalFiliais.
+function avisoPontoTrabalho() {
+  document.getElementById('aviso-ponto-trabalho')?.remove();
+  if (localStorage.getItem('aviso_ponto_trabalho_visto')) return;
+
+  const div = document.createElement('div');
+  div.id = 'aviso-ponto-trabalho';
+  div.style.cssText = 'margin:0 0 12px;padding:12px 16px;border-radius:10px;' +
+    'background:#eef3f8;border:1px solid #5a718333';
+  div.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:18px">🎯</span>
+      <div style="flex:1;font-size:13px;color:#43607f">
+        <b>Novidade: ponto de trabalho nas cargas sugeridas.</b> Cargas
+        sugeridas quebradas (tipo 37,60kg em vez de 40kg) e sugestão
+        mirando sempre a capacidade cheia da balança, mesmo quando não há
+        peso-padrão suficiente pra chegar lá — isso agora é opcional de
+        corrigir.
+        <ol style="margin:8px 0 6px;padding-left:18px">
+          <li>Vá em <b>Cadastros → Configurações → aba Conformidade</b>.</li>
+          <li>Marque <b>"Usar ponto de trabalho nas cargas sugeridas"</b> e
+            salve.</li>
+          <li>Na primeira calibração de cada balança, o sistema pergunta até
+            que carga ela será testada de verdade (pode ser menor que a
+            capacidade) — as sugestões passam a usar números redondos,
+            mirando esse valor. Vale também pra balança rodoviária.</li>
+        </ol>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:4px">
+      <button style="background:none;border:0;cursor:pointer;font-size:13px;
+        color:#43607f;text-decoration:underline"
+        onclick="localStorage.setItem('aviso_ponto_trabalho_visto','1');
+                 this.closest('#aviso-ponto-trabalho').remove()">Entendi, não mostrar de novo</button>
     </div>`;
   const ref = document.getElementById('guia-passos')
     || document.getElementById('painel-graficos');
@@ -11171,12 +11214,52 @@ async function salvarBalanca(clienteId, id) {
       method: id ? 'PUT' : 'POST', body: JSON.stringify(corpo) });
     // salva as faixas (o backend substitui as existentes)
     const balancaId = id || salva?.id;
+    let afetados = salva?.certificadosAfetados || [];
     if (balancaId) {
-      await api('/balancas/' + balancaId + '/faixas', {
+      const salvaFaixas = await api('/balancas/' + balancaId + '/faixas', {
         method: 'PUT', body: JSON.stringify({ faixas: multi ? faixas : [] }) });
+      // combina os afetados dos 2 saves (dados principais + faixas), sem repetir
+      const vistos = new Set(afetados.map(c => c.id));
+      for (const c of (salvaFaixas?.certificadosAfetados || []))
+        if (!vistos.has(c.id)) { afetados.push(c); vistos.add(c.id); }
     }
     detalheCliente(clienteId);
+    if (afetados.length > 0) avisarCertificadosAfetados(corpo.identificacao, afetados);
   } catch (e) { $('#f-erro').textContent = e.message; }
+}
+
+// Avisa quem editou a balança que existem certificados dela ainda em
+// andamento (rascunho/aguardando aprovação) — o dado já digitado neles
+// pode ter sido calculado com a configuração ANTIGA da balança (carga
+// sugerida, arredondamento por faixa etc.) e não é recalculado sozinho.
+// Minas Balanças, 24/09/2026.
+function avisarCertificadosAfetados(nomeBalanca, lista) {
+  const m = document.createElement('div');
+  m.className = 'modal-fundo';
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  const linhas = lista.map(c => `
+    <div class="item-cert" style="cursor:pointer"
+      onclick="abrirCert('${c.id}', '${c.status}'); this.closest('.modal-fundo').remove();">
+      <span><b>${esc(c.numero || '(sem número ainda)')}</b>
+        ${c.status === 'rascunho' ? '<span class="badge">rascunho</span>'
+          : '<span class="badge aviso">aguardando aprovação</span>'}<br>
+        <span class="dica">Técnico: ${esc(c.tecnico)}</span>
+      </span>
+    </div>`).join('');
+  m.innerHTML = `
+    <div class="modal-caixa" style="max-width:480px">
+      <h3 style="margin-bottom:6px">⚠️ Certificados afetados por esta edição</h3>
+      <p class="dica" style="margin-bottom:12px">
+        Você editou <b>${esc(nomeBalanca)}</b>. ${lista.length} certificado(s) dessa
+        balança ainda em andamento podem ter dados calculados com a configuração
+        <b>antiga</b> (carga sugerida, arredondamento por faixa). Para evitar erro,
+        <b>exclua e refaça</b> cada um listado abaixo — clique pra abrir:
+      </p>
+      ${linhas}
+      <button class="btn-mini" style="width:100%;margin-top:14px"
+        onclick="this.closest('.modal-fundo').remove()">Entendi</button>
+    </div>`;
+  document.body.appendChild(m);
 }
 
 // ── Pesos padrão ────────────────────────────────────────────────
@@ -11705,6 +11788,13 @@ async function renderConfig() {
       <p class="dica" style="margin-top:-4px">Vale só para o certificado de conformidade — o RBC
         já usa sempre o valor real. Peso sem a incerteza cadastrada continua caindo na
         aproximação por classe, mesmo com esta opção ligada.</p>
+      <label class="chk"><input type="checkbox" id="cf-ponto-trab" ${sim(c.usar_ponto_trabalho)}>
+        Usar ponto de trabalho nas cargas sugeridas</label>
+      <p class="dica" style="margin-top:-4px">Na primeira calibração de cada balança, pergunta
+        até que carga ela será realmente testada (pode ser menor que a capacidade nominal, quando
+        não há peso-padrão suficiente pra chegar no limite do equipamento). As cargas sugeridas
+        passam a usar números mais redondos, mirando esse ponto em vez da capacidade cheia — vale
+        também pra balança rodoviária. Desligado (padrão) = comportamento de sempre.</p>
     </div>
 
     <div class="card">
@@ -11929,6 +12019,7 @@ async function salvarConfig() {
     acreditada: $('#cf-acreditada').checked,
     numAcreditacao: $('#cf-numacred').value || null,
     usarIncertezaDeclaradaPesos: $('#cf-incerteza-declarada')?.checked ?? false,
+    usarPontoTrabalho: $('#cf-ponto-trab')?.checked ?? false,
     marcaSistemaPdf: $('#cf-marca-sistema')?.checked ?? true,
     numAutorizacao: $('#cf-numautoriz')?.value || null,
     rbcNumLeituras: Number($('#cf-rbc-leituras')?.value) || null,
@@ -12763,6 +12854,44 @@ function escolherBalanca(id) {
   $('#balanca-escolhida').innerHTML = `✓ ${esc(b.identificacao)} <span class="dica">· ${descreverBalanca(b)}</span>`;
 }
 
+// Pergunta o ponto de trabalho na primeira calibração de uma balança
+// (Minas Balanças, 25/09/2026) — reaproveita o modal genérico do RBC
+// (abrirModalRbcGenerico, já global/carregado por rbc.js). Esse modal não
+// tem callback de "cancelar" próprio, só um botão que remove o elemento —
+// por isso observamos o modal sumir do DOM: se sumiu sem confirmar
+// (Cancelar ou clique fora), resolve com null (não salva nada, pergunta de
+// novo na próxima vez); confirmando, resolve com o valor digitado (ou a
+// própria capacidade, se o campo ficar vazio/inválido).
+function pedirPontoTrabalho(balanca) {
+  return new Promise(resolve => {
+    const un = normUnid(balanca.unidade) || 'kg';
+    const corpo = `
+      <p class="dica">Até que carga esta balança será realmente testada? Pode ser
+        menor que a capacidade, se não houver peso-padrão suficiente pra chegar no
+        limite do equipamento. Fica salvo pra não perguntar de novo.</p>
+      <label>Ponto de trabalho (${esc(un)})
+        <input type="number" step="any" inputmode="decimal" id="pt-trab-input"
+          value="${balanca.capacidade}" class="wiz-campo"></label>`;
+    let respondido = false;
+    abrirModalRbcGenerico('Ponto de trabalho', corpo, () => {
+      respondido = true;
+      const v = Number(String(document.getElementById('pt-trab-input')?.value).replace(',', '.'));
+      resolve(v > 0 && v <= Number(balanca.capacidade) ? v : Number(balanca.capacidade));
+    }, 'Confirmar');
+
+    const modais = document.querySelectorAll('.modal-fundo');
+    const modal = modais[modais.length - 1];
+    if (!modal) { resolve(null); return; }
+    const obs = new MutationObserver(() => {
+      if (!document.body.contains(modal)) {
+        obs.disconnect();
+        if (!respondido) resolve(null);
+      }
+    });
+    obs.observe(document.body, { childList: true });
+  });
+}
+
 async function iniciarEnsaio() {
   const clienteId = $('#sel-cliente').value, balancaId = $('#sel-balanca').value;
   if (!clienteId || !balancaId) {
@@ -12787,9 +12916,9 @@ async function iniciarEnsaio() {
     window._clienteEnsaio = clienteId;   // usado pelo seletor de endereço
 
     // Oferece aproveitar as cargas do último certificado desta balança
-    let base = null;
+    let base = null, u = null;
     try {
-      const u = await api('/balancas/' + balancaId + '/ultimo-plano', { opcional: true });
+      u = await api('/balancas/' + balancaId + '/ultimo-plano', { opcional: true });
       if (u && u.cargas && u.cargas.length > 0 &&
           await modalConfirmar('Aproveitar último ensaio?',
             `Esta balança já tem o certificado ${u.numero}.\n\n` +
@@ -12807,6 +12936,21 @@ async function iniciarEnsaio() {
         };
       }
     } catch (e) { /* sem certificado anterior: segue o fluxo normal */ }
+
+    // Primeira calibração desta balança (nunca teve certificado emitido) +
+    // empresa com "usar ponto de trabalho" ligado (Configurações →
+    // Conformidade, só vale pro fluxo normal, não pro RBC, que já tem seu
+    // próprio ponto de trabalho por certificado) + ainda sem valor salvo
+    // nesta balança: pergunta uma vez, fica salvo pras próximas.
+    // Minas Balanças, 25/09/2026.
+    if (!u && !window._ensaioRbc && plano.config?.usar_ponto_trabalho && !plano.balanca.ponto_trabalho) {
+      const pt = await pedirPontoTrabalho(plano.balanca);
+      if (pt != null) {
+        await api('/balancas/' + balancaId + '/ponto-trabalho', {
+          method: 'PUT', body: JSON.stringify({ pontoTrabalho: pt }) });
+        plano = await api('/balancas/' + balancaId + '/plano-ensaio');
+      }
+    }
     if (window._ensaioRbc) montarTelaEnsaioRbc(); else montarTelaEnsaio(base);
   } catch (e) {
     $('#nova-erro').textContent = e.message;

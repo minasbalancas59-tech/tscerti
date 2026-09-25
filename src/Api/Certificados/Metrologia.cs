@@ -90,6 +90,57 @@ public static class Metrologia
     }
 
     /// <summary>
+    /// Cargas sugeridas em degraus REDONDOS (não em frações exatas de
+    /// 25/50/75%, que ficam "quebradas" sempre que a capacidade não é
+    /// múltiplo de 4 — ex. 150kg gera 37,5/112,5). O degrau é
+    /// alvoMax/4, arredondado pra unidade da própria ordem de grandeza
+    /// (37,5 -> 40; 12,5 -> 10; 15000 -> 20000), depois cada ponto é
+    /// ajustado pro "e" certo (por faixa, se multi-intervalo). Usada só
+    /// quando a empresa liga "usar ponto de trabalho" (Configurações →
+    /// Conformidade) — com a config desligada, o sistema continua
+    /// usando SugerirCargasIndicacao/Multi normalmente, sem nenhuma
+    /// mudança de comportamento (Minas Balanças, 25/09/2026).
+    /// alvoMax é a capacidade OU o ponto de trabalho da balança, quando
+    /// definido — quem chama decide qual passar.
+    /// </summary>
+    public static List<decimal> SugerirCargasRedondo(decimal alvoMax, decimal eOuPadrao,
+        string? classe, List<(decimal limiteKg, decimal eKg)>? faixas = null)
+    {
+        var passoBase = eOuPadrao * 10; if (passoBase <= 0) passoBase = 1m;
+        var ideal = alvoMax / 4m; if (ideal <= 0) ideal = alvoMax;
+        var mag = 1m;
+        while (mag * 10m <= ideal) mag *= 10m;
+        var degrau = Math.Round(ideal / mag, MidpointRounding.AwayFromZero) * mag;
+        if (degrau <= 0) degrau = mag;
+        if (degrau < passoBase) degrau = passoBase;
+
+        var pontos = new List<decimal>();
+        for (var k = degrau; k < alvoMax; k += degrau)
+        {
+            var eLocal = eOuPadrao;
+            if (faixas is { Count: > 0 })
+            {
+                var faixaDoPonto = faixas.FirstOrDefault(f => k <= f.limiteKg);
+                eLocal = faixaDoPonto.eKg > 0 ? faixaDoPonto.eKg : faixas[^1].eKg;
+            }
+            var passoLocal = eLocal * 10; if (passoLocal <= 0) passoLocal = 1m;
+            pontos.Add(Math.Round(k / passoLocal, MidpointRounding.AwayFromZero) * passoLocal);
+        }
+        pontos.Add(alvoMax);
+        var dedup = pontos.Distinct().OrderBy(x => x).ToList();
+
+        var eMinBase = faixas is { Count: > 0 } ? faixas[0].eKg : eOuPadrao;
+        var mult = classe switch { "I" => 100m, "II" => 50m, "III" => 20m, "IIII" => 10m, _ => 20m };
+        var cargaMin = mult * eMinBase;
+        if (cargaMin > 0 && cargaMin < alvoMax)
+        {
+            dedup = dedup.Where(c => c > cargaMin).ToList();
+            dedup.Insert(0, cargaMin);
+        }
+        return dedup;
+    }
+
+    /// <summary>
     /// Carga de repetibilidade (~50% da capacidade) para MULTI-INTERVALO:
     /// arredonda pelo "e" da faixa onde essa carga cai, não pelo "e" único.
     /// </summary>
@@ -100,7 +151,10 @@ public static class Metrologia
         var eDaCarga = faixas.FirstOrDefault(f => metade <= f.limiteKg).eKg;
         if (eDaCarga <= 0) eDaCarga = faixas[^1].eKg;
         var passo = eDaCarga * 10; if (passo <= 0) passo = eDaCarga > 0 ? eDaCarga : 1;
-        var carga = Math.Round(metade / passo) * passo;
+        // AwayFromZero: um caso de meio-a-meio (ex. metade/passo = 0,5) não pode
+        // arredondar pra 0 e cair no fallback de carga inválida (Minas
+        // Balanças, 24/09/2026).
+        var carga = Math.Round(metade / passo, MidpointRounding.AwayFromZero) * passo;
         return carga <= 0 ? passo : carga;
     }
 
@@ -120,7 +174,7 @@ public static class Metrologia
         var eDaCarga = faixas.FirstOrDefault(f => umTerco <= f.limiteKg).eKg;
         if (eDaCarga <= 0) eDaCarga = faixas[^1].eKg;
         var passo = eDaCarga * 10; if (passo <= 0) passo = eDaCarga > 0 ? eDaCarga : 1;
-        var carga = Math.Round(umTerco / passo) * passo;
+        var carga = Math.Round(umTerco / passo, MidpointRounding.AwayFromZero) * passo;
         if (carga <= 0) carga = passo;
         return (posicoes, carga);
     }
@@ -131,7 +185,7 @@ public static class Metrologia
     {
         var metade = capacidade / 2m;
         var passo = e * 10; if (passo <= 0) passo = e > 0 ? e : 1;
-        var carga = Math.Round(metade / passo) * passo;
+        var carga = Math.Round(metade / passo, MidpointRounding.AwayFromZero) * passo;
         return carga <= 0 ? passo : carga;
     }
 
@@ -149,7 +203,7 @@ public static class Metrologia
         // arredondada ao múltiplo de 10·e mais próximo para cair "redonda".
         var umTerco = capacidade / 3m;
         var passo = e * 10; if (passo <= 0) passo = e > 0 ? e : 1;
-        var carga = Math.Round(umTerco / passo) * passo;
+        var carga = Math.Round(umTerco / passo, MidpointRounding.AwayFromZero) * passo;
         if (carga <= 0) carga = passo;
         return (posicoes, carga);
     }
