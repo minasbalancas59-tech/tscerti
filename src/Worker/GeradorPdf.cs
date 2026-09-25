@@ -1723,63 +1723,110 @@ public static class GeradorPdf
                     // cinco posições e três diagramas, que ficavam apertados
                     // espremidos em meia página. João, 01/09/2026.
                     Titulo("E N S A I O S");
-                    col.Item().Border(0.5f).BorderColor(borda).Row(row =>
+                    col.Item().Border(0.5f).BorderColor(borda).Column(outer =>
                     {
-                        // Sensibilidade (esquerda)
-                        row.RelativeItem().BorderRight(0.5f).BorderColor(borda).Column(c =>
+                        // Cabeçalhos lado a lado, na MESMA linha — assim o
+                        // Row garante que os dois blocos saiam com altura
+                        // idêntica, mesmo que "SENSIBILIDADE (MOBILIDADE)"
+                        // quebre em 2 linhas e "REPETIBILIDADE" não.
+                        outer.Item().Row(hrow =>
                         {
-                            c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
-                             .Padding(1.5f).AlignCenter().Text("SENSIBILIDADE (MOBILIDADE)").FontSize(6).Bold();
+                            hrow.RelativeItem().BorderRight(0.5f).BorderColor(borda)
+                                .Background(cinza).BorderBottom(0.5f).BorderColor(borda)
+                                .Padding(1.5f).AlignCenter().AlignMiddle()
+                                .Text("SENSIBILIDADE (MOBILIDADE)").FontSize(6).Bold();
+                            hrow.RelativeItem()
+                                .Background(cinza).BorderBottom(0.5f).BorderColor(borda)
+                                .Padding(2.5f).AlignCenter().AlignMiddle()
+                                .Text($"REPETIBILIDADE ({d.Unidade})").FontSize(6).Bold();
+                        });
+
+                        var temSens = d.Sensibilidade is not null;
+                        var temRep = d.Repetibilidade.Count > 0;
+
+                        // Sub-cabeçalho (rótulos das colunas) lado a lado, na
+                        // MESMA linha — garante que a régua embaixo dos
+                        // rótulos saia na EXATA mesma altura dos dois lados,
+                        // não importa a fonte/padding usados em cada um. Só
+                        // mostra rótulos do lado que realmente tem dado.
+                        outer.Item().Row(subrow =>
+                        {
+                            var sensCel = subrow.RelativeItem().BorderRight(0.5f).BorderColor(borda);
+                            if (temSens)
+                            {
+                                sensCel.Table(t =>
+                                {
+                                    t.ColumnsDefinition(x => { x.RelativeColumn(); x.RelativeColumn();
+                                        x.RelativeColumn(); x.RelativeColumn(); x.RelativeColumn(); });
+                                    void H(string s) => t.Cell().Background(cinza).BorderBottom(0.4f)
+                                        .BorderColor(borda).Padding(1.5f).AlignCenter().AlignMiddle()
+                                        .Text(s).FontSize(5).Bold();
+                                    H($"CARGA REF. ({d.Unidade})"); H($"ADIÇÃO 1e ({d.Unidade})");
+                                    H($"ESPERADO ({d.Unidade})"); H($"DISPLAY ({d.Unidade})"); H("SITUAÇÃO");
+                                });
+                            }
+                            var repCel = subrow.RelativeItem();
+                            if (temRep)
+                            {
+                                repCel.Table(t =>
+                                {
+                                    t.ColumnsDefinition(x =>
+                                    {
+                                        foreach (var _ in d.Repetibilidade) x.RelativeColumn();
+                                    });
+                                    var lista = d.Repetibilidade;
+                                    for (int i = 0; i < lista.Count; i++)
+                                    {
+                                        var divisor = i < lista.Count - 1;
+                                        (divisor ? t.Cell().BorderRight(0.4f).BorderColor(borda) : t.Cell())
+                                            .BorderBottom(0.4f).BorderColor(borda)
+                                            .Padding(1.5f).AlignCenter().AlignMiddle()
+                                            .Text($"{lista[i].Medicao}ª").FontSize(5f);
+                                    }
+                                });
+                            }
+                        });
+
+                        // Valores lado a lado, na MESMA linha — mesma lógica.
+                        outer.Item().Row(datarow =>
+                        {
+                            var sensCel = datarow.RelativeItem().BorderRight(0.5f).BorderColor(borda);
                             if (d.Sensibilidade is { } sn)
                             {
                                 var esp = sn.CargaReferencia + sn.Adicao;
                                 var tol = sn.Adicao > 0 ? sn.Adicao / 2m : 0.0000001m;
                                 var okS = Math.Abs(sn.ResultadoDisplay - esp) <= tol;
-                                c.Item().Table(t =>
+                                sensCel.Table(t =>
                                 {
                                     t.ColumnsDefinition(x => { x.RelativeColumn(); x.RelativeColumn();
                                         x.RelativeColumn(); x.RelativeColumn(); x.RelativeColumn(); });
-                                    void H(string s) => t.Cell().Background(cinza).BorderBottom(0.4f)
-                                        .BorderColor(borda).Padding(1.5f).AlignCenter().Text(s).FontSize(5).Bold();
-                                    void C(string s, string? fc = null) => t.Cell().BorderBottom(0.4f)
-                                        .BorderColor(borda).Padding(2f).AlignCenter().Text(s)
+                                    void C(string s, string? fc = null) => t.Cell()
+                                        .Padding(2f).AlignCenter().AlignMiddle().Text(s)
                                         .FontSize(8).FontColor(fc ?? "#1c2b33");
-                                    H($"CARGA REF. ({d.Unidade})"); H($"ADIÇÃO 1e ({d.Unidade})");
-                                    H($"ESPERADO ({d.Unidade})"); H($"DISPLAY ({d.Unidade})"); H("SITUAÇÃO");
                                     C(V(sn.CargaReferencia)); C(V(sn.Adicao)); C(V(esp)); C(V(sn.ResultadoDisplay));
                                     C(okS ? "Conforme" : "Não conforme", okS ? "#146c43" : "#b02a37");
                                 });
                             }
                             else
-                                c.Item().Padding(2).AlignCenter().Text(
+                                sensCel.Padding(2).AlignCenter().AlignMiddle().Text(
                                     d.FazSensibilidade ? "—" : "Não aplicável").FontSize(6.5f).Italic();
 
-                        });
-
-                        // Repetibilidade (direita)
-                        row.RelativeItem().Column(c =>
-                        {
-                            c.Item().Background(cinza).BorderBottom(0.5f).BorderColor(borda)
-                             .Padding(1.5f).AlignCenter().Text($"REPETIBILIDADE ({d.Unidade})").FontSize(6).Bold();
-                            if (d.Repetibilidade.Count > 0)
+                            var repCel = datarow.RelativeItem();
+                            if (temRep)
                             {
-                                // Grade de 2 colunas (1ª|3ª / 2ª|4ª …), como no formulário original
-                                c.Item().Table(t =>
+                                repCel.Table(t =>
                                 {
-                                    t.ColumnsDefinition(x => { x.ConstantColumn(14); x.RelativeColumn();
-                                        x.ConstantColumn(14); x.RelativeColumn(); });
-                                    var lista = d.Repetibilidade.ToList();
-                                    int metade = (lista.Count + 1) / 2;
-                                    for (int i = 0; i < metade; i++)
+                                    t.ColumnsDefinition(x =>
                                     {
-                                        void Cel(string s, bool num) => t.Cell().BorderBottom(0.4f)
-                                            .BorderRight(0.4f).BorderColor(borda).Padding(4f)
-                                            .AlignCenter().Text(s).FontSize(num ? 6f : 8f);
-                                        Cel($"{lista[i].Medicao}ª", true);
-                                        Cel(V(lista[i].Indicacao), false);
-                                        var j = i + metade;
-                                        if (j < lista.Count) { Cel($"{lista[j].Medicao}ª", true); Cel(V(lista[j].Indicacao), false); }
-                                        else { Cel("", true); Cel("", false); }
+                                        foreach (var _ in d.Repetibilidade) x.RelativeColumn();
+                                    });
+                                    var lista = d.Repetibilidade;
+                                    for (int i = 0; i < lista.Count; i++)
+                                    {
+                                        var divisor = i < lista.Count - 1;
+                                        (divisor ? t.Cell().BorderRight(0.4f).BorderColor(borda) : t.Cell())
+                                            .Padding(2f).AlignCenter().AlignMiddle()
+                                            .Text(V(lista[i].Indicacao)).FontSize(8f);
                                     }
                                 });
                             }
@@ -1888,7 +1935,7 @@ public static class GeradorPdf
                            .FontSize(5.5f).Italic().FontColor("#b02a37");
 
                     // ── Padrões utilizados ──
-                    Titulo("PADRÕES DE TRABALHO UTILIZADOS");
+                    Titulo("RASTREABILIDADE — PADRÕES DE TRABALHO UTILIZADOS");
                     col.Item().Table(t =>
                     {
                         t.ColumnsDefinition(c => { c.RelativeColumn(2.3f); c.RelativeColumn(0.6f);
