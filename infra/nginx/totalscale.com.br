@@ -1,0 +1,88 @@
+# ── Certificados (TSCert) — domínio Total Scale ──
+server {
+    server_name certificados.totalscale.com.br;
+    client_max_body_size 25m;
+    root /var/www/manutencao;
+    error_page 502 503 504 = @manutencao;
+    location @manutencao {
+        default_type text/html;
+        add_header Retry-After 30 always;
+        add_header Cache-Control "no-store" always;
+        try_files /manutencao.html =503;
+    }
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 3s;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+    }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/certificados.totalscale.com.br/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/certificados.totalscale.com.br/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+# ── Portal do cliente — domínio Total Scale ──
+server {
+    server_name portalclientes.totalscale.com.br;
+    client_max_body_size 25m;
+    root /var/www/manutencao;
+    error_page 502 503 504 = @manutencao;
+    location @manutencao {
+        default_type text/html;
+        add_header Retry-After 30 always;
+        add_header Cache-Control "no-store" always;
+        try_files /manutencao.html =503;
+    }
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 3s;
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+    }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/portalclientes.totalscale.com.br/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/portalclientes.totalscale.com.br/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+server {
+    if ($host = certificados.totalscale.com.br) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name certificados.totalscale.com.br;
+    return 404; # managed by Certbot
+
+
+}
+server {
+    if ($host = portalclientes.totalscale.com.br) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name portalclientes.totalscale.com.br;
+    return 404; # managed by Certbot
+
+
+}

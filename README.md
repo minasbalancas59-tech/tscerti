@@ -62,6 +62,18 @@ periódica de disco.
 Retenção de 60 dias no Drive. O código também vai para o GitHub a cada
 `git push`.
 
+A cada 5 dias (`crontab -l`), `testar-restauracao.sh` sobe um Postgres
+temporário isolado, restaura o dump mais recente nele e compara com a
+produção — o worker manda o resultado por e-mail pros super-admins
+sozinho (ok ou falhou), sem precisar de nada manual.
+
+### Se o servidor morrer: veja [`RESTAURACAO.md`](RESTAURACAO.md)
+
+Passo a passo completo pra reconstruir tudo numa VPS nova — do
+Ubuntu limpo até os domínios respondendo de novo (Linux, Docker,
+nginx, certbot, restaurar banco/arquivos, DNS). As configs reais do
+nginx em produção ficam versionadas em `infra/nginx/`.
+
 ## Pontos de atenção
 
 - **RLS**: a API executa `SET app.empresa_id` a cada request com o valor
