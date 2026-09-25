@@ -659,7 +659,9 @@ function avisoPontoTrabalho() {
     </div>
     <div style="text-align:right;margin-top:4px">
       <button style="background:none;border:0;cursor:pointer;font-size:13px;
-        color:#43607f;text-decoration:underline"
+        color:#43607f;text-decoration:underline" onclick="ajuda('ponto_trabalho')">Saiba mais</button>
+      <button style="background:none;border:0;cursor:pointer;font-size:13px;
+        color:#43607f;text-decoration:underline;margin-left:10px"
         onclick="localStorage.setItem('aviso_ponto_trabalho_visto','1');
                  this.closest('#aviso-ponto-trabalho').remove()">Entendi, não mostrar de novo</button>
     </div>`;
@@ -11799,7 +11801,8 @@ async function renderConfig() {
         já usa sempre o valor real. Peso sem a incerteza cadastrada continua caindo na
         aproximação por classe, mesmo com esta opção ligada.</p>
       <label class="chk"><input type="checkbox" id="cf-ponto-trab" ${sim(c.usar_ponto_trabalho)}>
-        Usar ponto de trabalho nas cargas sugeridas</label>
+        Usar ponto de trabalho nas cargas sugeridas
+        <button type="button" class="btn-ajuda" onclick="ajuda('ponto_trabalho')" title="Como funciona o cálculo">?</button></label>
       <p class="dica" style="margin-top:-4px">Na primeira calibração de cada balança, pergunta
         até que carga ela será realmente testada (pode ser menor que a capacidade nominal, quando
         não há peso-padrão suficiente pra chegar no limite do equipamento). As cargas sugeridas
@@ -12878,7 +12881,8 @@ function pedirPontoTrabalho(balanca) {
     const corpo = `
       <p class="dica">Até que carga esta balança será realmente testada? Pode ser
         menor que a capacidade, se não houver peso-padrão suficiente pra chegar no
-        limite do equipamento. Fica salvo pra não perguntar de novo.</p>
+        limite do equipamento. Fica salvo pra não perguntar de novo.
+        <button type="button" class="btn-ajuda" onclick="ajuda('ponto_trabalho')" title="Como funciona o cálculo">?</button></p>
       <label>Ponto de trabalho (${esc(un)})
         <input type="number" step="any" inputmode="decimal" id="pt-trab-input"
           value="${balanca.capacidade}" class="wiz-campo"></label>`;
@@ -13206,6 +13210,85 @@ const AJUDA = {
       <p>Coloca-se uma <b>carga de referência</b> no prato e, sobre ela, adiciona-se
       <b>uma divisão (e)</b>. O display deve acompanhar, mudando exatamente esse valor.</p>
       <p>Exemplo: referência 1000, adição de 1 (uma divisão), o display deve marcar 1001.</p>`
+  },
+  ponto_trabalho: {
+    titulo: 'Ponto de trabalho e cargas redondas',
+    corpo: `<p>Quando a empresa liga <b>"Usar ponto de trabalho nas cargas
+      sugeridas"</b> (Configurações → Conformidade), o sistema para de sugerir
+      cargas como 25/50/75/100% da capacidade — que geram valores quebrados
+      (ex.: 37,60 kg) quando a capacidade não é múltiplo de 4 — e passa a
+      calcular degraus <b>redondos</b>, mirando o <b>ponto de trabalho</b> da
+      balança (carga máxima que será realmente testada, perguntada na 1ª
+      calibração) em vez da capacidade cheia.</p>
+
+      <p><b>⚙️ Como o cálculo funciona</b></p>
+      <svg viewBox="0 0 420 300" style="width:100%;max-width:400px;display:block;margin:8px auto">
+        <defs>
+          <marker id="seta-ajuda" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#5a7183"/>
+          </marker>
+        </defs>
+        <g font-family="system-ui,sans-serif" font-size="11" fill="#2c3e50">
+          <rect x="10" y="4" width="400" height="30" rx="6" fill="#eef3f8" stroke="#5a7183"/>
+          <text x="210" y="23" text-anchor="middle">Alvo: ponto de trabalho (ou capacidade)</text>
+          <line x1="210" y1="34" x2="210" y2="50" stroke="#5a7183" marker-end="url(#seta-ajuda)"/>
+
+          <rect x="10" y="50" width="400" height="30" rx="6" fill="#eef3f8" stroke="#5a7183"/>
+          <text x="210" y="69" text-anchor="middle">Degrau ideal = alvo ÷ 4</text>
+          <line x1="210" y1="80" x2="210" y2="96" stroke="#5a7183" marker-end="url(#seta-ajuda)"/>
+
+          <rect x="10" y="96" width="400" height="30" rx="6" fill="#eef3f8" stroke="#5a7183"/>
+          <text x="210" y="115" text-anchor="middle">Arredonda p/ potência de 10 mais próxima</text>
+          <line x1="210" y1="126" x2="210" y2="142" stroke="#5a7183" marker-end="url(#seta-ajuda)"/>
+
+          <rect x="10" y="142" width="400" height="30" rx="6" fill="#eef3f8" stroke="#5a7183"/>
+          <text x="210" y="161" text-anchor="middle">Gera múltiplos do degrau até o alvo</text>
+          <line x1="210" y1="172" x2="210" y2="188" stroke="#5a7183" marker-end="url(#seta-ajuda)"/>
+
+          <rect x="10" y="188" width="400" height="30" rx="6" fill="#eef3f8" stroke="#5a7183"/>
+          <text x="210" y="207" text-anchor="middle">Ajusta cada ponto pela resolução (10 × e)</text>
+          <line x1="210" y1="218" x2="210" y2="234" stroke="#5a7183" marker-end="url(#seta-ajuda)"/>
+
+          <rect x="10" y="234" width="400" height="30" rx="6" fill="#e6f0ed" stroke="#1f6f5c"/>
+          <text x="210" y="253" text-anchor="middle" fill="#14493d">Insere a carga mínima (classe × e)</text>
+          <line x1="210" y1="264" x2="210" y2="280" stroke="#5a7183" marker-end="url(#seta-ajuda)"/>
+
+          <rect x="10" y="280" width="400" height="18" rx="6" fill="#1f6f5c"/>
+          <text x="210" y="293" text-anchor="middle" fill="#fff" font-weight="600">Lista final de cargas sugeridas</text>
+        </g>
+      </svg>
+
+      <p style="margin:4px 0 10px;padding:6px 10px;background:#f4f7fa;border-radius:6px">
+        <span class="mono">degrau_ideal = alvo ÷ 4</span><br>
+        <span class="mono">ponto = arredonda(k × degrau) para o múltiplo de 10×e mais próximo</span><br>
+        <span class="mono">carga_mínima = multiplicador_da_classe × e</span></p>
+
+      <p><b>📏 Carga mínima por classe de exatidão</b></p>
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:10px">
+        <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:4px 6px"><b>Classe I</b></td><td style="padding:4px 6px;text-align:right">100 × e</td></tr>
+        <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:4px 6px"><b>Classe II</b></td><td style="padding:4px 6px;text-align:right">50 × e</td></tr>
+        <tr style="border-bottom:1px solid #e3e8ee"><td style="padding:4px 6px"><b>Classe III (ou não informada)</b></td><td style="padding:4px 6px;text-align:right">20 × e</td></tr>
+        <tr><td style="padding:4px 6px"><b>Classe IIII</b></td><td style="padding:4px 6px;text-align:right">10 × e</td></tr>
+      </table>
+
+      <p><b>🔢 Exemplos reais</b></p>
+      <p style="margin:4px 0;padding:6px 10px;background:#f4f7fa;border-radius:6px">
+        Classe III · 150 kg · e = 0,02 kg → <span class="mono">0,40 / 40 / 80 / 120 / 150</span></p>
+      <p style="margin:4px 0;padding:6px 10px;background:#f4f7fa;border-radius:6px">
+        Mesma balança, ponto de trabalho = 120 kg → <span class="mono">0,40 / 30 / 60 / 90 / 120</span></p>
+      <p style="margin:4px 0 10px;padding:6px 10px;background:#f4f7fa;border-radius:6px">
+        Classe III · 50 kg · e = 0,01 kg → <span class="mono">0,20 / 10 / 20 / 30 / 40 / 50</span></p>
+
+      <hr style="margin:12px 0;border:none;border-top:1px solid #e3e8ee">
+      <p><b>⚖️ Balanças multi-intervalo</b><br>
+      Cada ponto usa o <b>e</b> da faixa em que ele cai, não um valor único —
+      igual à carga mínima, que usa o <b>e</b> da primeira faixa.</p>
+
+      <p class="dica" style="margin-top:10px">A sugestão orienta o técnico, mas
+      não substitui o julgamento metrológico: se o jogo de pesos-padrão não
+      permitir compor exatamente um ponto sugerido, registre o valor
+      efetivamente aplicado. Com a opção desligada (padrão), o sistema
+      mantém o método histórico de 25/50/75/100% da capacidade.</p>`
   }
 };
 
@@ -13220,6 +13303,38 @@ function ajuda(chave) {
 function fecharAjuda(ev) {
   if (ev && ev.target.id !== 'modal-ajuda' && ev.type === 'click' && ev.target.closest('.modal-caixa')) return;
   $('#modal-ajuda').classList.add('oculta');
+}
+
+// ── Central de Ajuda: índice navegável dos tópicos já existentes em
+//    AJUDA — não duplica conteúdo, cada linha só chama ajuda(chave).
+const AJUDA_CATEGORIAS = [
+  { titulo: 'Ensaios de calibração', chaves: ['sensibilidade', 'repetibilidade',
+      'indicacao', 'excentricidade', 'criterio', 'exc_na', 'sens_na', 'ponto_trabalho'] },
+  { titulo: 'Cargas e lotes', chaves: ['lote_carga'] },
+  { titulo: 'Pesquisa de satisfação', chaves: ['pesq_config', 'pesq_perguntas',
+      'pesq_previa', 'pesq_envio', 'pesq_acompanhamento'] },
+  { titulo: 'Avisos', chaves: ['avisos_vencimento'] },
+];
+
+function irAjudaCentral() {
+  mostrar('tela-ajuda-central');
+  renderAjudaCentral();
+}
+
+function renderAjudaCentral() {
+  const alvo = $('#ajuda-central-conteudo');
+  alvo.innerHTML = AJUDA_CATEGORIAS.map(cat => {
+    const linhas = cat.chaves.filter(k => AJUDA[k]).map(k => `
+      <tr onclick="ajuda('${k}')" style="cursor:pointer">
+        <td>${esc(AJUDA[k].titulo)}</td>
+        <td style="text-align:right;color:#8a97a3">→</td>
+      </tr>`).join('');
+    return linhas ? `
+      <div class="card">
+        <h3>${esc(cat.titulo)}</h3>
+        <table><tbody>${linhas}</tbody></table>
+      </div>` : '';
+  }).join('');
 }
 
 // ── Ordem de serviço: sugere a última usada ────────────────

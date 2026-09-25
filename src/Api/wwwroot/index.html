@@ -160,6 +160,7 @@
     <div class="barra">
       <h2>Calibrações</h2>
       <div class="barra-btns">
+        <button onclick="irAjudaCentral()">❓ Ajuda</button>
         <button onclick="irChamados()">🎧 Suporte</button>
         <button id="btn-relatorios" onclick="irRelatorios()" style="display:none">📊 Relatórios</button>
         <button onclick="irCadastros()">⚙️ Cadastros</button>
@@ -191,6 +192,15 @@
   <main class="main-largo">
     <div id="sa-conteudo"></div>
   </main>
+</div>
+
+<!-- ══ CENTRAL DE AJUDA ═══════════════════════════════════════ -->
+<div id="tela-ajuda-central" class="tela oculta">
+  <header>
+    <span>❓ <b>Central de Ajuda</b></span>
+    <button onclick="irPainel()">← Voltar</button>
+  </header>
+  <main><div id="ajuda-central-conteudo"></div></main>
 </div>
 
 <!-- ══ RELATÓRIOS ═════════════════════════════════════════════ -->
