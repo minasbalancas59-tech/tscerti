@@ -554,7 +554,6 @@ async function salvarColetaRbc(enviar) {
     })).filter(p => p.leituras.length > 0),
     mobilidade: R.mob.leituras.map(num).filter(x => x != null),
     mobCargaRef: num(R.mob.cargaRef), mobDivisao: num(R.mob.divisao), mobEsperado: num(R.mob.esperado),
-    divisao: Number(plano?.balanca?.divisao_e) || 0.001,
     tempC: num($('#rbc-temp')?.value), pressaoHpa: num($('#rbc-pressao')?.value), umidadePct: num($('#rbc-umid')?.value)
   };
 

@@ -32,7 +32,16 @@ public static class RbcEndpoints
             await using var conn = await Tenant.AbrirConexao(ds, user);
 
             double temp = req.TempC ?? 20, pressao = req.PressaoHpa ?? 1013, umid = req.UmidadePct ?? 50;
-            double divisao = (double)(req.Divisao ?? 0.001m);
+            // Resolução real da balança, vinda do cadastro — nunca confiada
+            // do cliente (mesmo padrão do fluxo Conformidade). Em multi-
+            // intervalo, cada ponto resolve a sua própria divisão mais
+            // abaixo via Metrologia.ResolverEKg (Minas Balanças, 24/09/2026).
+            var bal = await conn.QuerySingleAsync<(Guid Id, decimal DivisaoE, decimal? DivisaoD)>("""
+                SELECT b.id, b.divisao_e, b.divisao_d
+                  FROM certificado ct JOIN balanca b ON b.id = ct.balanca_id
+                 WHERE ct.id = @id
+                """, new { id });
+            var eKgPadrao = bal.DivisaoD ?? bal.DivisaoE;
 
             // limpa tudo do certificado (regrava)
             await conn.ExecuteAsync("DELETE FROM leitura_rbc WHERE certificado_id = @id", new { id });
@@ -184,8 +193,14 @@ public static class RbcEndpoints
                             ? erroExcMax / cargaExcentricidade * (double)ponto.Carga
                             : erroExcMax;
 
+                        // Resolução DESTE ponto: em multi-intervalo, a faixa
+                        // muda por carga (ResolverEKg cobre os dois casos —
+                        // devolve eKgPadrao sozinho quando não há faixas).
+                        var eUsadoPonto = await Metrologia.ResolverEKg(conn, bal.Id, ponto.Carga, eKgPadrao);
+                        double divisaoPonto = (double)eUsadoPonto;
+
                         var orc = IncertezaRbc.Calcular(
-                            leituras, valorConv, divisao, uPadrao, erroExcPonto,
+                            leituras, valorConv, divisaoPonto, uPadrao, erroExcPonto,
                             temp, pressao, umid,
                             (double)(ponto.DensidadePeso ?? 8000),
                             degrausSub, (double)fatorSub);
@@ -350,7 +365,6 @@ public record ColetaRbcRequest(
     List<PosicaoExcRbc>? Excentricidade,
     List<decimal>? Mobilidade,
     decimal? MobCargaRef, decimal? MobDivisao, decimal? MobEsperado,
-    decimal? Divisao,
     double? TempC, double? PressaoHpa, double? UmidadePct);
 
 public record EnviarRbcRequest(string? DataCalibracao,
