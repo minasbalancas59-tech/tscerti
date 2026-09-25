@@ -129,6 +129,19 @@ function fmtUInc(n, casas) {
 const normUnid = u => (u || 'kg').toString().trim().toLowerCase();
 const unid = () => normUnid(plano?.unidade);
 
+// Data de HOJE (ou N dias a partir de hoje) no fuso do NAVEGADOR.
+// NUNCA usar `new Date().toISOString()` sozinho pra pegar "a data de
+// hoje": toISOString() sempre devolve UTC, adiantando a data em até
+// 3h à noite no Brasil (entre ~21h e 23h59 já mostra o dia seguinte).
+// Pegou o "Uso do dia" do super-admin mostrando a data errada à tarde
+// e a data de calibração pré-preenchida errada à noite — helper único
+// pra nunca reproduzir o bug de novo (Minas Balanças, 25/09/2026).
+function hojeLocal(offsetDias = 0) {
+  const d = new Date();
+  if (offsetDias) d.setDate(d.getDate() + offsetDias);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 async function api(caminho, opcoes = {}) {
   const r = await fetch('/api' + caminho, {
     ...opcoes,
@@ -515,7 +528,7 @@ async function irPainel() {
 async function avisoPesosPadrao() {
   try {
     document.getElementById('aviso-pesos')?.remove();
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = hojeLocal();
     if (localStorage.getItem('aviso_pesos_dia') === hoje) return;
 
     const todos = (await api('/pesos')).filter(p => p.ativo);
@@ -664,7 +677,7 @@ async function avisoBackupEmpresa() {
   try {
     document.getElementById('aviso-backup')?.remove();
     const ate = localStorage.getItem('aviso_backup_ate');
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = hojeLocal();
     if (ate && hoje <= ate) return;
     const lista = await api('/empresa/exportacoes');
     const prontas = (lista || []).filter(e => e.status === 'pronto' && e.pronto_em);
@@ -677,7 +690,7 @@ async function avisoBackupEmpresa() {
     const texto = diasDesde === null
       ? 'Você ainda não gerou nenhuma exportação dos dados da empresa.'
       : `Sua última exportação foi há ${diasDesde} dias.`;
-    const em30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const em30 = hojeLocal(30);
     const div = document.createElement('div');
     div.id = 'aviso-backup';
     div.style.cssText = 'margin:0 0 12px;padding:11px 14px;border-radius:10px;' +
@@ -4449,7 +4462,7 @@ let finFiltros = null;
 function finSituacao(c) {
   if (c.status === 'cancelado') return ['CANCELADA', '#8ba0b5', '#f1f5f9'];
   if (c.status === 'pago') return ['PAGA', '#1e7d46', '#e7f5ec'];
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeLocal();
   if (String(c.vencimento).slice(0, 10) < hoje) return ['VENCIDA', '#b02a37', '#fdecee'];
   if (c.emitida_em) return ['EMITIDA', '#164066', '#e7f0f8'];
   return ['PREVISTA', '#856404', '#fff3cd'];
@@ -4625,7 +4638,7 @@ function finPagar(id) {
     <p class="dica">${esc(c.empresa)} · vencimento ${dbrSA(c.vencimento)}</p>
     <div class="form-grid">
       <label>Data do pagamento
-        <input type="date" id="fin-data" value="${new Date().toISOString().slice(0, 10)}"></label>
+        <input type="date" id="fin-data" value="${hojeLocal()}"></label>
       <label>Valor recebido (R$)
         <input type="number" step="0.01" id="fin-valor" value="${Number(c.valor).toFixed(2)}"></label>
     </div>
@@ -5487,7 +5500,7 @@ let _saEmpresasFiltro = null;
 // aparecem primeiro: é onde a falta de acesso indica que o cliente não
 // engatou. Traz junto a lista de quem sumiu. João, 05/09/2026.
 async function renderUsoDiaSA(dia) {
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeLocal();
   dia = dia || hoje;
   $('#sa-conteudo').innerHTML = '<p class="dica">Carregando…</p>';
 
@@ -6927,7 +6940,7 @@ async function exportarErros(modo) {
     const blob = new Blob(['\ufeff' + texto], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `tscert-erros-${new Date().toISOString().substring(0, 10)}.txt`;
+    a.download = `tscert-erros-${hojeLocal()}.txt`;
     document.body.appendChild(a); a.click(); a.remove();
     toast('Arquivo gerado — anexe no chat para análise.', 'ok', 5000);
     return;
@@ -7978,7 +7991,7 @@ function exportarPainelEmail(modo, mascarar) {
     const blob = new Blob(['\ufeff' + texto], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `tscert-painel-emails-${new Date().toISOString().substring(0, 10)}.txt`;
+    a.download = `tscert-painel-emails-${hojeLocal()}.txt`;
     document.body.appendChild(a); a.click(); a.remove();
     toast('Arquivo gerado — anexe no chat para análise.', 'ok', 5000);
     return;
@@ -9325,10 +9338,7 @@ async function liberarEmpresaSA() {
   const n = Number(dias);
   if (isNaN(n) || n < 0 || n > 90) { toast('Informe um número de dias entre 0 e 90.', 'erro'); return; }
   let ate = null;
-  if (n > 0) {
-    const d = new Date(); d.setDate(d.getDate() + n);
-    ate = d.toISOString().substring(0, 10);
-  }
+  if (n > 0) ate = hojeLocal(n);
   try {
     await saApi('/empresas/' + window._saEmpresaId + '/liberar',
       { method: 'PUT', body: JSON.stringify({ ate }) });
@@ -9882,7 +9892,7 @@ async function confirmarCriacaoContrato(btn) {
 }
 
 function formNovaCobranca(contratoId, desc, valor) {
-  const hoje = new Date().toISOString().substring(0, 10);
+  const hoje = hojeLocal();
   const modal = `
     <div class="modal-fundo" onclick="if(event.target===this)this.remove()">
       <div class="modal-caixa" style="max-width:440px">
@@ -13577,7 +13587,7 @@ async function montarTelaEnsaio(rascunho) {
       boxMulti.innerHTML = '';
     }
   }
-  $('#ens-data').value = rascunho?.dataCalibracao || new Date().toISOString().slice(0, 10);
+  $('#ens-data').value = rascunho?.dataCalibracao || hojeLocal();
   $('#ens-temp').value = rascunho?.temperatura ?? '';
   $('#ens-umid').value = rascunho?.umidade ?? '';
   if ($('#ens-pressao')) $('#ens-pressao').value = rascunho?.pressao ?? '';
@@ -14980,7 +14990,7 @@ async function baixarExportacao(id) {
     const blob = await r.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'backup-empresa-' + new Date().toISOString().slice(0, 10) + '.zip';
+    a.download = 'backup-empresa-' + hojeLocal() + '.zip';
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (e) { toast('Falha no download — verifique a conexão', 'erro'); }
